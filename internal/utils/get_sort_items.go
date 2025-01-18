@@ -36,7 +36,7 @@ func FetchAndSortSchemaItemsByIndex(getFunc func(key string) interface{}, key st
 		return indexI < indexJ
 	})
 	jsonData1, err := json.MarshalIndent(items, "", "  ")
-	fmt.Println(string(jsonData1), err)
+	fmt.Println("Sorted schema items by index", string(jsonData1), err)
 	return items, nil
 }
 func FetchAndSortSchemaItemsByIndexList(getFunc func(key string) interface{}, key string) ([]map[string]interface{}, error) {
