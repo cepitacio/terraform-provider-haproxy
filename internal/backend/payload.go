@@ -32,7 +32,6 @@ type BackendPayload struct {
 	Balance            Balance       `json:"balance"`
 	HttpchkParams      HttpchkParams `json:"httpchk_params"`
 	Forwardfor         ForwardFor    `json:"forwardfor"`
-	HttpCheck          HttpCheck     `json:"http-check"`
 }
 
 type Balance struct {
@@ -50,16 +49,6 @@ type HttpchkParams struct {
 
 type ForwardFor struct {
 	Enabled string `json:"enabled"`
-}
-
-type HttpCheck struct {
-	Index   int    `json:"index"`
-	Match   string `json:"match"`
-	Pattern string `json:"pattern"`
-	Type    string `json:"type"`
-	Address string `json:"address"`
-	Port    *int   `json:"port,omitempty"`
-	Method  string `json:"method"`
 }
 
 type Manager struct {

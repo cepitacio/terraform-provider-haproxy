@@ -212,16 +212,6 @@ func ResourceHaproxyFrontend() *schema.Resource {
 							Required:    true,
 							Description: "The index of the acl",
 						},
-						"parent_name": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "The frontend name of the acl",
-						},
-						"parent_type": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "The parent type. Allowed: frontend",
-						},
 						"criterion": {
 							Type:        schema.TypeString,
 							Required:    true,
@@ -241,16 +231,6 @@ func ResourceHaproxyFrontend() *schema.Resource {
 				Description: "A list of httprequest to configure",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"parent_name": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "The name of the parent object",
-						},
-						"parent_type": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "The type of the parent object. Allowed: frontend",
-						},
 						"index": {
 							Type:        schema.TypeInt,
 							Required:    true,
@@ -306,16 +286,6 @@ func ResourceHaproxyFrontend() *schema.Resource {
 				Description: "A list of httprequest to configure",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"parent_name": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "The name of the parent object",
-						},
-						"parent_type": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "The type of the parent object. Allowed: frontend",
-						},
 						"index": {
 							Type:        schema.TypeInt,
 							Required:    true,
@@ -372,7 +342,8 @@ func ResourceHaproxyFrontend() *schema.Resource {
 func ResourceHaproxyFrontendCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	frontendName := d.Get("name").(string)
-
+	parentName := frontendName
+	parentType := "frontend"
 	var (
 		// compressionOffload bool = false
 		// // forwardforEnabled     bool = false
@@ -540,7 +511,7 @@ func ResourceHaproxyFrontendCreate(ctx context.Context, d *schema.ResourceData, 
 		for _, item := range aclItems {
 			acl_payloadJSON, _ := json.Marshal(item)
 
-			lastResp, err := aclConfig.AddAnAclConfiguration(acl_payloadJSON, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := aclConfig.AddAnAclConfiguration(acl_payloadJSON, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during acl configuration")
 			if len(diags) > 0 {
 				return lastResp, err
@@ -550,7 +521,7 @@ func ResourceHaproxyFrontendCreate(ctx context.Context, d *schema.ResourceData, 
 		for _, item := range httprequestruleItems {
 			payloadJSON, _ := json.Marshal(item)
 
-			lastResp, err := httprequestruleConfig.AddAHttpRequestRuleConfiguration(payloadJSON, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := httprequestruleConfig.AddAHttpRequestRuleConfiguration(payloadJSON, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during httprequestrule configuration")
 			if diags != nil {
 				return lastResp, err
@@ -559,7 +530,7 @@ func ResourceHaproxyFrontendCreate(ctx context.Context, d *schema.ResourceData, 
 		for _, item := range httpresponseruleItems {
 			payloadJSON, _ := json.Marshal(item)
 
-			lastResp, err := httpresponseruleConfig.AddAHttpResponseRuleConfiguration(payloadJSON, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := httpresponseruleConfig.AddAHttpResponseRuleConfiguration(payloadJSON, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during httpresponserule configuration")
 			if diags != nil {
 				return lastResp, err
@@ -580,6 +551,8 @@ func ResourceHaproxyFrontendCreate(ctx context.Context, d *schema.ResourceData, 
 func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	frontendName := d.Get("name").(string)
+	parentName := frontendName
+	parentType := "frontend"
 	configMap := m.(map[string]interface{})
 	frontendConfig := configMap["frontend"].(*ConfigFrontend)
 
@@ -603,9 +576,7 @@ func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m 
 	aclupdatedItems := make([]map[string]interface{}, 0, len(aclItems))
 	var acllastResp *http.Response
 	aclprocessed := make(map[string]map[string]bool)
-	for _, item := range aclItems {
-		parentName := item["parent_name"].(string)
-		parentType := item["parent_type"].(string)
+	for range aclItems {
 
 		if _, exists := aclprocessed[parentName]; exists {
 			if aclprocessed[parentName][parentType] {
@@ -616,7 +587,7 @@ func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m 
 		}
 
 		aclprocessed[parentName][parentType] = true
-		acllastResp, err = aclresourceConfig.GetAllAclConfiguration(item["parent_name"].(string), item["parent_type"].(string))
+		acllastResp, err = aclresourceConfig.GetAllAclConfiguration(parentName, parentType)
 		diags = utils.HandleHTTPResponse(acllastResp, err, "Error during acl configuration")
 		if diags != nil {
 			return diags
@@ -629,12 +600,10 @@ func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m 
 
 		for _, item := range aclWrapper.Data {
 			updatedacl := map[string]interface{}{
-				"acl_name":    item.AclName,
-				"criterion":   item.Criterion,
-				"index":       item.Index,
-				"value":       item.Value,
-				"parent_name": parentName,
-				"parent_type": parentType,
+				"acl_name":  item.AclName,
+				"criterion": item.Criterion,
+				"index":     item.Index,
+				"value":     item.Value,
 			}
 			aclupdatedItems = append(aclupdatedItems, updatedacl)
 		}
@@ -657,9 +626,7 @@ func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m 
 	httprequestruleupdatedItems := make([]map[string]interface{}, 0, len(httprequestruleItems))
 	var httprequestrulelastResp *http.Response
 	httprequestruleprocessed := make(map[string]map[string]bool)
-	for _, item := range httprequestruleItems {
-		parentName := item["parent_name"].(string)
-		parentType := item["parent_type"].(string)
+	for range httprequestruleItems {
 
 		// Check if the pair has already been processed
 		if _, exists := httprequestruleprocessed[parentName]; exists {
@@ -674,7 +641,7 @@ func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m 
 
 		// Mark the pair as processed
 		httprequestruleprocessed[parentName][parentType] = true
-		httprequestrulelastResp, err = httprequestruleresourceConfig.GetAllHttpRequestRuleConfiguration(item["parent_name"].(string), item["parent_type"].(string))
+		httprequestrulelastResp, err = httprequestruleresourceConfig.GetAllHttpRequestRuleConfiguration(parentName, parentType)
 		diags = utils.HandleHTTPResponse(httprequestrulelastResp, err, "Error during httpresponserule configuration")
 		if diags != nil {
 			return diags
@@ -688,8 +655,6 @@ func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m 
 		// Iterate over aclWrapper.Data and process
 		for _, item := range httprequestrulesWrapper.Data {
 			updatedHttprequestrule := map[string]interface{}{
-				"parent_name": parentName,
-				"parent_type": parentType,
 				"index":       item.Index,
 				"type":        item.Type,
 				"cond":        item.Cond,
@@ -720,9 +685,7 @@ func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m 
 	httpresponseruleupdatedItems := make([]map[string]interface{}, 0, len(httpresonseruleItems))
 	var httpresponserulelastResp *http.Response
 	httpresponseruleprocessed := make(map[string]map[string]bool)
-	for _, item := range httpresonseruleItems {
-		parentName := item["parent_name"].(string)
-		parentType := item["parent_type"].(string)
+	for range httpresonseruleItems {
 
 		// Check if the pair has already been processed
 		if _, exists := httpresponseruleprocessed[parentName]; exists {
@@ -737,7 +700,7 @@ func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m 
 
 		// Mark the pair as processed
 		httpresponseruleprocessed[parentName][parentType] = true
-		httpresponserulelastResp, err = httpresponseruleresourceConfig.GetAllHttpResponseRuleConfiguration(item["parent_name"].(string), item["parent_type"].(string))
+		httpresponserulelastResp, err = httpresponseruleresourceConfig.GetAllHttpResponseRuleConfiguration(parentName, parentType)
 		diags = utils.HandleHTTPResponse(httpresponserulelastResp, err, "Error during httpresponserule configuration")
 		if diags != nil {
 			return diags
@@ -751,8 +714,6 @@ func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m 
 		// Iterate over aclWrapper.Data and process
 		for _, item := range httpreponserulesWrapper.Data {
 			updatedHttprequestrule := map[string]interface{}{
-				"parent_name": parentName,
-				"parent_type": parentType,
 				"index":       item.Index,
 				"type":        item.Type,
 				"cond":        item.Cond,
@@ -836,6 +797,8 @@ func ResourceHaproxyFrontendRead(ctx context.Context, d *schema.ResourceData, m 
 func ResourceHaproxyFrontendUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	frontendName := d.Get("name").(string)
+	parentName := frontendName
+	parentType := "frontend"
 	// acceptInvalidHttpRequest := d.Get("accept_invalid_http_request").(string)
 	// httpslog := d.Get("httpslog").(bool)
 	// httpUseProxyHeader := d.Get("http_use_proxy_header").(bool)
@@ -1013,7 +976,7 @@ func ResourceHaproxyFrontendUpdate(ctx context.Context, d *schema.ResourceData, 
 		}
 
 		for _, item := range aclItemUpdates {
-			lastResp, err := utils.ProcessUpdateResourceswithIndex(aclConfig, "UpdateAnAclConfiguration", []map[string]interface{}{item}, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithIndex(aclConfig, "UpdateAnAclConfiguration", []map[string]interface{}{item}, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during Upated ACL configuration")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -1021,7 +984,7 @@ func ResourceHaproxyFrontendUpdate(ctx context.Context, d *schema.ResourceData, 
 			}
 		}
 		for _, item := range aclItemCreations {
-			lastResp, err := utils.ProcessUpdateResourceswithoutIndex(aclConfig, "AddAnAclConfiguration", item, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithoutIndex(aclConfig, "AddAnAclConfiguration", item, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during Add ACL configuration")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -1029,7 +992,7 @@ func ResourceHaproxyFrontendUpdate(ctx context.Context, d *schema.ResourceData, 
 			}
 		}
 		for _, item := range aclItemDeletions {
-			lastResp, err := utils.ProcessUpdateResourceswithIndex(aclConfig, "DeleteAnAclConfiguration", []map[string]interface{}{item}, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithIndex(aclConfig, "DeleteAnAclConfiguration", []map[string]interface{}{item}, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during Delete ACL configuration")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -1037,7 +1000,7 @@ func ResourceHaproxyFrontendUpdate(ctx context.Context, d *schema.ResourceData, 
 			}
 		}
 		for _, item := range httprequestruleItemUpdates {
-			lastResp, err := utils.ProcessUpdateResourceswithIndex(httprequestrulesConfig, "UpdateAHttpRequestRuleConfiguration", []map[string]interface{}{item}, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithIndex(httprequestrulesConfig, "UpdateAHttpRequestRuleConfiguration", []map[string]interface{}{item}, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during Upated Httprequestrule configuration")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -1045,7 +1008,7 @@ func ResourceHaproxyFrontendUpdate(ctx context.Context, d *schema.ResourceData, 
 			}
 		}
 		for _, item := range httprequestruleItemCreations {
-			lastResp, err := utils.ProcessUpdateResourceswithoutIndex(httprequestrulesConfig, "AddAHttpRequestRuleConfiguration", item, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithoutIndex(httprequestrulesConfig, "AddAHttpRequestRuleConfiguration", item, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during Add Httprequestrule configuration")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -1053,7 +1016,7 @@ func ResourceHaproxyFrontendUpdate(ctx context.Context, d *schema.ResourceData, 
 			}
 		}
 		for _, item := range httprequestruleItemDeletions {
-			lastResp, err := utils.ProcessUpdateResourceswithIndex(httprequestrulesConfig, "DeleteAHttpRequestRuleConfiguration", []map[string]interface{}{item}, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithIndex(httprequestrulesConfig, "DeleteAHttpRequestRuleConfiguration", []map[string]interface{}{item}, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during Delete Httprequestrule configuration")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -1061,7 +1024,7 @@ func ResourceHaproxyFrontendUpdate(ctx context.Context, d *schema.ResourceData, 
 			}
 		}
 		for _, item := range httpresponseruleItemUpdates {
-			lastResp, err := utils.ProcessUpdateResourceswithIndex(httpresponserulesConfig, "UpdateAHttpResponseRuleConfiguration", []map[string]interface{}{item}, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithIndex(httpresponserulesConfig, "UpdateAHttpResponseRuleConfiguration", []map[string]interface{}{item}, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during Upated ACL configuration")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -1069,7 +1032,7 @@ func ResourceHaproxyFrontendUpdate(ctx context.Context, d *schema.ResourceData, 
 			}
 		}
 		for _, item := range httpresponseruleItemCreations {
-			lastResp, err := utils.ProcessUpdateResourceswithoutIndex(httpresponserulesConfig, "AddAHttpResponseRuleConfiguration", item, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithoutIndex(httpresponserulesConfig, "AddAHttpResponseRuleConfiguration", item, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during Add ACL configuration")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -1077,7 +1040,7 @@ func ResourceHaproxyFrontendUpdate(ctx context.Context, d *schema.ResourceData, 
 			}
 		}
 		for _, item := range httpresponseruleItemDeletions {
-			lastResp, err := utils.ProcessUpdateResourceswithIndex(httpresponserulesConfig, "DeleteAHttpResponseRuleConfiguration", []map[string]interface{}{item}, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithIndex(httpresponserulesConfig, "DeleteAHttpResponseRuleConfiguration", []map[string]interface{}{item}, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during Delete Httpresponserule configuration")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)

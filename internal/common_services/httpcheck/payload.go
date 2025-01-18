@@ -18,7 +18,7 @@ type HttpCheckPayload struct {
 	Match   string `json:"match"`
 	Pattern string `json:"pattern"`
 	Type    string `json:"type"`
-	Address string `json:"address"`
+	Addr    string `json:"addr"`
 	Port    *int   `json:"port,omitempty"`
 	Method  string `json:"method"`
 }

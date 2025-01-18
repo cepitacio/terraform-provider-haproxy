@@ -45,6 +45,4 @@ type HttpRequestRulePayload struct {
 	WaitTime    int    `json:"wait_time"`
 	RedirType   string `json:"redir_type"`
 	RedirValue  string `json:"redir_value"`
-	ParentName  string `json:"parent_name"`
-	ParentType  string `json:"parent_type"`
 }
