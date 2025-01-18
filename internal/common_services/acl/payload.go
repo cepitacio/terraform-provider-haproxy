@@ -14,10 +14,8 @@ type AclWrapper struct {
 }
 
 type AclPayload struct {
-	AclName    string `json:"acl_name"`
-	Criterion  string `json:"criterion"`
-	Index      int    `json:"index"`
-	Value      string `json:"value"`
-	ParentName string `json:"parent_name"`
-	ParentType string `json:"parent_type"`
+	AclName   string `json:"acl_name"`
+	Criterion string `json:"criterion"`
+	Index     int    `json:"index"`
+	Value     string `json:"value"`
 }

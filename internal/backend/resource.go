@@ -161,16 +161,6 @@ func ResourceHaproxyBackend() *schema.Resource {
 				Description: "httpchecks feature for backend",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"parent_name": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "The name of the backend for httpcheck",
-						},
-						"parent_type": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "The parent type of the backend for httpcheck. Allowed: backend",
-						},
 						"index": {
 							Type:        schema.TypeInt,
 							Required:    true,
@@ -214,6 +204,8 @@ func ResourceHaproxyBackend() *schema.Resource {
 func resourceHaproxyBackendCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	backendName := d.Get("name").(string)
+	parentName := backendName
+	parentType := "backend"
 
 	var (
 		algorithm string
@@ -326,8 +318,8 @@ func resourceHaproxyBackendCreate(ctx context.Context, d *schema.ResourceData, m
 
 		for _, item := range httpcheckItems {
 			httpcheck_payloadJSON, _ := json.Marshal(item)
-			lastResp, err := httpcheckConfig.AddAHttpCheckConfiguration(httpcheck_payloadJSON, transactionID, item["parent_name"].(string), item["parent_type"].(string))
-			diags = utils.HandleHTTPResponse(lastResp, err, fmt.Sprintf("Error during creating httpcheck configuration for parent: %s", item["parent_name"].(string)))
+			lastResp, err := httpcheckConfig.AddAHttpCheckConfiguration(httpcheck_payloadJSON, transactionID, parentName, parentType)
+			diags = utils.HandleHTTPResponse(lastResp, err, fmt.Sprintf("Error during creating httpcheck configuration for parent: %s", parentName))
 			if len(diags) > 0 {
 				return lastResp, err
 			}
@@ -348,7 +340,8 @@ func resourceHaproxyBackendCreate(ctx context.Context, d *schema.ResourceData, m
 func resourceHaproxyBackendRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	backendName := d.Get("name").(string)
-
+	parentName := backendName
+	parentType := "backend"
 	configMap := m.(map[string]interface{})
 	backendConfig := configMap["backend"].(*ConfigBackend)
 
@@ -370,20 +363,17 @@ func resourceHaproxyBackendRead(ctx context.Context, d *schema.ResourceData, m i
 	updatedItems := make([]map[string]interface{}, 0, len(httpcheckItems))
 	var lastResp *http.Response
 	processed := make(map[string]map[string]bool)
-	for _, item := range httpcheckItems {
-		parentName := item["parent_name"].(string)
-		parentType := item["parent_type"].(string)
-
+	for range httpcheckItems {
 		if _, exists := processed[parentName]; exists {
-			if processed[parentName][parentType] {
+			if processed[backendName][parentType] {
 				continue
 			}
 		} else {
 			processed[parentName] = make(map[string]bool)
 		}
 
-		processed[parentName][parentType] = true
-		lastResp, err = httpcheckConfig.GetAllHttpCheckConfiguration(item["parent_name"].(string), item["parent_type"].(string))
+		processed[parentName]["backend"] = true
+		lastResp, err = httpcheckConfig.GetAllHttpCheckConfiguration(parentName, parentType)
 		diags = utils.HandleHTTPResponse(lastResp, err, "Error during httpcheck configuration")
 		if diags != nil {
 			return diags
@@ -396,13 +386,12 @@ func resourceHaproxyBackendRead(ctx context.Context, d *schema.ResourceData, m i
 
 		for _, item := range httpcheckWrapper.Data {
 			updatedhttpcheck := map[string]interface{}{
-				"index":       item.Index,
-				"match":       item.Match,
-				"pattern":     item.Pattern,
-				"type":        item.Type,
-				"method":      item.Method,
-				"parent_name": parentName,
-				"parent_type": parentType,
+				"index":   item.Index,
+				"match":   item.Match,
+				"pattern": item.Pattern,
+				"type":    item.Type,
+				"method":  item.Method,
+				"addr":    item.Addr,
 			}
 			updatedItems = append(updatedItems, updatedhttpcheck)
 		}
@@ -501,6 +490,8 @@ func resourceHaproxyBackendRead(ctx context.Context, d *schema.ResourceData, m i
 func resourceHaproxyBackendUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	backendName := d.Get("name").(string)
+	parentName := backendName
+	parentType := "backend"
 
 	var (
 		algorithm string
@@ -609,7 +600,7 @@ func resourceHaproxyBackendUpdate(ctx context.Context, d *schema.ResourceData, m
 		}
 
 		for _, item := range httpcheckItemUpdates {
-			lastResp, err := utils.ProcessUpdateResourceswithIndex(resourceConfig, "UpdateAHttpCheckConfiguration", []map[string]interface{}{item}, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithIndex(resourceConfig, "UpdateAHttpCheckConfiguration", []map[string]interface{}{item}, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during update. httpcheck configuration update failed.")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -617,7 +608,7 @@ func resourceHaproxyBackendUpdate(ctx context.Context, d *schema.ResourceData, m
 			}
 		}
 		for _, item := range httpcheckItemCreations {
-			lastResp, err := utils.ProcessUpdateResourceswithoutIndex(resourceConfig, "AddAHttpCheckConfiguration", item, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithoutIndex(resourceConfig, "AddAHttpCheckConfiguration", item, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during update. httpcheck configuration updated failed.")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -625,7 +616,7 @@ func resourceHaproxyBackendUpdate(ctx context.Context, d *schema.ResourceData, m
 			}
 		}
 		for _, item := range httpcheckItemDeletions {
-			lastResp, err := utils.ProcessUpdateResourceswithIndex(resourceConfig, "DeleteAHttpCheckConfiguration", []map[string]interface{}{item}, transactionID, item["parent_name"].(string), item["parent_type"].(string))
+			lastResp, err := utils.ProcessUpdateResourceswithIndex(resourceConfig, "DeleteAHttpCheckConfiguration", []map[string]interface{}{item}, transactionID, parentName, parentType)
 			diags = utils.HandleHTTPResponse(lastResp, err, "Error during update. httpcheck configuration delete failed.")
 			if len(diags) > 0 {
 				utils.PrintDiags(diags)
@@ -636,7 +627,7 @@ func resourceHaproxyBackendUpdate(ctx context.Context, d *schema.ResourceData, m
 		return resp_backend, err
 	})
 
-	diags = utils.HandleHTTPResponse(resp, err, "Error during updating acl configuration")
+	diags = utils.HandleHTTPResponse(resp, err, "Error during updating httpcheck configuration")
 	if len(diags) > 0 {
 		return diags
 	}
@@ -656,7 +647,7 @@ func resourceHaproxyBackendDelete(ctx context.Context, d *schema.ResourceData, m
 		return backendConfig.DeleteBackendConfiguration(backendName, transactionID)
 	})
 
-	diags = utils.HandleHTTPResponse(resp, err, "Error during deleting acl configuration")
+	diags = utils.HandleHTTPResponse(resp, err, "Error during deleting httpcheck configuration")
 	if len(diags) > 0 {
 		return diags
 	}
