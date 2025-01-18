@@ -23,19 +23,13 @@ resource "haproxy_backend" "backend" {
     algorithm = "round-robin"
   }
 
-  dynamic "httpchk_params" {
-    content {
-      method = "GET"
-      uri    = "/health"
-    }
+  httpchk_params {
+    method = "GET"
+    uri    = "/health"
   }
 
-  dynamic "httpcheck" {
-    content {
-      parent_name = "backend_test"
-      parent_type = "backend"
-      index       = 1
-    }
+  httpcheck {
+    index       = 0
   }
 }
 ```
