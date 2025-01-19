@@ -20,24 +20,24 @@ resource "haproxy_frontend" "frontend" {
   monitor_uri     = "/fe-status-check"
 
   monitor_fail {
-    cond        = "if"
-    cond_test   = "nbsrv(frontend_test)"
+      cond        = "if"
+      cond_test   = "nbsrv(frontend_test)"
   }
 
   acl {
     acl_name    = "acl_test"
-    index       = 0
+    index       = 1
     criterion   = "hdr(host)"
     value       = "example.com"
   }
 
   httprequestrule {
-      index       = 0
-      type        = "allow"
+    index       = 1
+    type        = "allow"
   }
 
   httpresponserule {
-    index       = 0
+    index       = 1
     type        = "set-header"
   }
 
@@ -90,8 +90,6 @@ Required:
 - `acl_name` (String) The acl name. Pattern: ^[^\s]+$
 - `criterion` (String) The criterion. Pattern: ^[^\s]+$
 - `index` (Number) The index of the acl
-- `parent_name` (String) The frontend name of the acl
-- `parent_type` (String) The parent type. Allowed: frontend
 - `value` (String) The value of the criterion
 
 
@@ -101,8 +99,6 @@ Required:
 Required:
 
 - `index` (Number) The index of the httpresponserules in the parent object starting at 0
-- `parent_name` (String) The name of the parent object
-- `parent_type` (String) The type of the parent object. Allowed: frontend
 - `type` (String) The type of the check, Allowed: Allowed: add-acl|add-header|allow|auth|cache-use|capture|del-acl|del-header|del-map|deny|disable-l7-retry|do-resolve|early-hint|lua|normalize-uri|redirect|reject|replace-header|replace-path|replace-pathq|replace-uri|replace-value|return|sc-add-gpc|sc-inc-gpc|sc-inc-gpc0|sc-inc-gpc1|sc-set-gpt|sc-set-gpt0|send-spoe-group|set-dst|set-dst-port|set-header|set-log-level|set-map|set-mark|set-method|set-nice|set-path|set-pathq|set-priority-class|set-priority-offset|set-query|set-src|set-src-port|set-timeout|set-tos|set-uri|set-var|silent-drop|strict-mode|tarpit|track-sc0|track-sc1|track-sc2|track-sc|unset-var|use-service|wait-for-body|wait-for-handshake|set-bandwidth-limit
 
 Optional:
@@ -121,8 +117,6 @@ Optional:
 Required:
 
 - `index` (Number) The index of the httpresponserules in the parent object starting at 0
-- `parent_name` (String) The name of the parent object
-- `parent_type` (String) The type of the parent object. Allowed: frontend
 - `type` (String) The type of the check, Allowed: Allowed: add-acl|add-header|allow|cache-store|capture|del-acl|del-header|del-map|deny|lua|redirect|replace-header|replace-value|return|sc-add-gpc|sc-inc-gpc|sc-inc-gpc0|sc-inc-gpc1|sc-set-gpt|sc-set-gpt0|send-spoe-group|set-header|set-log-level|set-map|set-mark|set-nice|set-status|set-timeout|set-tos|set-var|set-var-fmt|silent-drop|strict-mode|track-sc0|track-sc1|track-sc2|track-sc|unset-var|wait-for-body|set-bandwidth-limit
 
 Optional:

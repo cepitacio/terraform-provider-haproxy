@@ -5,7 +5,6 @@ resource "haproxy_server" "server" {
   parent_name        = "example-backend"
   parent_type        = "backend"
 
-
   depends_on         = [
     haproxy_backend.backend
   ]
