@@ -29,7 +29,7 @@ resource "haproxy_backend" "backend" {
   }
 
   httpcheck {
-    index       = 0
+    index       = 1
   }
 }
 ```
@@ -86,8 +86,6 @@ Optional:
 Required:
 
 - `index` (Number) The index for httpcheck
-- `parent_name` (String) The name of the backend for httpcheck
-- `parent_type` (String) The parent type of the backend for httpcheck. Allowed: backend
 
 Optional:
 
