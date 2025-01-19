@@ -29,7 +29,7 @@ resource "haproxy_backend" "backend" {
   }
 
   httpcheck {
-    index       = 1
+    index       = 0
   }
 }
 ```
