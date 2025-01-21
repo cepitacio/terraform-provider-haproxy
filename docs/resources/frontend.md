@@ -21,23 +21,32 @@ resource "haproxy_frontend" "frontend" {
 
   monitor_fail {
       cond        = "if"
-      cond_test   = "nbsrv(frontend_test)"
+      cond_test   = "acl_test"
   }
 
   acl {
     acl_name    = "acl_test"
-    index       = 1
-    criterion   = "hdr(host)"
-    value       = "example.com"
+    index       = 0
+    criterion   = nbsrv(backend_test)
+    value       = "lt 1"
+  }
+
+  acl {
+    acl_name    = "denied_ips"
+    index       = 0
+    criterion   = src
+    value       = ""
   }
 
   httprequestrule {
-    index       = 1
-    type        = "allow"
+    index       = 0
+    type        = "deny"
+    cond        = "if"
+    cond_test   = "denied_ips"
   }
 
   httpresponserule {
-    index       = 1
+    index       = 0
     type        = "set-header"
   }
 
