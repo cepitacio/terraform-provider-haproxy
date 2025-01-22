@@ -15,7 +15,7 @@ description: |-
 ```terraform
 resource "haproxy_frontend" "frontend" {
   name            = "frontend_test"
-  backend         = "backend_test"
+  default_backend = "backend_test"
   mode            = "http"
   monitor_uri     = "/fe-status-check"
 
@@ -48,6 +48,8 @@ resource "haproxy_frontend" "frontend" {
   httpresponserule {
     index       = 0
     type        = "set-header"
+    hdr_name    = "Strict-Transport-Security"
+    hdr_format   = "foo"
   }
 
   depends_on = [
