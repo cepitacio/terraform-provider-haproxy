@@ -1,6 +1,6 @@
 resource "haproxy_frontend" "frontend" {
   name            = "frontend_test"
-  backend         = "backend_test"
+  default_backend = "backend_test"
   mode            = "http"
   monitor_uri     = "/fe-status-check"
 
