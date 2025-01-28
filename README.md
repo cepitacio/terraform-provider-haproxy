@@ -14,7 +14,7 @@
 
 ### About This Project
 
-A [Terraform](https://www.terraform.io) provider to manage [HAProxy](https://www.haproxy.com/). It use [HAProxy Data Plane API](https://github.com/haproxytech/dataplaneapi) to manage HAProxy.
+A [Terraform](https://www.terraform.io) provider to manage [HAProxy](https://www.haproxy.com/). It uses [HAProxy Data Plane API](https://github.com/haproxytech/dataplaneapi) to manage HAProxy. This provider is tested with HAProxy version 2.x, up to 2.9.8. Compatibility with HAProxy 3.x is not currently supported due to significant changes, but I plan to add support for version 3 in the future.
 
 ### Data Plane API Installation
 

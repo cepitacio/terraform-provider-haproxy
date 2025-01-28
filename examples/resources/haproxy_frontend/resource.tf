@@ -12,7 +12,7 @@ resource "haproxy_frontend" "frontend" {
   acl {
     acl_name    = "acl_test"
     index       = 0
-    criterion   = nbsrv(backend_test)
+    criterion   = "nbsrv(backend_test)"
     value       = "lt 1"
   }
 
