@@ -36,7 +36,7 @@ resource "haproxy_server" "server" {
 - `name` (String) The name of the server. It must be unique and cannot be changed.
 - `parent_name` (String) The name of the parent object
 - `parent_type` (String) The type of the parent object. Allowed: backend|ring|peers
-- `port` (Number) The port of the server. Constraints: Min 1┃Max 65535
+- `port` (Number) The port of the server. Constraints: Min 1|Max 65535
 
 ### Optional
 
@@ -45,22 +45,22 @@ resource "haproxy_server" "server" {
 - `ciphers` (String) ciphers to support
 - `ciphersuites` (String) ciphersuites to support
 - `fall` (Number) The fall value states that a server will be considered as failed after consecutive unsuccessful health checks.
-- `force_sslv3` (String) State of SSLv3 protocol support for the SSL. Allowed: enabled┃disabled
-- `force_tlsv10` (String) State of TLSv1.0 protocol support for the SSL. Allowed: enabled┃disabled
-- `force_tlsv11` (String) State of TLSv1.1 protocol. Allowed: enabled┃disabled
-- `force_tlsv12` (String) State of TLSv1.2 protocol. Allowed: enabled┃disabled
-- `force_tlsv13` (String) State of TLSv1.3 protocol. Allowed: enabled┃disabled
-- `health_check_port` (Number) The health check port of the server. Constraints: Min 1┃Max 65535
+- `force_sslv3` (String) State of SSLv3 protocol support for the SSL. Allowed: enabled|disabled
+- `force_tlsv10` (String) State of TLSv1.0 protocol support for the SSL. Allowed: enabled|disabled
+- `force_tlsv11` (String) State of TLSv1.1 protocol. Allowed: enabled|disabled
+- `force_tlsv12` (String) State of TLSv1.2 protocol. Allowed: enabled|disabled
+- `force_tlsv13` (String) State of TLSv1.3 protocol. Allowed: enabled|disabled
+- `health_check_port` (Number) The health check port of the server. Constraints: Min 1|Max 65535
 - `inter` (Number) The inter value is the time interval in milliseconds between two consecutive health checks.
 - `rise` (Number) The rise value states that a server will be considered as operational after consecutive successful health checks.
 - `send_proxy` (Boolean) To send a Proxy Protocol header to the backend server. Allowed: enabled|disabled
 - `ssl` (String) Enables ssl
 - `ssl_cafile` (String) The ssl certificate ca file. Pattern: ^[^\s]+$
 - `ssl_certificate` (String) The ssl certificate. Pattern: ^[^\s]+$
-- `ssl_max_ver` (String) The ssl max version. Allowed: SSLv3┃TLSv1.0┃TLSv1.1┃TLSv1.2┃TLSv1.3
-- `ssl_min_ver` (String) The ssl min version. Allowed: SSLv3┃TLSv1.0┃TLSv1.1┃TLSv1.2┃TLSv1.3
-- `ssl_reuse` (String) Reuse ssl existion connection. Allowed: enabled┃disabled
-- `verify` (String) The certificate verification for backend servers. Allowed: none┃required
+- `ssl_max_ver` (String) The ssl max version. Allowed: SSLv3|TLSv1.0|TLSv1.1|TLSv1.2|TLSv1.3
+- `ssl_min_ver` (String) The ssl min version. Allowed: SSLv3|TLSv1.0|TLSv1.1|TLSv1.2|TLSv1.3
+- `ssl_reuse` (String) Reuse ssl existion connection. Allowed: enabled|disabled
+- `verify` (String) The certificate verification for backend servers. Allowed: none|required
 - `weight` (Number) The weight of the server
 
 ### Read-Only
