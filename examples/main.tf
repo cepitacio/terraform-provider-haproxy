@@ -99,29 +99,7 @@ resource "haproxy_backend" "backend" {
   # tlsv12 = true   # Enable TLSv1.2
   # tlsv13 = true   # Enable TLSv1.3
 
-  server {
-    name    = "server1"
-    address = "127.0.0.1"
-    port    = 8080
-    ssl     = true
-    
-    # Deprecated fields (API v2)
-    no_sslv3  = true
-    no_tlsv10 = true
-    
-    # New v3 fields (API v3)
-    # sslv3  = false
-    # tlsv10 = false
-    
-    # Force specific versions (API v2)
-    force_tlsv12 = true
-    force_tlsv13 = true
-    force_strict_sni = "enabled"
-    
-    # New v3 fields for version control
-    # tlsv12 = true
-    # tlsv13 = true
-  }
+  # Note: Servers are managed as separate haproxy_server resources, not nested blocks
 
   httpcheck {
     index  = 0
