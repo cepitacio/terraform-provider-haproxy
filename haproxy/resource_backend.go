@@ -51,6 +51,96 @@ type backendResourceModel struct {
 	TarpitTimeout      types.Int64  `tfsdk:"tarpit_timeout"`
 	CheckCache         types.String `tfsdk:"checkcache"`
 	Retries            types.Int64  `tfsdk:"retries"`
+	
+	// SSL/TLS Configuration Fields
+	// Deprecated fields (API v2) - will be removed in future
+	NoSslv3            types.Bool   `tfsdk:"no_sslv3"`
+	NoTlsv10           types.Bool   `tfsdk:"no_tlsv10"`
+	NoTlsv11           types.Bool   `tfsdk:"no_tlsv11"`
+	NoTlsv12           types.Bool   `tfsdk:"no_tlsv12"`
+	NoTlsv13           types.Bool   `tfsdk:"no_tlsv13"`
+	ForceSslv3         types.Bool   `tfsdk:"force_sslv3"`
+	ForceTlsv10        types.Bool   `tfsdk:"force_tlsv10"`
+	ForceTlsv11        types.Bool   `tfsdk:"force_tlsv11"`
+	ForceTlsv12        types.Bool   `tfsdk:"force_tlsv12"`
+	ForceTlsv13        types.Bool   `tfsdk:"force_tlsv13"`
+	ForceStrictSni     types.String `tfsdk:"force_strict_sni"`
+	
+	// New v3 fields (non-deprecated)
+	Sslv3              types.Bool   `tfsdk:"sslv3"`
+	Tlsv10             types.Bool   `tfsdk:"tlsv10"`
+	Tlsv11             types.Bool   `tfsdk:"tlsv11"`
+	Tlsv12             types.Bool   `tfsdk:"tlsv12"`
+	Tlsv13             types.Bool   `tfsdk:"tlsv13"`
+	
+	// SSL/TLS Configuration
+	Ssl                types.Bool   `tfsdk:"ssl"`
+	SslCafile          types.String `tfsdk:"ssl_cafile"`
+	SslCertificate     types.String `tfsdk:"ssl_certificate"`
+	SslMaxVer          types.String `tfsdk:"ssl_max_ver"`
+	SslMinVer          types.String `tfsdk:"ssl_min_ver"`
+	SslReuse           types.String `tfsdk:"ssl_reuse"`
+	Ciphers            types.String `tfsdk:"ciphers"`
+	Ciphersuites       types.String `tfsdk:"ciphersuites"`
+	Verify             types.String `tfsdk:"verify"`
+}
+
+func (b backendResourceModel) attrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"name":                 types.StringType,
+		"mode":                 types.StringType,
+		"forwardfor":           types.ObjectType{},
+		"balance":              types.ObjectType{},
+		"httpchk_params":       types.ObjectType{},
+		"http_connection_mode": types.StringType,
+		"acl":                  types.ListType{ElemType: types.ObjectType{}},
+		"httprequestrule":      types.ListType{ElemType: types.ObjectType{}},
+		"httpresponserule":     types.ListType{ElemType: types.ObjectType{}},
+		"tcprequestrule":       types.ListType{ElemType: types.ObjectType{}},
+		"tcpresponserule":      types.ListType{ElemType: types.ObjectType{}},
+		"httpcheck":            types.ListType{ElemType: types.ObjectType{}},
+		"tcp_check":            types.ListType{ElemType: types.ObjectType{}},
+		"adv_check":            types.StringType,
+		"server_timeout":       types.Int64Type,
+		"check_timeout":        types.Int64Type,
+		"connect_timeout":      types.Int64Type,
+		"queue_timeout":        types.Int64Type,
+		"tunnel_timeout":       types.Int64Type,
+		"tarpit_timeout":       types.Int64Type,
+		"checkcache":           types.StringType,
+		"retries":              types.Int64Type,
+		
+		// SSL/TLS Configuration Fields
+		"no_sslv3":            types.BoolType,
+		"no_tlsv10":           types.BoolType,
+		"no_tlsv11":           types.BoolType,
+		"no_tlsv12":           types.BoolType,
+		"no_tlsv13":           types.BoolType,
+		"force_sslv3":         types.BoolType,
+		"force_tlsv10":        types.BoolType,
+		"force_tlsv11":        types.BoolType,
+		"force_tlsv12":        types.BoolType,
+		"force_tlsv13":        types.BoolType,
+		"force_strict_sni":    types.StringType,
+		
+		// New v3 fields (non-deprecated)
+		"sslv3":               types.BoolType,
+		"tlsv10":              types.BoolType,
+		"tlsv11":              types.BoolType,
+		"tlsv12":              types.BoolType,
+		"tlsv13":              types.BoolType,
+		
+		// SSL/TLS Configuration
+		"ssl":                 types.BoolType,
+		"ssl_cafile":          types.StringType,
+		"ssl_certificate":     types.StringType,
+		"ssl_max_ver":         types.StringType,
+		"ssl_min_ver":         types.StringType,
+		"ssl_reuse":           types.StringType,
+		"ciphers":             types.StringType,
+		"ciphersuites":        types.StringType,
+		"verify":              types.StringType,
+	}
 }
 
 // backendAclResourceModel maps the resource schema data.
@@ -1051,6 +1141,112 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
+			
+			// SSL/TLS Configuration Fields
+			"no_sslv3": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable SSLv3 protocol support. DEPRECATED: Use 'sslv3' field instead in Data Plane API v3",
+			},
+			"no_tlsv10": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable TLSv1.0 protocol support. DEPRECATED: Use 'tlsv10' field instead in Data Plane API v3",
+			},
+			"no_tlsv11": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable TLSv1.1 protocol support. DEPRECATED: Use 'tlsv11' field instead in Data Plane API v3",
+			},
+			"no_tlsv12": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable TLSv1.2 protocol support. DEPRECATED: Use 'tlsv12' field instead in Data Plane API v3",
+			},
+			"no_tlsv13": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable TLSv1.3 protocol support. DEPRECATED: Use 'tlsv13' field instead in Data Plane API v3",
+			},
+			"force_sslv3": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Force SSLv3 protocol support. DEPRECATED: Use 'sslv3' field instead in Data Plane API v3",
+			},
+			"force_tlsv10": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Force TLSv1.0 protocol support. DEPRECATED: Use 'tlsv10' field instead in Data Plane API v3",
+			},
+			"force_tlsv11": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Force TLSv1.1 protocol support. DEPRECATED: Use 'tlsv11' field instead in Data Plane API v3",
+			},
+			"force_tlsv12": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Force TLSv1.2 protocol support. DEPRECATED: Use 'tlsv12' field instead in Data Plane API v3",
+			},
+			"force_tlsv13": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Force TLSv1.3 protocol support. DEPRECATED: Use 'tlsv13' field instead in Data Plane API v3",
+			},
+			"force_strict_sni": schema.StringAttribute{
+				Optional:    true,
+				Description: "Force strict SNI. DEPRECATED: Use 'strict_sni' field instead in Data Plane API v3. Allowed: enabled|disabled",
+			},
+			
+			// New v3 fields (non-deprecated)
+			"sslv3": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable SSLv3 protocol support (v3 API, replaces no_sslv3)",
+			},
+			"tlsv10": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.0 protocol support (v3 API, replaces no_tlsv10)",
+			},
+			"tlsv11": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.1 protocol support (v3 API, replaces no_tlsv11)",
+			},
+			"tlsv12": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.2 protocol support (v3 API, replaces no_tlsv12)",
+			},
+			"tlsv13": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.3 protocol support (v3 API, replaces no_tlsv13)",
+			},
+			
+			// SSL/TLS Configuration
+			"ssl": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable SSL for backend connections",
+			},
+			"ssl_cafile": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL CA file path. Pattern: ^[^\\s]+$",
+			},
+			"ssl_certificate": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL certificate path. Pattern: ^[^\\s]+$",
+			},
+			"ssl_max_ver": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL maximum version. Allowed: SSLv3|TLSv1.0|TLSv1.1|TLSv1.2|TLSv1.3",
+			},
+			"ssl_min_ver": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL minimum version. Allowed: SSLv3|TLSv1.0|TLSv1.1|TLSv1.2|TLSv1.3",
+			},
+			"ssl_reuse": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL session reuse. Allowed: enabled|disabled",
+			},
+			"ciphers": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL ciphers to support",
+			},
+			"ciphersuites": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL ciphersuites to support",
+			},
+			"verify": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL certificate verification. Allowed: none|required",
+			},
 		},
 	}
 }
@@ -1073,7 +1269,7 @@ func (r *backendResource) Configure(_ context.Context, req resource.ConfigureReq
 	r.client = client
 }
 
-// Create a new resource.
+	// Create a new resource.
 func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan backendResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -1103,6 +1299,38 @@ func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest
 		TarpitTimeout:      plan.TarpitTimeout.ValueInt64(),
 		CheckCache:         plan.CheckCache.ValueString(),
 		Retries:            plan.Retries.ValueInt64(),
+		
+		// SSL/TLS Configuration Fields
+		// Deprecated fields (API v2)
+		NoSslv3:            plan.NoSslv3.ValueBool(),
+		NoTlsv10:           plan.NoTlsv10.ValueBool(),
+		NoTlsv11:           plan.NoTlsv11.ValueBool(),
+		NoTlsv12:           plan.NoTlsv12.ValueBool(),
+		NoTlsv13:           plan.NoTlsv13.ValueBool(),
+		ForceSslv3:         plan.ForceSslv3.ValueBool(),
+		ForceTlsv10:        plan.ForceTlsv10.ValueBool(),
+		ForceTlsv11:        plan.ForceTlsv11.ValueBool(),
+		ForceTlsv12:        plan.ForceTlsv12.ValueBool(),
+		ForceTlsv13:        plan.ForceTlsv13.ValueBool(),
+		ForceStrictSni:     plan.ForceStrictSni.ValueString(),
+		
+		// New v3 fields (non-deprecated)
+		Sslv3:              plan.Sslv3.ValueBool(),
+		Tlsv10:             plan.Tlsv10.ValueBool(),
+		Tlsv11:             plan.Tlsv11.ValueBool(),
+		Tlsv12:             plan.Tlsv12.ValueBool(),
+		Tlsv13:             plan.Tlsv13.ValueBool(),
+		
+		// SSL/TLS Configuration
+		Ssl:                plan.Ssl.ValueBool(),
+		SslCafile:          plan.SslCafile.ValueString(),
+		SslCertificate:     plan.SslCertificate.ValueString(),
+		SslMaxVer:          plan.SslMaxVer.ValueString(),
+		SslMinVer:          plan.SslMinVer.ValueString(),
+		SslReuse:           plan.SslReuse.ValueString(),
+		Ciphers:            plan.Ciphers.ValueString(),
+		Ciphersuites:       plan.Ciphersuites.ValueString(),
+		Verify:             plan.Verify.ValueString(),
 	}
 
 	if !plan.Forwardfor.IsNull() {
@@ -1518,6 +1746,38 @@ func (r *backendResource) Read(ctx context.Context, req resource.ReadRequest, re
 	state.TarpitTimeout = types.Int64Value(backend.TarpitTimeout)
 	state.CheckCache = types.StringValue(backend.CheckCache)
 	state.Retries = types.Int64Value(backend.Retries)
+	
+	// SSL/TLS Configuration Fields
+	// Deprecated fields (API v2)
+	state.NoSslv3 = types.BoolValue(backend.NoSslv3)
+	state.NoTlsv10 = types.BoolValue(backend.NoTlsv10)
+	state.NoTlsv11 = types.BoolValue(backend.NoTlsv11)
+	state.NoTlsv12 = types.BoolValue(backend.NoTlsv12)
+	state.NoTlsv13 = types.BoolValue(backend.NoTlsv13)
+	state.ForceSslv3 = types.BoolValue(backend.ForceSslv3)
+	state.ForceTlsv10 = types.BoolValue(backend.ForceTlsv10)
+	state.ForceTlsv11 = types.BoolValue(backend.ForceTlsv11)
+	state.ForceTlsv12 = types.BoolValue(backend.ForceTlsv12)
+	state.ForceTlsv13 = types.BoolValue(backend.ForceTlsv13)
+	state.ForceStrictSni = types.StringValue(backend.ForceStrictSni)
+	
+	// New v3 fields (non-deprecated)
+	state.Sslv3 = types.BoolValue(backend.Sslv3)
+	state.Tlsv10 = types.BoolValue(backend.Tlsv10)
+	state.Tlsv11 = types.BoolValue(backend.Tlsv11)
+	state.Tlsv12 = types.BoolValue(backend.Tlsv12)
+	state.Tlsv13 = types.BoolValue(backend.Tlsv13)
+	
+	// SSL/TLS Configuration
+	state.Ssl = types.BoolValue(backend.Ssl)
+	state.SslCafile = types.StringValue(backend.SslCafile)
+	state.SslCertificate = types.StringValue(backend.SslCertificate)
+	state.SslMaxVer = types.StringValue(backend.SslMaxVer)
+	state.SslMinVer = types.StringValue(backend.SslMinVer)
+	state.SslReuse = types.StringValue(backend.SslReuse)
+	state.Ciphers = types.StringValue(backend.Ciphers)
+	state.Ciphersuites = types.StringValue(backend.Ciphersuites)
+	state.Verify = types.StringValue(backend.Verify)
 
 	if backend.Forwardfor != (ForwardFor{}) {
 		var forwardforModel struct {
@@ -1858,6 +2118,37 @@ func (r *backendResource) Update(ctx context.Context, req resource.UpdateRequest
 		TarpitTimeout:      plan.TarpitTimeout.ValueInt64(),
 		CheckCache:         plan.CheckCache.ValueString(),
 		Retries:            plan.Retries.ValueInt64(),
+		
+		// SSL/TLS Configuration Fields
+		// Deprecated fields (API v2)
+		NoSslv3:            plan.NoSslv3.ValueBool(),
+		NoTlsv10:           plan.NoTlsv10.ValueBool(),
+		NoTlsv11:           plan.NoTlsv11.ValueBool(),
+		NoTlsv12:           plan.NoTlsv12.ValueBool(),
+		NoTlsv13:           plan.NoTlsv13.ValueBool(),
+		ForceSslv3:         plan.ForceSslv3.ValueBool(),
+		ForceTlsv10:        plan.ForceTlsv10.ValueBool(),
+		ForceTlsv11:        plan.ForceTlsv11.ValueBool(),
+		ForceTlsv12:        plan.ForceTlsv12.ValueBool(),
+		ForceTlsv13:        plan.ForceTlsv13.ValueBool(),
+		ForceStrictSni:     plan.ForceStrictSni.ValueString(),
+		
+		// New v3 fields (non-deprecated)
+		Sslv3:              plan.Sslv3.ValueBool(),
+		Tlsv10:             plan.Tlsv10.ValueBool(),
+		Tlsv11:             plan.Tlsv11.ValueBool(),
+		Tlsv12:             plan.Tlsv11.ValueBool(),
+		Tlsv13:             plan.Tlsv13.ValueBool(),
+		
+		// SSL/TLS Configuration
+		Ssl:                plan.Ssl.ValueBool(),
+		SslCafile:          plan.SslCafile.ValueString(),
+		SslMinVer:          plan.SslMinVer.ValueString(),
+		SslMaxVer:          plan.SslMaxVer.ValueString(),
+		SslReuse:           plan.SslReuse.ValueString(),
+		Ciphers:            plan.Ciphers.ValueString(),
+		Ciphersuites:       plan.Ciphersuites.ValueString(),
+		Verify:             plan.Verify.ValueString(),
 	}
 
 	if !plan.Forwardfor.IsNull() {

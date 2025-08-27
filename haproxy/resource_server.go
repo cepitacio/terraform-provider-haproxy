@@ -57,6 +57,7 @@ type serverStandaloneResourceModel struct {
 	ForceTlsv11      types.String `tfsdk:"force_tlsv11"`
 	ForceTlsv12      types.String `tfsdk:"force_tlsv12"`
 	ForceTlsv13      types.String `tfsdk:"force_tlsv13"`
+	ForceStrictSni   types.String `tfsdk:"force_strict_sni"`
 	HealthCheckPort  types.Int64  `tfsdk:"health_check_port"`
 	InitAddr         types.String `tfsdk:"init_addr"`
 	Inter            types.Int64  `tfsdk:"inter"`
@@ -69,6 +70,12 @@ type serverStandaloneResourceModel struct {
 	NoTlsv11         types.String `tfsdk:"no_tlsv11"`
 	NoTlsv12         types.String `tfsdk:"no_tlsv12"`
 	NoTlsv13         types.String `tfsdk:"no_tlsv13"`
+	// New v3 fields (non-deprecated)
+	Sslv3            types.String `tfsdk:"sslv3"`
+	Tlsv10           types.String `tfsdk:"tlsv10"`
+	Tlsv11           types.String `tfsdk:"tlsv11"`
+	Tlsv12           types.String `tfsdk:"tlsv12"`
+	Tlsv13           types.String `tfsdk:"tlsv13"`
 	OnError          types.String `tfsdk:"on_error"`
 	OnMarkedDown     types.String `tfsdk:"on_marked_down"`
 	OnMarkedUp       types.String `tfsdk:"on_marked_up"`
@@ -214,23 +221,27 @@ func (r *serverResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			},
 			"force_sslv3": schema.StringAttribute{
 				Optional:    true,
-				Description: "State of SSLv3 protocol support for the SSL. Allowed: enabled┃disabled",
+				Description: "State of SSLv3 protocol support for the SSL. Allowed: enabled┃disabled. DEPRECATED: Use 'sslv3' field instead in Data Plane API v3",
 			},
 			"force_tlsv10": schema.StringAttribute{
 				Optional:    true,
-				Description: "State of TLSv1.0 protocol support for the SSL. Allowed: enabled┃disabled",
+				Description: "State of TLSv1.0 protocol support for the SSL. Allowed: enabled┃disabled. DEPRECATED: Use 'tlsv10' field instead in Data Plane API v3",
 			},
 			"force_tlsv11": schema.StringAttribute{
 				Optional:    true,
-				Description: "State of TLSv1.1 protocol. Allowed: enabled┃disabled",
+				Description: "State of TLSv1.1 protocol. Allowed: enabled┃disabled. DEPRECATED: Use 'tlsv11' field instead in Data Plane API v3",
 			},
 			"force_tlsv12": schema.StringAttribute{
 				Optional:    true,
-				Description: "State of TLSv1.2 protocol. Allowed: enabled┃disabled",
+				Description: "State of TLSv1.2 protocol. Allowed: enabled┃disabled. DEPRECATED: Use 'tlsv12' field instead in Data Plane API v3",
 			},
 			"force_tlsv13": schema.StringAttribute{
 				Optional:    true,
-				Description: "State of TLSv1.3 protocol. Allowed: enabled┃disabled",
+				Description: "State of TLSv1.3 protocol. Allowed: enabled┃disabled. DEPRECATED: Use 'tlsv13' field instead in Data Plane API v3",
+			},
+			"force_strict_sni": schema.StringAttribute{
+				Optional:    true,
+				Description: "Force strict SNI. DEPRECATED: Use 'strict_sni' field instead in Data Plane API v3. Allowed: enabled|disabled",
 			},
 			"health_check_port": schema.Int64Attribute{
 				Optional:    true,
@@ -262,23 +273,44 @@ func (r *serverResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			},
 			"no_sslv3": schema.StringAttribute{
 				Optional:    true,
-				Description: "The no sslv3 of the server.",
+				Description: "The no sslv3 of the server. DEPRECATED: Use 'sslv3' field instead in Data Plane API v3",
 			},
 			"no_tlsv10": schema.StringAttribute{
 				Optional:    true,
-				Description: "The no tlsv10 of the server.",
+				Description: "The no tlsv10 of the server. DEPRECATED: Use 'tlsv10' field instead in Data Plane API v3",
 			},
 			"no_tlsv11": schema.StringAttribute{
 				Optional:    true,
-				Description: "The no tlsv11 of the server.",
+				Description: "The no tlsv11 of the server. DEPRECATED: Use 'tlsv11' field instead in Data Plane API v3",
 			},
 			"no_tlsv12": schema.StringAttribute{
 				Optional:    true,
-				Description: "The no tlsv12 of the server.",
+				Description: "The no tlsv12 of the server. DEPRECATED: Use 'tlsv12' field instead in Data Plane API v3",
 			},
 			"no_tlsv13": schema.StringAttribute{
 				Optional:    true,
-				Description: "The no tlsv13 of the server.",
+				Description: "The no tlsv13 of the server. DEPRECATED: Use 'tlsv13' field instead in Data Plane API v3",
+			},
+			// New v3 fields (non-deprecated)
+			"sslv3": schema.StringAttribute{
+				Optional:    true,
+				Description: "Enable SSLv3 protocol support (v3 API, replaces no_sslv3). Allowed: enabled|disabled",
+			},
+			"tlsv10": schema.StringAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.0 protocol support (v3 API, replaces no_tlsv10). Allowed: enabled|disabled",
+			},
+			"tlsv11": schema.StringAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.1 protocol support (v3 API, replaces no_tlsv11). Allowed: enabled|disabled",
+			},
+			"tlsv12": schema.StringAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.2 protocol support (v3 API, replaces no_tlsv12). Allowed: enabled|disabled",
+			},
+			"tlsv13": schema.StringAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.3 protocol support (v3 API, replaces no_tlsv13). Allowed: enabled|disabled",
 			},
 			"on_error": schema.StringAttribute{
 				Optional:    true,

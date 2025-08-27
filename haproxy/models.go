@@ -100,6 +100,38 @@ type BackendPayload struct {
 	Balance            Balance       `json:"balance"`
 	HttpchkParams      HttpchkParams `json:"httpchk_params"`
 	Forwardfor         ForwardFor    `json:"forwardfor"`
+	
+	// SSL/TLS Configuration Fields
+	// Deprecated fields (API v2) - will be removed in future
+	NoSslv3            bool     `json:"no_sslv3,omitempty"`
+	NoTlsv10           bool     `json:"no_tlsv10,omitempty"`
+	NoTlsv11           bool     `json:"no_tlsv11,omitempty"`
+	NoTlsv12           bool     `json:"no_tlsv12,omitempty"`
+	NoTlsv13           bool     `json:"no_tlsv13,omitempty"`
+	ForceSslv3         bool     `json:"force_sslv3,omitempty"`
+	ForceTlsv10        bool     `json:"force_tlsv10,omitempty"`
+	ForceTlsv11        bool     `json:"force_tlsv11,omitempty"`
+	ForceTlsv12        bool     `json:"force_tlsv12,omitempty"`
+	ForceTlsv13        bool     `json:"force_tlsv13,omitempty"`
+	ForceStrictSni     string   `json:"force_strict_sni,omitempty"`
+	
+	// New v3 fields (non-deprecated)
+	Sslv3              bool     `json:"sslv3,omitempty"`
+	Tlsv10             bool     `json:"tlsv10,omitempty"`
+	Tlsv11             bool     `json:"tlsv11,omitempty"`
+	Tlsv12             bool     `json:"tlsv12,omitempty"`
+	Tlsv13             bool     `json:"tlsv13,omitempty"`
+	
+	// SSL/TLS Configuration
+	Ssl                bool     `json:"ssl,omitempty"`
+	SslCafile          string   `json:"ssl_cafile,omitempty"`
+	SslCertificate     string   `json:"ssl_certificate,omitempty"`
+	SslMaxVer          string   `json:"ssl_max_ver,omitempty"`
+	SslMinVer          string   `json:"ssl_min_ver,omitempty"`
+	SslReuse           string   `json:"ssl_reuse,omitempty"`
+	Ciphers            string   `json:"ciphers,omitempty"`
+	Ciphersuites       string   `json:"ciphersuites,omitempty"`
+	Verify             string   `json:"verify,omitempty"`
 }
 
 type Balance struct {
@@ -148,6 +180,7 @@ type ServerPayload struct {
 	ForceTlsv11      string   `json:"force_tlsv11,omitempty"`
 	ForceTlsv12      string   `json:"force_tlsv12,omitempty"`
 	ForceTlsv13      string   `json:"force_tlsv13,omitempty"`
+	ForceStrictSni   string   `json:"force_strict_sni,omitempty"`
 	HealthCheckPort  int64    `json:"health_check_port,omitempty"`
 	InitAddr         string   `json:"init-addr,omitempty"`
 	Inter            int64    `json:"inter,omitempty"`
@@ -160,6 +193,12 @@ type ServerPayload struct {
 	NoTlsv11         string   `json:"no_tlsv11,omitempty"`
 	NoTlsv12         string   `json:"no_tlsv12,omitempty"`
 	NoTlsv13         string   `json:"no_tlsv13,omitempty"`
+	// New v3 fields (non-deprecated)
+	Sslv3            string   `json:"sslv3,omitempty"`
+	Tlsv10           string   `json:"tlsv10,omitempty"`
+	Tlsv11           string   `json:"tlsv11,omitempty"`
+	Tlsv12           string   `json:"tlsv12,omitempty"`
+	Tlsv13           string   `json:"tlsv13,omitempty"`
 	OnError          string   `json:"on-error,omitempty"`
 	OnMarkedDown     string   `json:"on-marked-down,omitempty"`
 	OnMarkedUp       string   `json:"on-marked-up,omitempty"`
@@ -205,6 +244,7 @@ type BindPayload struct {
 	ForceTlsv11          bool   `json:"force_tlsv11,omitempty"`
 	ForceTlsv12          bool   `json:"force_tlsv12,omitempty"`
 	ForceTlsv13          bool   `json:"force_tlsv13,omitempty"`
+	ForceStrictSni       string `json:"force_strict_sni,omitempty"`
 	Ssl                  bool   `json:"ssl,omitempty"`
 	SslCafile            string `json:"ssl_cafile,omitempty"`
 	SslMaxVer            string `json:"ssl_max_ver,omitempty"`
@@ -241,6 +281,12 @@ type BindPayload struct {
 	NoTlsv11             bool   `json:"no_tlsv11,omitempty"`
 	NoTlsv12             bool   `json:"no_tlsv12,omitempty"`
 	NoTlsv13             bool   `json:"no_tlsv13,omitempty"`
+	// New v3 fields (non-deprecated)
+	Sslv3                bool   `json:"sslv3,omitempty"`
+	Tlsv10               bool   `json:"tlsv10,omitempty"`
+	Tlsv11               bool   `json:"tlsv11,omitempty"`
+	Tlsv12               bool   `json:"tlsv12,omitempty"`
+	Tlsv13               bool   `json:"tlsv13,omitempty"`
 	Npn                  string `json:"npn,omitempty"`
 	PreferClientCiphers  bool   `json:"prefer_client_ciphers,omitempty"`
 	Process              string `json:"process,omitempty"`
