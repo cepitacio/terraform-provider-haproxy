@@ -2,16 +2,25 @@
 package main
 
 import (
+	"context"
+	"log"
 	"terraform-provider-haproxy/haproxy"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
-// Generate the Terraform provider documentation using `tfplugindocs`:
+// Provider documentation generation.
 //go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
 
+var (
+	version string = "dev"
+)
+
 func main() {
-	plugin.Serve(&plugin.ServeOpts{
-		ProviderFunc: haproxy.Provider,
+	err := providerserver.Serve(context.Background(), haproxy.New, providerserver.ServeOpts{
+		Address: "registry.terraform.io/haproxy/haproxy",
 	})
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }
