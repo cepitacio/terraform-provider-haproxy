@@ -94,6 +94,7 @@ type bindResourceModel struct {
 	ForceTlsv11          types.Bool   `tfsdk:"force_tlsv11"`
 	ForceTlsv12          types.Bool   `tfsdk:"force_tlsv12"`
 	ForceTlsv13          types.Bool   `tfsdk:"force_tlsv13"`
+	ForceStrictSni       types.String `tfsdk:"force_strict_sni"`
 	Ssl                  types.Bool   `tfsdk:"ssl"`
 	SslCafile            types.String `tfsdk:"ssl_cafile"`
 	SslMaxVer            types.String `tfsdk:"ssl_max_ver"`
@@ -129,6 +130,13 @@ type bindResourceModel struct {
 	NoTlsv11             types.Bool   `tfsdk:"no_tlsv11"`
 	NoTlsv12             types.Bool   `tfsdk:"no_tlsv12"`
 	NoTlsv13             types.Bool   `tfsdk:"no_tlsv13"`
+	// New v3 fields (non-deprecated)
+	Sslv3                types.Bool   `tfsdk:"sslv3"`
+	Tlsv10               types.Bool   `tfsdk:"tlsv10"`
+	Tlsv11               types.Bool   `tfsdk:"tlsv11"`
+	Tlsv12               types.Bool   `tfsdk:"tlsv12"`
+	Tlsv13               types.Bool   `tfsdk:"tlsv13"`
+
 	Npn                  types.String `tfsdk:"npn"`
 	PreferClientCiphers  types.Bool   `tfsdk:"prefer_client_ciphers"`
 	Process              types.String `tfsdk:"process"`
@@ -161,6 +169,7 @@ func (b bindResourceModel) attrTypes() map[string]attr.Type {
 		"force_tlsv11":          types.BoolType,
 		"force_tlsv12":          types.BoolType,
 		"force_tlsv13":          types.BoolType,
+		"force_strict_sni":      types.StringType,
 		"ssl":                   types.BoolType,
 		"ssl_cafile":            types.StringType,
 		"ssl_max_ver":           types.StringType,
@@ -196,6 +205,13 @@ func (b bindResourceModel) attrTypes() map[string]attr.Type {
 		"no_tlsv11":             types.BoolType,
 		"no_tlsv12":             types.BoolType,
 		"no_tlsv13":             types.BoolType,
+		// New v3 fields
+		"sslv3":                 types.BoolType,
+		"tlsv10":                types.BoolType,
+		"tlsv11":                types.BoolType,
+		"tlsv12":                types.BoolType,
+		"tlsv13":                types.BoolType,
+
 		"npn":                   types.StringType,
 		"prefer_client_ciphers": types.BoolType,
 		"process":               types.StringType,
@@ -724,23 +740,27 @@ func (r *frontendResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 						},
 						"force_sslv3": schema.BoolAttribute{
 							Optional:    true,
-							Description: "State of SSLv3 protocol support for the SSL",
+							Description: "State of SSLv3 protocol support for the SSL. DEPRECATED: Use 'sslv3' field instead in Data Plane API v3",
 						},
 						"force_tlsv10": schema.BoolAttribute{
 							Optional:    true,
-							Description: "State of TLSv1.0 protocol support for the SSL",
+							Description: "State of TLSv1.0 protocol support for the SSL. DEPRECATED: Use 'tlsv10' field instead in Data Plane API v3",
 						},
 						"force_tlsv11": schema.BoolAttribute{
 							Optional:    true,
-							Description: "State of TLSv1.1 protocol",
+							Description: "State of TLSv1.1 protocol. DEPRECATED: Use 'tlsv11' field instead in Data Plane API v3",
 						},
 						"force_tlsv12": schema.BoolAttribute{
 							Optional:    true,
-							Description: "State of TLSv1.2 protocol",
+							Description: "State of TLSv1.2 protocol. DEPRECATED: Use 'tlsv12' field instead in Data Plane API v3",
 						},
 						"force_tlsv13": schema.BoolAttribute{
 							Optional:    true,
-							Description: "State of TLSv1.3 protocol",
+							Description: "State of TLSv1.3 protocol. DEPRECATED: Use 'tlsv13' field instead in Data Plane API v3",
+						},
+						"force_strict_sni": schema.StringAttribute{
+							Optional:    true,
+							Description: "Force strict SNI. DEPRECATED: Use 'strict_sni' field instead in Data Plane API v3. Allowed: enabled|disabled",
 						},
 						"ssl": schema.BoolAttribute{
 							Optional:    true,
@@ -864,24 +884,46 @@ func (r *frontendResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 						},
 						"no_sslv3": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Disable SSLv3",
+							Description: "Disable SSLv3. DEPRECATED: Use 'sslv3' field instead in Data Plane API v3",
 						},
 						"no_tlsv10": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Disable TLSv1.0",
+							Description: "Disable TLSv1.0. DEPRECATED: Use 'tlsv10' field instead in Data Plane API v3",
 						},
 						"no_tlsv11": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Disable TLSv1.1",
+							Description: "Disable TLSv1.1. DEPRECATED: Use 'tlsv11' field instead in Data Plane API v3",
 						},
 						"no_tlsv12": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Disable TLSv1.2",
+							Description: "Disable TLSv1.2. DEPRECATED: Use 'tlsv12' field instead in Data Plane API v3",
 						},
 						"no_tlsv13": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Disable TLSv1.3",
+							Description: "Disable TLSv1.3. DEPRECATED: Use 'tlsv13' field instead in Data Plane API v3",
 						},
+						// New v3 fields (non-deprecated)
+						"sslv3": schema.BoolAttribute{
+							Optional:    true,
+							Description: "Enable SSLv3 protocol support (v3 API, replaces no_sslv3)",
+						},
+						"tlsv10": schema.BoolAttribute{
+							Optional:    true,
+							Description: "Enable TLSv1.0 protocol support (v3 API, replaces no_tlsv10)",
+						},
+						"tlsv11": schema.BoolAttribute{
+							Optional:    true,
+							Description: "Enable TLSv1.1 protocol support (v3 API, replaces no_tlsv11)",
+						},
+						"tlsv12": schema.BoolAttribute{
+							Optional:    true,
+							Description: "Enable TLSv1.2 protocol support (v3 API, replaces no_tlsv12)",
+						},
+						"tlsv13": schema.BoolAttribute{
+							Optional:    true,
+							Description: "Enable TLSv1.3 protocol support (v3 API, replaces no_tlsv13)",
+						},
+
 						"npn": schema.StringAttribute{
 							Optional:    true,
 							Description: "Set NPN protocols",
@@ -1549,6 +1591,7 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 				ForceTlsv11:          bindModel.ForceTlsv11.ValueBool(),
 				ForceTlsv12:          bindModel.ForceTlsv12.ValueBool(),
 				ForceTlsv13:          bindModel.ForceTlsv13.ValueBool(),
+				ForceStrictSni:       bindModel.ForceStrictSni.ValueString(),
 				Ssl:                  bindModel.Ssl.ValueBool(),
 				SslCafile:            bindModel.SslCafile.ValueString(),
 				SslMaxVer:            bindModel.SslMaxVer.ValueString(),
@@ -1584,6 +1627,12 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 				NoTlsv11:             bindModel.NoTlsv11.ValueBool(),
 				NoTlsv12:             bindModel.NoTlsv12.ValueBool(),
 				NoTlsv13:             bindModel.NoTlsv13.ValueBool(),
+				// New v3 fields
+				Sslv3:                bindModel.Sslv3.ValueBool(),
+				Tlsv10:               bindModel.Tlsv10.ValueBool(),
+				Tlsv11:               bindModel.Tlsv11.ValueBool(),
+				Tlsv12:               bindModel.Tlsv12.ValueBool(),
+				Tlsv13:               bindModel.Tlsv13.ValueBool(),
 				Npn:                  bindModel.Npn.ValueString(),
 				PreferClientCiphers:  bindModel.PreferClientCiphers.ValueBool(),
 				Process:              bindModel.Process.ValueString(),
@@ -1984,6 +2033,7 @@ func (r *frontendResource) Read(ctx context.Context, req resource.ReadRequest, r
 				ForceTlsv11:          types.BoolValue(bind.ForceTlsv11),
 				ForceTlsv12:          types.BoolValue(bind.ForceTlsv12),
 				ForceTlsv13:          types.BoolValue(bind.ForceTlsv13),
+				ForceStrictSni:       types.StringValue(bind.ForceStrictSni),
 				Ssl:                  types.BoolValue(bind.Ssl),
 				SslCafile:            types.StringValue(bind.SslCafile),
 				SslMaxVer:            types.StringValue(bind.SslMaxVer),
@@ -2019,6 +2069,13 @@ func (r *frontendResource) Read(ctx context.Context, req resource.ReadRequest, r
 				NoTlsv11:             types.BoolValue(bind.NoTlsv11),
 				NoTlsv12:             types.BoolValue(bind.NoTlsv12),
 				NoTlsv13:             types.BoolValue(bind.NoTlsv13),
+				// New v3 fields
+				Sslv3:                types.BoolValue(bind.Sslv3),
+				Tlsv10:               types.BoolValue(bind.Tlsv10),
+				Tlsv11:               types.BoolValue(bind.Tlsv11),
+				Tlsv12:               types.BoolValue(bind.Tlsv12),
+				Tlsv13:               types.BoolValue(bind.Tlsv13),
+
 				Npn:                  types.StringValue(bind.Npn),
 				PreferClientCiphers:  types.BoolValue(bind.PreferClientCiphers),
 				Process:              types.StringValue(bind.Process),
@@ -2416,6 +2473,7 @@ func (r *frontendResource) Update(ctx context.Context, req resource.UpdateReques
 					ForceTlsv11:          planBind.ForceTlsv11.ValueBool(),
 					ForceTlsv12:          planBind.ForceTlsv12.ValueBool(),
 					ForceTlsv13:          planBind.ForceTlsv13.ValueBool(),
+					ForceStrictSni:       planBind.ForceStrictSni.ValueString(),
 					Ssl:                  planBind.Ssl.ValueBool(),
 					SslCafile:            planBind.SslCafile.ValueString(),
 					SslMaxVer:            planBind.SslMaxVer.ValueString(),
@@ -2451,6 +2509,12 @@ func (r *frontendResource) Update(ctx context.Context, req resource.UpdateReques
 					NoTlsv11:             planBind.NoTlsv11.ValueBool(),
 					NoTlsv12:             planBind.NoTlsv12.ValueBool(),
 					NoTlsv13:             planBind.NoTlsv13.ValueBool(),
+					// New v3 fields
+					Sslv3:                planBind.Sslv3.ValueBool(),
+					Tlsv10:               planBind.Tlsv10.ValueBool(),
+					Tlsv11:               planBind.Tlsv11.ValueBool(),
+					Tlsv12:               planBind.Tlsv12.ValueBool(),
+					Tlsv13:               planBind.Tlsv13.ValueBool(),
 					Npn:                  planBind.Npn.ValueString(),
 					PreferClientCiphers:  planBind.PreferClientCiphers.ValueBool(),
 					Process:              planBind.Process.ValueString(),
@@ -2497,6 +2561,7 @@ func (r *frontendResource) Update(ctx context.Context, req resource.UpdateReques
 					ForceTlsv11:          planBind.ForceTlsv11.ValueBool(),
 					ForceTlsv12:          planBind.ForceTlsv12.ValueBool(),
 					ForceTlsv13:          planBind.ForceTlsv13.ValueBool(),
+					ForceStrictSni:       planBind.ForceStrictSni.ValueString(),
 					Ssl:                  planBind.Ssl.ValueBool(),
 					SslCafile:            planBind.SslCafile.ValueString(),
 					SslMaxVer:            planBind.SslMaxVer.ValueString(),
@@ -2532,6 +2597,12 @@ func (r *frontendResource) Update(ctx context.Context, req resource.UpdateReques
 					NoTlsv11:             planBind.NoTlsv11.ValueBool(),
 					NoTlsv12:             planBind.NoTlsv12.ValueBool(),
 					NoTlsv13:             planBind.NoTlsv13.ValueBool(),
+					// New v3 fields
+					Sslv3:                planBind.Sslv3.ValueBool(),
+					Tlsv10:               planBind.Tlsv10.ValueBool(),
+					Tlsv11:               planBind.Tlsv11.ValueBool(),
+					Tlsv12:               planBind.Tlsv12.ValueBool(),
+					Tlsv13:               planBind.Tlsv13.ValueBool(),
 					Npn:                  planBind.Npn.ValueString(),
 					PreferClientCiphers:  planBind.PreferClientCiphers.ValueBool(),
 					Process:              planBind.Process.ValueString(),
