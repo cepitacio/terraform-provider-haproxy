@@ -1,115 +1,138 @@
 package haproxy
 
 import (
-	backend "terraform-provider-haproxy/internal/backend"
-	bind "terraform-provider-haproxy/internal/bind"
-	acl "terraform-provider-haproxy/internal/common_services/acl"
-	httpcheck "terraform-provider-haproxy/internal/common_services/httpcheck"
-	httprequestrule "terraform-provider-haproxy/internal/common_services/httprequestrule"
-	httpresponserule "terraform-provider-haproxy/internal/common_services/httpresponserule"
-	frontend "terraform-provider-haproxy/internal/frontend"
-	server "terraform-provider-haproxy/internal/server"
-	transaction "terraform-provider-haproxy/internal/transaction"
+	"context"
+	"net/http"
 
-	"terraform-provider-haproxy/internal/utils"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func Provider() *schema.Provider {
-	return &schema.Provider{
-		Schema: map[string]*schema.Schema{
-			"url": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Haproxy Host and Port",
-				DefaultFunc: schema.MultiEnvDefaultFunc([]string{
-					"HAPROXY_ENDPOINT",
-				}, nil),
-			},
-			"username": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Haproxy User",
-				DefaultFunc: schema.MultiEnvDefaultFunc([]string{
-					"HAPROXY_USER",
-				}, nil),
-			},
-			"password": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Haproxy Password",
-				DefaultFunc: schema.MultiEnvDefaultFunc([]string{
-					"HAPROXY_PASSWORD",
-				}, nil),
-			},
-			"insecure": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Description: "Disable SSL certificate verification (default: false)",
-				DefaultFunc: schema.MultiEnvDefaultFunc([]string{
-					"HAPROXY_INSECURE",
-				}, nil),
-			},
-		},
+// Ensure the implementation satisfies the expected interfaces.
+var (
+	_ provider.Provider = &haproxyProvider{}
+)
 
-		ResourcesMap: map[string]*schema.Resource{
-			"haproxy_frontend": frontend.ResourceHaproxyFrontend(),
-			"haproxy_backend":  backend.ResourceHaproxyBackend(),
-			"haproxy_server":   server.ResourceHaproxyServer(),
-			"haproxy_bind":     bind.ResourceHaproxyBind(),
+// New is a helper function to simplify provider server and testing implementation.
+func New() provider.Provider {
+	return &haproxyProvider{}
+}
+
+// haproxyProvider is the provider implementation.
+type haproxyProvider struct{}
+
+// haproxyProviderModel maps provider schema data to a Go type.
+type haproxyProviderModel struct {
+	URL        types.String `tfsdk:"url"`
+	Username   types.String `tfsdk:"username"`
+	Password   types.String `tfsdk:"password"`
+	Insecure   types.Bool   `tfsdk:"insecure"`
+	APIVersion types.String `tfsdk:"api_version"`
+}
+
+// Metadata returns the provider type name.
+func (p *haproxyProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "haproxy"
+}
+
+// Schema defines the provider-level schema for configuration data.
+func (p *haproxyProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"url": schema.StringAttribute{
+				Description: "The URL of the HAProxy Data Plane API.",
+				Required:    true,
+			},
+			"username": schema.StringAttribute{
+				Description: "The username for the HAProxy Data Plane API.",
+				Required:    true,
+			},
+			"password": schema.StringAttribute{
+				Description: "The password for the HAProxy Data Plane API.",
+				Required:    true,
+				Sensitive:   true,
+			},
+			"insecure": schema.BoolAttribute{
+				Description: "Whether to skip SSL certificate verification.",
+				Optional:    true,
+			},
+			"api_version": schema.StringAttribute{
+				Description: "The version of the HAProxy Data Plane API to use.",
+				Optional:    true,
+			},
 		},
-		ConfigureFunc: providerConfigure,
 	}
 }
 
-func providerConfigure(data *schema.ResourceData) (interface{}, error) {
-	commonConfig := utils.Configuration{
-		Username: data.Get("username").(string),
-		Password: data.Get("password").(string),
-		BaseURL:  data.Get("url").(string),
+// Configure prepares a HAProxy API client for data source and resource calls.
+func (p *haproxyProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	// Retrieve provider data from configuration
+	var config haproxyProviderModel
+	diags := req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	// Create backend config for backend
-	backendConfig := &backend.ConfigBackend{}
-	utils.SetConfigValues(backendConfig, commonConfig)
+	// Configure the client
+	httpClient := &http.Client{}
+	if config.Insecure.ValueBool() {
+		// Add transport to skip verification
+	}
 
-	// Create frontend config for frontend
-	frontendConfig := &frontend.ConfigFrontend{}
-	utils.SetConfigValues(frontendConfig, commonConfig)
+	apiVersion := config.APIVersion.ValueString()
+	if apiVersion == "" {
+		apiVersion = "v2"
+	}
 
-	// Create server config for server
-	serverConfig := &server.ConfigServer{}
-	utils.SetConfigValues(serverConfig, commonConfig)
+	client := NewHAProxyClient(httpClient, config.URL.ValueString(), config.Username.ValueString(), config.Password.ValueString(), apiVersion)
 
-	// Create transaction config for transaction
-	transactionConfig := &transaction.ConfigTransaction{}
-	utils.SetConfigValues(transactionConfig, commonConfig)
+	// Make the client available to resources and data sources
+	resp.DataSourceData = client
+	resp.ResourceData = client
+}
 
-	bindConfig := &bind.ConfigBind{}
-	utils.SetConfigValues(bindConfig, commonConfig)
+// DataSources defines the data sources implemented in the provider.
+func (p *haproxyProvider) DataSources(_ context.Context) []func() datasource.DataSource {
+	return []func() datasource.DataSource{
+		NewAclDataSource,
+		NewBackendsDataSource,
+		NewBindDataSource,
+		NewFrontendsDataSource,
+		NewGlobalDataSource,
+		NewHttpcheckDataSource,
+		NewHttpRequestRuleDataSource,
+		NewHttpResponseRuleDataSource,
+		NewLogForwardDataSource,
+		NewNameserverDataSource,
+		NewPeerEntryDataSource,
+		NewPeersDataSource,
+		NewResolverDataSource,
+		NewServerDataSource,
+		NewStickRuleDataSource,
+		NewStickTableDataSource,
+		NewTcpCheckDataSource,
+		NewTcpRequestRuleDataSource,
+		NewTcpResponseRuleDataSource,
+	}
+}
 
-	aclConfig := &acl.ConfigAcl{}
-	utils.SetConfigValues(aclConfig, commonConfig)
-
-	httprequestruleConfig := &httprequestrule.ConfigHttpRequestRule{}
-	utils.SetConfigValues(httprequestruleConfig, commonConfig)
-
-	httpresponseruleConfig := &httpresponserule.ConfigHttpResponseRule{}
-	utils.SetConfigValues(httpresponseruleConfig, commonConfig)
-
-	httpcheckConfig := &httpcheck.ConfigHttpCheck{}
-	utils.SetConfigValues(httpcheckConfig, commonConfig)
-
-	return map[string]interface{}{
-		"backend":          backendConfig,
-		"frontend":         frontendConfig,
-		"server":           serverConfig,
-		"transaction":      transactionConfig,
-		"acl":              aclConfig,
-		"bind":             bindConfig,
-		"httprequestrule":  httprequestruleConfig,
-		"httpresponserule": httpresponseruleConfig,
-		"httpcheck":        httpcheckConfig,
-	}, nil
+// Resources defines the resources implemented in the provider.
+func (p *haproxyProvider) Resources(_ context.Context) []func() resource.Resource {
+	return []func() resource.Resource{
+		NewFrontendResource,
+		NewBackendResource,
+		NewServerResource,
+		NewGlobalResource,
+		NewResolverResource,
+		NewNameserverResource,
+		NewPeersResource,
+		NewPeerEntryResource,
+		NewStickRuleResource,
+		NewStickTableResource,
+		NewLogForwardResource,
+	}
 }
