@@ -26,50 +26,50 @@ type serverResource struct {
 
 // serverStandaloneResourceModel maps the resource schema data.
 type serverStandaloneResourceModel struct {
-	Name             types.String `tfsdk:"name"`
-	Port             types.Int64  `tfsdk:"port"`
-	Address          types.String `tfsdk:"address"`
-	ParentName       types.String `tfsdk:"parent_name"`
-	ParentType       types.String `tfsdk:"parent_type"`
-	AgentAddr        types.String `tfsdk:"agent_addr"`
-	AgentCheck       types.String `tfsdk:"agent_check"`
-	AgentInter       types.Int64  `tfsdk:"agent_inter"`
-	AgentPort        types.Int64  `tfsdk:"agent_port"`
-	AgentSend        types.String `tfsdk:"agent_send"`
-	Allow0rtt        types.Bool   `tfsdk:"allow_0rtt"`
-	Alpn             types.String `tfsdk:"alpn"`
-	Backup           types.String `tfsdk:"backup"`
-	Check            types.String `tfsdk:"check"`
-	CheckAlpn        types.String `tfsdk:"check_alpn"`
-	CheckSni         types.String `tfsdk:"check_sni"`
-	CheckSsl         types.String `tfsdk:"check_ssl"`
-	CheckViaSocks4   types.String `tfsdk:"check_via_socks4"`
-	Ciphers          types.String `tfsdk:"ciphers"`
-	Ciphersuites     types.String `tfsdk:"ciphersuites"`
-	Cookie           types.String `tfsdk:"cookie"`
-	Crt              types.String `tfsdk:"crt"`
-	Downinter        types.Int64  `tfsdk:"downinter"`
-	ErrorLimit       types.Int64  `tfsdk:"error_limit"`
-	Fall             types.Int64  `tfsdk:"fall"`
-	Fastinter        types.Int64  `tfsdk:"fastinter"`
-	ForceSslv3       types.String `tfsdk:"force_sslv3"`
-	ForceTlsv10      types.String `tfsdk:"force_tlsv10"`
-	ForceTlsv11      types.String `tfsdk:"force_tlsv11"`
-	ForceTlsv12      types.String `tfsdk:"force_tlsv12"`
-	ForceTlsv13      types.String `tfsdk:"force_tlsv13"`
-	ForceStrictSni   types.String `tfsdk:"force_strict_sni"`
-	HealthCheckPort  types.Int64  `tfsdk:"health_check_port"`
-	InitAddr         types.String `tfsdk:"init_addr"`
-	Inter            types.Int64  `tfsdk:"inter"`
-	Maintenance      types.String `tfsdk:"maintenance"`
-	Maxconn          types.Int64  `tfsdk:"maxconn"`
-	Maxqueue         types.Int64  `tfsdk:"maxqueue"`
-	Minconn          types.Int64  `tfsdk:"minconn"`
-	NoSslv3          types.String `tfsdk:"no_sslv3"`
-	NoTlsv10         types.String `tfsdk:"no_tlsv10"`
-	NoTlsv11         types.String `tfsdk:"no_tlsv11"`
-	NoTlsv12         types.String `tfsdk:"no_tlsv12"`
-	NoTlsv13         types.String `tfsdk:"no_tlsv13"`
+	Name            types.String `tfsdk:"name"`
+	Port            types.Int64  `tfsdk:"port"`
+	Address         types.String `tfsdk:"address"`
+	ParentName      types.String `tfsdk:"parent_name"`
+	ParentType      types.String `tfsdk:"parent_type"`
+	AgentAddr       types.String `tfsdk:"agent_addr"`
+	AgentCheck      types.String `tfsdk:"agent_check"`
+	AgentInter      types.Int64  `tfsdk:"agent_inter"`
+	AgentPort       types.Int64  `tfsdk:"agent_port"`
+	AgentSend       types.String `tfsdk:"agent_send"`
+	Allow0rtt       types.Bool   `tfsdk:"allow_0rtt"`
+	Alpn            types.String `tfsdk:"alpn"`
+	Backup          types.String `tfsdk:"backup"`
+	Check           types.String `tfsdk:"check"`
+	CheckAlpn       types.String `tfsdk:"check_alpn"`
+	CheckSni        types.String `tfsdk:"check_sni"`
+	CheckSsl        types.String `tfsdk:"check_ssl"`
+	CheckViaSocks4  types.String `tfsdk:"check_via_socks4"`
+	Ciphers         types.String `tfsdk:"ciphers"`
+	Ciphersuites    types.String `tfsdk:"ciphersuites"`
+	Cookie          types.String `tfsdk:"cookie"`
+	Crt             types.String `tfsdk:"crt"`
+	Downinter       types.Int64  `tfsdk:"downinter"`
+	ErrorLimit      types.Int64  `tfsdk:"error_limit"`
+	Fall            types.Int64  `tfsdk:"fall"`
+	Fastinter       types.Int64  `tfsdk:"fastinter"`
+	ForceSslv3      types.String `tfsdk:"force_sslv3"`
+	ForceTlsv10     types.String `tfsdk:"force_tlsv10"`
+	ForceTlsv11     types.String `tfsdk:"force_tlsv11"`
+	ForceTlsv12     types.String `tfsdk:"force_tlsv12"`
+	ForceTlsv13     types.String `tfsdk:"force_tlsv13"`
+	ForceStrictSni  types.String `tfsdk:"force_strict_sni"`
+	HealthCheckPort types.Int64  `tfsdk:"health_check_port"`
+	InitAddr        types.String `tfsdk:"init_addr"`
+	Inter           types.Int64  `tfsdk:"inter"`
+	Maintenance     types.String `tfsdk:"maintenance"`
+	Maxconn         types.Int64  `tfsdk:"maxconn"`
+	Maxqueue        types.Int64  `tfsdk:"maxqueue"`
+	Minconn         types.Int64  `tfsdk:"minconn"`
+	NoSslv3         types.String `tfsdk:"no_sslv3"`
+	NoTlsv10        types.String `tfsdk:"no_tlsv10"`
+	NoTlsv11        types.String `tfsdk:"no_tlsv11"`
+	NoTlsv12        types.String `tfsdk:"no_tlsv12"`
+	NoTlsv13        types.String `tfsdk:"no_tlsv13"`
 	// New v3 fields (non-deprecated)
 	Sslv3            types.String `tfsdk:"sslv3"`
 	Tlsv10           types.String `tfsdk:"tlsv10"`
@@ -545,6 +545,7 @@ func (r *serverResource) Create(ctx context.Context, req resource.CreateRequest,
 		Weight:           plan.Weight.ValueInt64(),
 	}
 
+	// Use the old transaction method which has built-in retry logic
 	err := r.client.CreateServer(ctx, plan.ParentType.ValueString(), plan.ParentName.ValueString(), payload)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -592,76 +593,350 @@ func (r *serverResource) Read(ctx context.Context, req resource.ReadRequest, res
 	state.Name = types.StringValue(server.Name)
 	state.Address = types.StringValue(server.Address)
 	state.Port = types.Int64Value(server.Port)
-	state.AgentAddr = types.StringValue(server.AgentAddr)
-	state.AgentCheck = types.StringValue(server.AgentCheck)
-	state.AgentInter = types.Int64Value(server.AgentInter)
-	state.AgentPort = types.Int64Value(server.AgentPort)
-	state.AgentSend = types.StringValue(server.AgentSend)
-	state.Allow0rtt = types.BoolValue(server.Allow0rtt)
-	state.Alpn = types.StringValue(server.Alpn)
-	state.Backup = types.StringValue(server.Backup)
-	state.Check = types.StringValue(server.Check)
-	state.CheckAlpn = types.StringValue(server.CheckAlpn)
-	state.CheckSni = types.StringValue(server.CheckSni)
-	state.CheckSsl = types.StringValue(server.CheckSsl)
-	state.CheckViaSocks4 = types.StringValue(server.CheckViaSocks4)
-	state.Ciphers = types.StringValue(server.Ciphers)
-	state.Ciphersuites = types.StringValue(server.Ciphersuites)
-	state.Cookie = types.StringValue(server.Cookie)
-	state.Crt = types.StringValue(server.Crt)
-	state.Downinter = types.Int64Value(server.Downinter)
-	state.ErrorLimit = types.Int64Value(server.ErrorLimit)
-	state.Fall = types.Int64Value(server.Fall)
-	state.Fastinter = types.Int64Value(server.Fastinter)
-	state.ForceSslv3 = types.StringValue(server.ForceSslv3)
-	state.ForceTlsv10 = types.StringValue(server.ForceTlsv10)
-	state.ForceTlsv11 = types.StringValue(server.ForceTlsv11)
-	state.ForceTlsv12 = types.StringValue(server.ForceTlsv12)
-	state.ForceTlsv13 = types.StringValue(server.ForceTlsv13)
-	state.HealthCheckPort = types.Int64Value(server.HealthCheckPort)
-	state.InitAddr = types.StringValue(server.InitAddr)
-	state.Inter = types.Int64Value(server.Inter)
-	state.Maintenance = types.StringValue(server.Maintenance)
-	state.Maxconn = types.Int64Value(server.Maxconn)
-	state.Maxqueue = types.Int64Value(server.Maxqueue)
-	state.Minconn = types.Int64Value(server.Minconn)
-	state.NoSslv3 = types.StringValue(server.NoSslv3)
-	state.NoTlsv10 = types.StringValue(server.NoTlsv10)
-	state.NoTlsv11 = types.StringValue(server.NoTlsv11)
-	state.NoTlsv12 = types.StringValue(server.NoTlsv12)
-	state.NoTlsv13 = types.StringValue(server.NoTlsv13)
-	state.OnError = types.StringValue(server.OnError)
-	state.OnMarkedDown = types.StringValue(server.OnMarkedDown)
-	state.OnMarkedUp = types.StringValue(server.OnMarkedUp)
-	state.PoolLowConn = types.Int64Value(server.PoolLowConn)
-	state.PoolMaxConn = types.Int64Value(server.PoolMaxConn)
-	state.PoolPurgeDelay = types.Int64Value(server.PoolPurgeDelay)
-	state.Proto = types.StringValue(server.Proto)
+	// Only set agent fields if they have meaningful values (not empty)
+	if server.AgentAddr != "" {
+		state.AgentAddr = types.StringValue(server.AgentAddr)
+	} else {
+		state.AgentAddr = types.StringNull()
+	}
+	if server.AgentCheck != "" {
+		state.AgentCheck = types.StringValue(server.AgentCheck)
+	} else {
+		state.AgentCheck = types.StringNull()
+	}
+	// Only set fields if they have meaningful values (not zero)
+	if server.AgentInter > 0 {
+		state.AgentInter = types.Int64Value(server.AgentInter)
+	} else {
+		state.AgentInter = types.Int64Null()
+	}
+	if server.AgentPort > 0 {
+		state.AgentPort = types.Int64Value(server.AgentPort)
+	} else {
+		state.AgentPort = types.Int64Null()
+	}
+	// Only set string fields if they have meaningful values (not empty)
+	if server.AgentSend != "" {
+		state.AgentSend = types.StringValue(server.AgentSend)
+	} else {
+		state.AgentSend = types.StringNull()
+	}
+	// Only set boolean fields if they have meaningful values (not false)
+	if server.Allow0rtt {
+		state.Allow0rtt = types.BoolValue(true)
+	} else {
+		state.Allow0rtt = types.BoolNull()
+	}
+	if server.Alpn != "" {
+		state.Alpn = types.StringValue(server.Alpn)
+	} else {
+		state.Alpn = types.StringNull()
+	}
+	if server.Backup != "" {
+		state.Backup = types.StringValue(server.Backup)
+	} else {
+		state.Backup = types.StringNull()
+	}
+	if server.Check != "" {
+		state.Check = types.StringValue(server.Check)
+	} else {
+		state.Check = types.StringNull()
+	}
+	if server.CheckAlpn != "" {
+		state.CheckAlpn = types.StringValue(server.CheckAlpn)
+	} else {
+		state.CheckAlpn = types.StringNull()
+	}
+	if server.CheckSni != "" {
+		state.CheckSni = types.StringValue(server.CheckSni)
+	} else {
+		state.CheckSni = types.StringNull()
+	}
+	if server.CheckSsl != "" {
+		state.CheckSsl = types.StringValue(server.CheckSsl)
+	} else {
+		state.CheckSsl = types.StringNull()
+	}
+	if server.CheckViaSocks4 != "" {
+		state.CheckViaSocks4 = types.StringValue(server.CheckViaSocks4)
+	} else {
+		state.CheckViaSocks4 = types.StringNull()
+	}
+	if server.Ciphers != "" {
+		state.Ciphers = types.StringValue(server.Ciphers)
+	} else {
+		state.Ciphers = types.StringNull()
+	}
+	if server.Ciphersuites != "" {
+		state.Ciphersuites = types.StringValue(server.Ciphersuites)
+	} else {
+		state.Ciphersuites = types.StringNull()
+	}
+	if server.Cookie != "" {
+		state.Cookie = types.StringValue(server.Cookie)
+	} else {
+		state.Cookie = types.StringNull()
+	}
+	if server.Crt != "" {
+		state.Crt = types.StringValue(server.Crt)
+	} else {
+		state.Crt = types.StringNull()
+	}
+	// Only set fields if they have meaningful values (not zero)
+	if server.Downinter > 0 {
+		state.Downinter = types.Int64Value(server.Downinter)
+	} else {
+		state.Downinter = types.Int64Null()
+	}
+	if server.ErrorLimit > 0 {
+		state.ErrorLimit = types.Int64Value(server.ErrorLimit)
+	} else {
+		state.ErrorLimit = types.Int64Null()
+	}
+	if server.Fall > 0 {
+		state.Fall = types.Int64Value(server.Fall)
+	} else {
+		state.Fall = types.Int64Null()
+	}
+	if server.Fastinter > 0 {
+		state.Fastinter = types.Int64Value(server.Fastinter)
+	} else {
+		state.Fastinter = types.Int64Null()
+	}
+	// Only set string fields if they have meaningful values (not empty)
+	if server.ForceSslv3 != "" {
+		state.ForceSslv3 = types.StringValue(server.ForceSslv3)
+	} else {
+		state.ForceSslv3 = types.StringNull()
+	}
+	if server.ForceTlsv10 != "" {
+		state.ForceTlsv10 = types.StringValue(server.ForceTlsv10)
+	} else {
+		state.ForceTlsv10 = types.StringNull()
+	}
+	if server.ForceTlsv11 != "" {
+		state.ForceTlsv11 = types.StringValue(server.ForceTlsv11)
+	} else {
+		state.ForceTlsv11 = types.StringNull()
+	}
+	if server.ForceTlsv12 != "" {
+		state.ForceTlsv12 = types.StringValue(server.ForceTlsv12)
+	} else {
+		state.ForceTlsv12 = types.StringNull()
+	}
+	if server.ForceTlsv13 != "" {
+		state.ForceTlsv13 = types.StringValue(server.ForceTlsv13)
+	} else {
+		state.ForceTlsv13 = types.StringNull()
+	}
+	if server.HealthCheckPort > 0 {
+		state.HealthCheckPort = types.Int64Value(server.HealthCheckPort)
+	} else {
+		state.HealthCheckPort = types.Int64Null()
+	}
+	if server.InitAddr != "" {
+		state.InitAddr = types.StringValue(server.InitAddr)
+	} else {
+		state.InitAddr = types.StringNull()
+	}
+	if server.Inter > 0 {
+		state.Inter = types.Int64Value(server.Inter)
+	} else {
+		state.Inter = types.Int64Null()
+	}
+	if server.Maintenance != "" {
+		state.Maintenance = types.StringValue(server.Maintenance)
+	} else {
+		state.Maintenance = types.StringNull()
+	}
+	if server.Maxconn > 0 {
+		state.Maxconn = types.Int64Value(server.Maxconn)
+	} else {
+		state.Maxconn = types.Int64Null()
+	}
+	// Only set fields if they have meaningful values (not zero)
+	if server.Maxqueue > 0 {
+		state.Maxqueue = types.Int64Value(server.Maxqueue)
+	} else {
+		state.Maxqueue = types.Int64Null()
+	}
+	if server.Minconn > 0 {
+		state.Minconn = types.Int64Value(server.Minconn)
+	} else {
+		state.Minconn = types.Int64Null()
+	}
+	// Only set string fields if they have meaningful values (not empty)
+	if server.NoSslv3 != "" {
+		state.NoSslv3 = types.StringValue(server.NoSslv3)
+	} else {
+		state.NoSslv3 = types.StringNull()
+	}
+	if server.NoTlsv10 != "" {
+		state.NoTlsv10 = types.StringValue(server.NoTlsv10)
+	} else {
+		state.NoTlsv10 = types.StringNull()
+	}
+	if server.NoTlsv11 != "" {
+		state.NoTlsv11 = types.StringValue(server.NoTlsv11)
+	} else {
+		state.NoTlsv11 = types.StringNull()
+	}
+	if server.NoTlsv12 != "" {
+		state.NoTlsv12 = types.StringValue(server.NoTlsv12)
+	} else {
+		state.NoTlsv12 = types.StringNull()
+	}
+	if server.NoTlsv13 != "" {
+		state.NoTlsv13 = types.StringValue(server.NoTlsv13)
+	} else {
+		state.NoTlsv13 = types.StringNull()
+	}
+	if server.OnError != "" {
+		state.OnError = types.StringValue(server.OnError)
+	} else {
+		state.OnError = types.StringNull()
+	}
+	if server.OnMarkedDown != "" {
+		state.OnMarkedDown = types.StringValue(server.OnMarkedDown)
+	} else {
+		state.OnMarkedDown = types.StringNull()
+	}
+	if server.OnMarkedUp != "" {
+		state.OnMarkedUp = types.StringValue(server.OnMarkedUp)
+	} else {
+		state.OnMarkedUp = types.StringNull()
+	}
+	// Only set fields if they have meaningful values (not zero)
+	if server.PoolLowConn > 0 {
+		state.PoolLowConn = types.Int64Value(server.PoolLowConn)
+	} else {
+		state.PoolLowConn = types.Int64Null()
+	}
+	if server.PoolMaxConn > 0 {
+		state.PoolMaxConn = types.Int64Value(server.PoolMaxConn)
+	} else {
+		state.PoolMaxConn = types.Int64Null()
+	}
+	if server.PoolPurgeDelay > 0 {
+		state.PoolPurgeDelay = types.Int64Value(server.PoolPurgeDelay)
+	} else {
+		state.PoolPurgeDelay = types.Int64Null()
+	}
+	if server.Proto != "" {
+		state.Proto = types.StringValue(server.Proto)
+	} else {
+		state.Proto = types.StringNull()
+	}
 	state.ProxyV2Options, diags = types.ListValueFrom(ctx, types.StringType, server.ProxyV2Options)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state.Rise = types.Int64Value(server.Rise)
-	state.SendProxy = types.StringValue(server.SendProxy)
-	state.SendProxyV2 = types.StringValue(server.SendProxyV2)
-	state.SendProxyV2Ssl = types.StringValue(server.SendProxyV2Ssl)
-	state.SendProxyV2SslCn = types.StringValue(server.SendProxyV2SslCn)
-	state.Slowstart = types.Int64Value(server.Slowstart)
-	state.Sni = types.StringValue(server.Sni)
-	state.Source = types.StringValue(server.Source)
-	state.Ssl = types.StringValue(server.Ssl)
-	state.SslCafile = types.StringValue(server.SslCafile)
-	state.SslCertificate = types.StringValue(server.SslCertificate)
-	state.SslMaxVer = types.StringValue(server.SslMaxVer)
-	state.SslMinVer = types.StringValue(server.SslMinVer)
-	state.SslReuse = types.StringValue(server.SslReuse)
-	state.Stick = types.StringValue(server.Stick)
-	state.Tfo = types.StringValue(server.Tfo)
-	state.TlsTickets = types.StringValue(server.TlsTickets)
-	state.Track = types.StringValue(server.Track)
-	state.Verify = types.StringValue(server.Verify)
-	state.Weight = types.Int64Value(server.Weight)
+	// Only set fields if they have meaningful values (not zero)
+	if server.Rise > 0 {
+		state.Rise = types.Int64Value(server.Rise)
+	} else {
+		state.Rise = types.Int64Null()
+	}
+	// Only set SendProxy fields if they have meaningful values (not empty)
+	if server.SendProxy != "" {
+		state.SendProxy = types.StringValue(server.SendProxy)
+	} else {
+		state.SendProxy = types.StringNull()
+	}
+	if server.SendProxyV2 != "" {
+		state.SendProxyV2 = types.StringValue(server.SendProxyV2)
+	} else {
+		state.SendProxyV2 = types.StringNull()
+	}
+	if server.SendProxyV2Ssl != "" {
+		state.SendProxyV2Ssl = types.StringValue(server.SendProxyV2Ssl)
+	} else {
+		state.SendProxyV2Ssl = types.StringNull()
+	}
+	if server.SendProxyV2SslCn != "" {
+		state.SendProxyV2SslCn = types.StringValue(server.SendProxyV2SslCn)
+	} else {
+		state.SendProxyV2SslCn = types.StringNull()
+	}
+	// Only set fields if they have meaningful values (not zero)
+	if server.Slowstart > 0 {
+		state.Slowstart = types.Int64Value(server.Slowstart)
+	} else {
+		state.Slowstart = types.Int64Null()
+	}
+	// Only set SSL and other string fields if they have meaningful values (not empty)
+	if server.Sni != "" {
+		state.Sni = types.StringValue(server.Sni)
+	} else {
+		state.Sni = types.StringNull()
+	}
+	if server.Source != "" {
+		state.Source = types.StringValue(server.Source)
+	} else {
+		state.Source = types.StringNull()
+	}
+	if server.Ssl != "" {
+		state.Ssl = types.StringValue(server.Ssl)
+	} else {
+		state.Ssl = types.StringNull()
+	}
+	if server.SslCafile != "" {
+		state.SslCafile = types.StringValue(server.SslCafile)
+	} else {
+		state.SslCafile = types.StringNull()
+	}
+	if server.SslCertificate != "" {
+		state.SslCertificate = types.StringValue(server.SslCertificate)
+	} else {
+		state.SslCertificate = types.StringNull()
+	}
+	if server.SslMaxVer != "" {
+		state.SslMaxVer = types.StringValue(server.SslMaxVer)
+	} else {
+		state.SslMaxVer = types.StringNull()
+	}
+	if server.SslMinVer != "" {
+		state.SslMinVer = types.StringValue(server.SslMinVer)
+	} else {
+		state.SslMinVer = types.StringNull()
+	}
+	if server.SslReuse != "" {
+		state.SslReuse = types.StringValue(server.SslReuse)
+	} else {
+		state.SslReuse = types.StringNull()
+	}
+	if server.Stick != "" {
+		state.Stick = types.StringValue(server.Stick)
+	} else {
+		state.Stick = types.StringNull()
+	}
+	if server.Tfo != "" {
+		state.Tfo = types.StringValue(server.Tfo)
+	} else {
+		state.Tfo = types.StringNull()
+	}
+	if server.TlsTickets != "" {
+		state.TlsTickets = types.StringValue(server.TlsTickets)
+	} else {
+		state.TlsTickets = types.StringNull()
+	}
+	if server.Track != "" {
+		state.Track = types.StringValue(server.Track)
+	} else {
+		state.Track = types.StringNull()
+	}
+	if server.Verify != "" {
+		state.Verify = types.StringValue(server.Verify)
+	} else {
+		state.Verify = types.StringNull()
+	}
+	// Only set fields if they have meaningful values (not zero)
+	if server.Weight > 0 {
+		state.Weight = types.Int64Value(server.Weight)
+	} else {
+		state.Weight = types.Int64Null()
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

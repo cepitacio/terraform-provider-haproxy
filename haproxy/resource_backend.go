@@ -31,16 +31,13 @@ type backendResource struct {
 type backendResourceModel struct {
 	Name               types.String `tfsdk:"name"`
 	Mode               types.String `tfsdk:"mode"`
-	Forwardfor         types.Object `tfsdk:"forwardfor"`
-	Balance            types.Object `tfsdk:"balance"`
-	HttpchkParams      types.Object `tfsdk:"httpchk_params"`
+	Forwardfor         types.List   `tfsdk:"forwardfor"`
 	HttpConnectionMode types.String `tfsdk:"http_connection_mode"`
 	Acls               types.List   `tfsdk:"acl"`
 	HttpRequestRules   types.List   `tfsdk:"httprequestrule"`
 	HttpResponseRules  types.List   `tfsdk:"httpresponserule"`
 	TcpRequestRules    types.List   `tfsdk:"tcprequestrule"`
 	TcpResponseRules   types.List   `tfsdk:"tcpresponserule"`
-	Httpchecks         types.List   `tfsdk:"httpcheck"`
 	TcpChecks          types.List   `tfsdk:"tcp_check"`
 	AdvCheck           types.String `tfsdk:"adv_check"`
 	ServerTimeout      types.Int64  `tfsdk:"server_timeout"`
@@ -51,54 +48,56 @@ type backendResourceModel struct {
 	TarpitTimeout      types.Int64  `tfsdk:"tarpit_timeout"`
 	CheckCache         types.String `tfsdk:"checkcache"`
 	Retries            types.Int64  `tfsdk:"retries"`
-	
+
 	// SSL/TLS Configuration Fields
 	// Deprecated fields (API v2) - will be removed in future
-	NoSslv3            types.Bool   `tfsdk:"no_sslv3"`
-	NoTlsv10           types.Bool   `tfsdk:"no_tlsv10"`
-	NoTlsv11           types.Bool   `tfsdk:"no_tlsv11"`
-	NoTlsv12           types.Bool   `tfsdk:"no_tlsv12"`
-	NoTlsv13           types.Bool   `tfsdk:"no_tlsv13"`
-	ForceSslv3         types.Bool   `tfsdk:"force_sslv3"`
-	ForceTlsv10        types.Bool   `tfsdk:"force_tlsv10"`
-	ForceTlsv11        types.Bool   `tfsdk:"force_tlsv11"`
-	ForceTlsv12        types.Bool   `tfsdk:"force_tlsv12"`
-	ForceTlsv13        types.Bool   `tfsdk:"force_tlsv13"`
-	ForceStrictSni     types.String `tfsdk:"force_strict_sni"`
-	
+	NoSslv3        types.Bool   `tfsdk:"no_sslv3"`
+	NoTlsv10       types.Bool   `tfsdk:"no_tlsv10"`
+	NoTlsv11       types.Bool   `tfsdk:"no_tlsv11"`
+	NoTlsv12       types.Bool   `tfsdk:"no_tlsv12"`
+	NoTlsv13       types.Bool   `tfsdk:"no_tlsv13"`
+	ForceSslv3     types.Bool   `tfsdk:"force_sslv3"`
+	ForceTlsv10    types.Bool   `tfsdk:"force_tlsv10"`
+	ForceTlsv11    types.Bool   `tfsdk:"force_tlsv11"`
+	ForceTlsv12    types.Bool   `tfsdk:"force_tlsv12"`
+	ForceTlsv13    types.Bool   `tfsdk:"force_tlsv13"`
+	ForceStrictSni types.String `tfsdk:"force_strict_sni"`
+
 	// New v3 fields (non-deprecated)
-	Sslv3              types.Bool   `tfsdk:"sslv3"`
-	Tlsv10             types.Bool   `tfsdk:"tlsv10"`
-	Tlsv11             types.Bool   `tfsdk:"tlsv11"`
-	Tlsv12             types.Bool   `tfsdk:"tlsv12"`
-	Tlsv13             types.Bool   `tfsdk:"tlsv13"`
-	
+	Sslv3  types.Bool `tfsdk:"sslv3"`
+	Tlsv10 types.Bool `tfsdk:"tlsv10"`
+	Tlsv11 types.Bool `tfsdk:"tlsv11"`
+	Tlsv12 types.Bool `tfsdk:"tlsv12"`
+	Tlsv13 types.Bool `tfsdk:"tlsv13"`
+
 	// SSL/TLS Configuration
-	Ssl                types.Bool   `tfsdk:"ssl"`
-	SslCafile          types.String `tfsdk:"ssl_cafile"`
-	SslCertificate     types.String `tfsdk:"ssl_certificate"`
-	SslMaxVer          types.String `tfsdk:"ssl_max_ver"`
-	SslMinVer          types.String `tfsdk:"ssl_min_ver"`
-	SslReuse           types.String `tfsdk:"ssl_reuse"`
-	Ciphers            types.String `tfsdk:"ciphers"`
-	Ciphersuites       types.String `tfsdk:"ciphersuites"`
-	Verify             types.String `tfsdk:"verify"`
+	Ssl            types.Bool   `tfsdk:"ssl"`
+	SslCafile      types.String `tfsdk:"ssl_cafile"`
+	SslCertificate types.String `tfsdk:"ssl_certificate"`
+	SslMaxVer      types.String `tfsdk:"ssl_max_ver"`
+	SslMinVer      types.String `tfsdk:"ssl_min_ver"`
+	SslReuse       types.String `tfsdk:"ssl_reuse"`
+	Ciphers        types.String `tfsdk:"ciphers"`
+	Ciphersuites   types.String `tfsdk:"ciphersuites"`
+	Verify         types.String `tfsdk:"verify"`
+
+	// Block fields (defined in schema as blocks, not attributes)
+	Balance       types.Object `tfsdk:"balance"`
+	HttpchkParams types.Object `tfsdk:"httpchk_params"`
+	Httpchecks    types.List   `tfsdk:"httpcheck"`
 }
 
 func (b backendResourceModel) attrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"name":                 types.StringType,
 		"mode":                 types.StringType,
-		"forwardfor":           types.ObjectType{},
-		"balance":              types.ObjectType{},
-		"httpchk_params":       types.ObjectType{},
+		"forwardfor":           types.ListType{ElemType: types.ObjectType{}},
 		"http_connection_mode": types.StringType,
 		"acl":                  types.ListType{ElemType: types.ObjectType{}},
 		"httprequestrule":      types.ListType{ElemType: types.ObjectType{}},
 		"httpresponserule":     types.ListType{ElemType: types.ObjectType{}},
 		"tcprequestrule":       types.ListType{ElemType: types.ObjectType{}},
 		"tcpresponserule":      types.ListType{ElemType: types.ObjectType{}},
-		"httpcheck":            types.ListType{ElemType: types.ObjectType{}},
 		"tcp_check":            types.ListType{ElemType: types.ObjectType{}},
 		"adv_check":            types.StringType,
 		"server_timeout":       types.Int64Type,
@@ -109,37 +108,42 @@ func (b backendResourceModel) attrTypes() map[string]attr.Type {
 		"tarpit_timeout":       types.Int64Type,
 		"checkcache":           types.StringType,
 		"retries":              types.Int64Type,
-		
+
 		// SSL/TLS Configuration Fields
-		"no_sslv3":            types.BoolType,
-		"no_tlsv10":           types.BoolType,
-		"no_tlsv11":           types.BoolType,
-		"no_tlsv12":           types.BoolType,
-		"no_tlsv13":           types.BoolType,
-		"force_sslv3":         types.BoolType,
-		"force_tlsv10":        types.BoolType,
-		"force_tlsv11":        types.BoolType,
-		"force_tlsv12":        types.BoolType,
-		"force_tlsv13":        types.BoolType,
-		"force_strict_sni":    types.StringType,
-		
+		"no_sslv3":         types.BoolType,
+		"no_tlsv10":        types.BoolType,
+		"no_tlsv11":        types.BoolType,
+		"no_tlsv12":        types.BoolType,
+		"no_tlsv13":        types.BoolType,
+		"force_sslv3":      types.BoolType,
+		"force_tlsv10":     types.BoolType,
+		"force_tlsv11":     types.BoolType,
+		"force_tlsv12":     types.BoolType,
+		"force_tlsv13":     types.BoolType,
+		"force_strict_sni": types.StringType,
+
 		// New v3 fields (non-deprecated)
-		"sslv3":               types.BoolType,
-		"tlsv10":              types.BoolType,
-		"tlsv11":              types.BoolType,
-		"tlsv12":              types.BoolType,
-		"tlsv13":              types.BoolType,
-		
+		"sslv3":  types.BoolType,
+		"tlsv10": types.BoolType,
+		"tlsv11": types.BoolType,
+		"tlsv12": types.BoolType,
+		"tlsv13": types.BoolType,
+
 		// SSL/TLS Configuration
-		"ssl":                 types.BoolType,
-		"ssl_cafile":          types.StringType,
-		"ssl_certificate":     types.StringType,
-		"ssl_max_ver":         types.StringType,
-		"ssl_min_ver":         types.StringType,
-		"ssl_reuse":           types.StringType,
-		"ciphers":             types.StringType,
-		"ciphersuites":        types.StringType,
-		"verify":              types.StringType,
+		"ssl":             types.BoolType,
+		"ssl_cafile":      types.StringType,
+		"ssl_certificate": types.StringType,
+		"ssl_max_ver":     types.StringType,
+		"ssl_min_ver":     types.StringType,
+		"ssl_reuse":       types.StringType,
+		"ciphers":         types.StringType,
+		"ciphersuites":    types.StringType,
+		"verify":          types.StringType,
+
+		// Block fields
+		"balance":        types.ObjectType{},
+		"httpchk_params": types.ObjectType{},
+		"httpcheck":      types.ListType{ElemType: types.ObjectType{}},
 	}
 }
 
@@ -166,55 +170,16 @@ func (a backendAclResourceModel) attrTypes() map[string]attr.Type {
 
 // backendHttpRequestRuleResourceModel maps the resource schema data.
 type backendHttpRequestRuleResourceModel struct {
-	Index                types.Int64  `tfsdk:"index"`
-	Type                 types.String `tfsdk:"type"`
-	AclFile              types.String `tfsdk:"acl_file"`
-	AclKeyfmt            types.String `tfsdk:"acl_keyfmt"`
-	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
-	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
-	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
-	CacheName            types.String `tfsdk:"cache_name"`
-	Cond                 types.String `tfsdk:"cond"`
-	CondTest             types.String `tfsdk:"cond_test"`
-	Expr                 types.String `tfsdk:"expr"`
-	HdrFormat            types.String `tfsdk:"hdr_format"`
-	HdrMatch             types.String `tfsdk:"hdr_match"`
-	HdrMethod            types.String `tfsdk:"hdr_method"`
-	HdrName              types.String `tfsdk:"hdr_name"`
-	LogLevel             types.String `tfsdk:"log_level"`
-	LuaAction            types.String `tfsdk:"lua_action"`
-	LuaParams            types.String `tfsdk:"lua_params"`
-	MapFile              types.String `tfsdk:"map_file"`
-	MapKeyfmt            types.String `tfsdk:"map_keyfmt"`
-	MapValuefmt          types.String `tfsdk:"map_valuefmt"`
-	MarkValue            types.String `tfsdk:"mark_value"`
-	MethodFmt            types.String `tfsdk:"method_fmt"`
-	NiceValue            types.Int64  `tfsdk:"nice_value"`
-	PathFmt              types.String `tfsdk:"path_fmt"`
-	PathMatch            types.String `tfsdk:"path_match"`
-	QueryFmt             types.String `tfsdk:"query_fmt"`
-	RedirCode            types.Int64  `tfsdk:"redir_code"`
-	RedirType            types.String `tfsdk:"redir_type"`
-	RedirValue           types.String `tfsdk:"redir_value"`
-	ScExpr               types.String `tfsdk:"sc_expr"`
-	ScId                 types.Int64  `tfsdk:"sc_id"`
-	ScIdx                types.Int64  `tfsdk:"sc_idx"`
-	ScInt                types.Int64  `tfsdk:"sc_int"`
-	Service              types.String `tfsdk:"service"`
-	SpoeEngine           types.String `tfsdk:"spoe_engine"`
-	SpoeGroup            types.String `tfsdk:"spoe_group"`
-	StatusCode           types.Int64  `tfsdk:"status_code"`
-	StatusReason         types.String `tfsdk:"status_reason"`
-	Timeout              types.String `tfsdk:"timeout"`
-	TimeoutValue         types.Int64  `tfsdk:"timeout_value"`
-	TosValue             types.String `tfsdk:"tos_value"`
-	TrackScKey           types.String `tfsdk:"track_sc_key"`
-	TrackScTable         types.String `tfsdk:"track_sc_table"`
-	UriFmt               types.String `tfsdk:"uri_fmt"`
-	UriMatch             types.String `tfsdk:"uri_match"`
-	VarName              types.String `tfsdk:"var_name"`
-	VarScope             types.String `tfsdk:"var_scope"`
-	WaitTime             types.Int64  `tfsdk:"wait_time"`
+	Index        types.Int64  `tfsdk:"index"`
+	Type         types.String `tfsdk:"type"`
+	Cond         types.String `tfsdk:"cond"`
+	CondTest     types.String `tfsdk:"cond_test"`
+	HdrName      types.String `tfsdk:"hdr_name"`
+	HdrFormat    types.String `tfsdk:"hdr_format"`
+	RedirType    types.String `tfsdk:"redir_type"`
+	RedirValue   types.String `tfsdk:"redir_value"`
+	StatusCode   types.Int64  `tfsdk:"status_code"`
+	StatusReason types.String `tfsdk:"status_reason"`
 }
 
 func (h backendHttpRequestRuleResourceModel) GetIndex() int64 {
@@ -223,55 +188,16 @@ func (h backendHttpRequestRuleResourceModel) GetIndex() int64 {
 
 func (h backendHttpRequestRuleResourceModel) attrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"index":                  types.Int64Type,
-		"type":                   types.StringType,
-		"acl_file":               types.StringType,
-		"acl_keyfmt":             types.StringType,
-		"bandwidth_limit_name":   types.StringType,
-		"bandwidth_limit_period": types.StringType,
-		"bandwidth_limit_limit":  types.StringType,
-		"cache_name":             types.StringType,
-		"cond":                   types.StringType,
-		"cond_test":              types.StringType,
-		"expr":                   types.StringType,
-		"hdr_format":             types.StringType,
-		"hdr_match":              types.StringType,
-		"hdr_method":             types.StringType,
-		"hdr_name":               types.StringType,
-		"log_level":              types.StringType,
-		"lua_action":             types.StringType,
-		"lua_params":             types.StringType,
-		"map_file":               types.StringType,
-		"map_keyfmt":             types.StringType,
-		"map_valuefmt":           types.StringType,
-		"mark_value":             types.StringType,
-		"method_fmt":             types.StringType,
-		"nice_value":             types.Int64Type,
-		"path_fmt":               types.StringType,
-		"path_match":             types.StringType,
-		"query_fmt":              types.StringType,
-		"redir_code":             types.Int64Type,
-		"redir_type":             types.StringType,
-		"redir_value":            types.StringType,
-		"sc_expr":                types.StringType,
-		"sc_id":                  types.Int64Type,
-		"sc_idx":                 types.Int64Type,
-		"sc_int":                 types.Int64Type,
-		"service":                types.StringType,
-		"spoe_engine":            types.StringType,
-		"spoe_group":             types.StringType,
-		"status_code":            types.Int64Type,
-		"status_reason":          types.StringType,
-		"timeout":                types.StringType,
-		"timeout_value":          types.Int64Type,
-		"tos_value":              types.StringType,
-		"track_sc_key":           types.StringType,
-		"track_sc_table":         types.StringType,
-		"uri_fmt":                types.StringType,
-		"uri_match":              types.StringType,
-		"var_name":               types.StringType,
-		"var_scope":              types.StringType,
-		"wait_time":              types.Int64Type,
+		"index":         types.Int64Type,
+		"type":          types.StringType,
+		"cond":          types.StringType,
+		"cond_test":     types.StringType,
+		"hdr_name":      types.StringType,
+		"hdr_format":    types.StringType,
+		"redir_type":    types.StringType,
+		"redir_value":   types.StringType,
+		"status_code":   types.Int64Type,
+		"status_reason": types.StringType,
 	}
 }
 
@@ -505,45 +431,7 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 				Description: "The mode of the backend. Allowed: http|tcp",
 			},
-			"forwardfor": schema.SingleNestedAttribute{
-				Optional: true,
-				Attributes: map[string]schema.Attribute{
-					"enabled": schema.StringAttribute{
-						Required:    true,
-						Description: "The state of the forwardfor. Allowed: enabled|disabled",
-					},
-				},
-			},
-			"balance": schema.SingleNestedAttribute{
-				Optional: true,
-				Attributes: map[string]schema.Attribute{
-					"algorithm": schema.StringAttribute{
-						Required:    true,
-						Description: "The algorithm of the balance. Allowed: roundrobin|static-rr|leastconn|first|source|uri|url_param|hdr|rdp-cookie",
-					},
-					"url_param": schema.StringAttribute{
-						Optional:    true,
-						Description: "The url_param of the balance.",
-					},
-				},
-			},
-			"httpchk_params": schema.SingleNestedAttribute{
-				Optional: true,
-				Attributes: map[string]schema.Attribute{
-					"method": schema.StringAttribute{
-						Required:    true,
-						Description: "The method of the httpchk_params. Allowed: HEAD|PUT|POST|GET|TRACE|OPTIONS",
-					},
-					"uri": schema.StringAttribute{
-						Required:    true,
-						Description: "The uri of the httpchk_params.",
-					},
-					"version": schema.StringAttribute{
-						Required:    true,
-						Description: "The version of the httpchk_params.",
-					},
-				},
-			},
+
 			"http_connection_mode": schema.StringAttribute{
 				Optional:    true,
 				Description: "The http connection mode of the backend. Allowed: httpclose|http-server-close|http-keep-alive",
@@ -1023,69 +911,7 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
-			"httpcheck": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index of the httpcheck",
-						},
-						"addr": schema.StringAttribute{
-							Optional:    true,
-							Description: "The address of the httpcheck",
-						},
-						"match": schema.StringAttribute{
-							Optional:    true,
-							Description: "The match of the httpcheck",
-						},
-						"pattern": schema.StringAttribute{
-							Optional:    true,
-							Description: "The pattern of the httpcheck",
-						},
-						"type": schema.StringAttribute{
-							Optional:    true,
-							Description: "The type of the httpcheck",
-						},
-						"method": schema.StringAttribute{
-							Optional:    true,
-							Description: "The method of the httpcheck",
-						},
-						"port": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The port of the httpcheck",
-						},
-						"uri": schema.StringAttribute{
-							Optional:    true,
-							Description: "The uri of the httpcheck",
-						},
-						"version": schema.StringAttribute{
-							Optional:    true,
-							Description: "The version of the httpcheck",
-						},
-						"exclamation_mark": schema.StringAttribute{
-							Optional:    true,
-							Description: "The exclamation_mark of the httpcheck",
-						},
-						"log_level": schema.StringAttribute{
-							Optional:    true,
-							Description: "The log_level of the httpcheck",
-						},
-						"send_proxy": schema.StringAttribute{
-							Optional:    true,
-							Description: "The send_proxy of the httpcheck",
-						},
-						"via_socks4": schema.StringAttribute{
-							Optional:    true,
-							Description: "The via_socks4 of the httpcheck",
-						},
-						"check_comment": schema.StringAttribute{
-							Optional:    true,
-							Description: "The check_comment of the httpcheck",
-						},
-					},
-				},
-			},
+
 			"tcp_check": schema.ListNestedAttribute{
 				Optional: true,
 				NestedObject: schema.NestedAttributeObject{
@@ -1141,7 +967,7 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
-			
+
 			// SSL/TLS Configuration Fields
 			"no_sslv3": schema.BoolAttribute{
 				Optional:    true,
@@ -1187,7 +1013,7 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 				Description: "Force strict SNI. DEPRECATED: Use 'strict_sni' field instead in Data Plane API v3. Allowed: enabled|disabled",
 			},
-			
+
 			// New v3 fields (non-deprecated)
 			"sslv3": schema.BoolAttribute{
 				Optional:    true,
@@ -1209,7 +1035,7 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 				Description: "Enable TLSv1.3 protocol support (v3 API, replaces no_tlsv13)",
 			},
-			
+
 			// SSL/TLS Configuration
 			"ssl": schema.BoolAttribute{
 				Optional:    true,
@@ -1248,6 +1074,68 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "SSL certificate verification. Allowed: none|required",
 			},
 		},
+		Blocks: map[string]schema.Block{
+			"forwardfor": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"enabled": schema.StringAttribute{
+							Required:    true,
+							Description: "The state of the forwardfor. Allowed: enabled|disabled",
+						},
+					},
+				},
+			},
+			"balance": schema.SingleNestedBlock{
+				Attributes: map[string]schema.Attribute{
+					"algorithm": schema.StringAttribute{
+						Required:    true,
+						Description: "The algorithm of the balance. Allowed: roundrobin|static-rr|leastconn|first|source|uri|url_param|hdr|rdp-cookie",
+					},
+					"url_param": schema.StringAttribute{
+						Optional:    true,
+						Description: "The url_param of the balance.",
+					},
+				},
+			},
+			"httpchk_params": schema.SingleNestedBlock{
+				Attributes: map[string]schema.Attribute{
+					"method": schema.StringAttribute{
+						Optional:    true,
+						Description: "The method of the httpchk_params. Allowed: HEAD|PUT|POST|GET|TRACE|OPTIONS",
+					},
+					"uri": schema.StringAttribute{
+						Optional:    true,
+						Description: "The uri of the httpchk_params.",
+					},
+					"version": schema.StringAttribute{
+						Optional:    true,
+						Description: "The version of the httpchk_params.",
+					},
+				},
+			},
+			"httpcheck": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"index": schema.Int64Attribute{
+							Required:    true,
+							Description: "The index of the httpcheck",
+						},
+						"match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The match of the httpcheck",
+						},
+						"pattern": schema.StringAttribute{
+							Optional:    true,
+							Description: "The pattern of the httpcheck",
+						},
+						"type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The type of the httpcheck",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -1269,7 +1157,7 @@ func (r *backendResource) Configure(_ context.Context, req resource.ConfigureReq
 	r.client = client
 }
 
-	// Create a new resource.
+// Create a new resource.
 func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan backendResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -1299,54 +1187,57 @@ func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest
 		TarpitTimeout:      plan.TarpitTimeout.ValueInt64(),
 		CheckCache:         plan.CheckCache.ValueString(),
 		Retries:            plan.Retries.ValueInt64(),
-		
+
 		// SSL/TLS Configuration Fields
 		// Deprecated fields (API v2)
-		NoSslv3:            plan.NoSslv3.ValueBool(),
-		NoTlsv10:           plan.NoTlsv10.ValueBool(),
-		NoTlsv11:           plan.NoTlsv11.ValueBool(),
-		NoTlsv12:           plan.NoTlsv12.ValueBool(),
-		NoTlsv13:           plan.NoTlsv13.ValueBool(),
-		ForceSslv3:         plan.ForceSslv3.ValueBool(),
-		ForceTlsv10:        plan.ForceTlsv10.ValueBool(),
-		ForceTlsv11:        plan.ForceTlsv11.ValueBool(),
-		ForceTlsv12:        plan.ForceTlsv12.ValueBool(),
-		ForceTlsv13:        plan.ForceTlsv13.ValueBool(),
-		ForceStrictSni:     plan.ForceStrictSni.ValueString(),
-		
+		NoSslv3:        plan.NoSslv3.ValueBool(),
+		NoTlsv10:       plan.NoTlsv10.ValueBool(),
+		NoTlsv11:       plan.NoTlsv11.ValueBool(),
+		NoTlsv12:       plan.NoTlsv12.ValueBool(),
+		NoTlsv13:       plan.NoTlsv13.ValueBool(),
+		ForceSslv3:     plan.ForceSslv3.ValueBool(),
+		ForceTlsv10:    plan.ForceTlsv10.ValueBool(),
+		ForceTlsv11:    plan.ForceTlsv11.ValueBool(),
+		ForceTlsv12:    plan.ForceTlsv12.ValueBool(),
+		ForceTlsv13:    plan.ForceTlsv13.ValueBool(),
+		ForceStrictSni: plan.ForceStrictSni.ValueString(),
+
 		// New v3 fields (non-deprecated)
-		Sslv3:              plan.Sslv3.ValueBool(),
-		Tlsv10:             plan.Tlsv10.ValueBool(),
-		Tlsv11:             plan.Tlsv11.ValueBool(),
-		Tlsv12:             plan.Tlsv12.ValueBool(),
-		Tlsv13:             plan.Tlsv13.ValueBool(),
-		
+		Sslv3:  plan.Sslv3.ValueBool(),
+		Tlsv10: plan.Tlsv10.ValueBool(),
+		Tlsv11: plan.Tlsv11.ValueBool(),
+		Tlsv12: plan.Tlsv12.ValueBool(),
+		Tlsv13: plan.Tlsv13.ValueBool(),
+
 		// SSL/TLS Configuration
-		Ssl:                plan.Ssl.ValueBool(),
-		SslCafile:          plan.SslCafile.ValueString(),
-		SslCertificate:     plan.SslCertificate.ValueString(),
-		SslMaxVer:          plan.SslMaxVer.ValueString(),
-		SslMinVer:          plan.SslMinVer.ValueString(),
-		SslReuse:           plan.SslReuse.ValueString(),
-		Ciphers:            plan.Ciphers.ValueString(),
-		Ciphersuites:       plan.Ciphersuites.ValueString(),
-		Verify:             plan.Verify.ValueString(),
+		Ssl:            plan.Ssl.ValueBool(),
+		SslCafile:      plan.SslCafile.ValueString(),
+		SslCertificate: plan.SslCertificate.ValueString(),
+		SslMaxVer:      plan.SslMaxVer.ValueString(),
+		SslMinVer:      plan.SslMinVer.ValueString(),
+		SslReuse:       plan.SslReuse.ValueString(),
+		Ciphers:        plan.Ciphers.ValueString(),
+		Ciphersuites:   plan.Ciphersuites.ValueString(),
+		Verify:         plan.Verify.ValueString(),
 	}
 
-	if !plan.Forwardfor.IsNull() {
-		var forwardforModel struct {
+	if !plan.Forwardfor.IsNull() && len(plan.Forwardfor.Elements()) > 0 {
+		var forwardforModels []struct {
 			Enabled types.String `tfsdk:"enabled"`
 		}
-		diags := plan.Forwardfor.As(ctx, &forwardforModel, basetypes.ObjectAsOptions{})
+		diags := plan.Forwardfor.ElementsAs(ctx, &forwardforModels, false)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		payload.Forwardfor = ForwardFor{
-			Enabled: forwardforModel.Enabled.ValueString(),
+		if len(forwardforModels) > 0 {
+			payload.Forwardfor = &ForwardFor{
+				Enabled: forwardforModels[0].Enabled.ValueString(),
+			}
 		}
 	}
 
+	// Handle balance block
 	if !plan.Balance.IsNull() {
 		var balanceModel struct {
 			Algorithm types.String `tfsdk:"algorithm"`
@@ -1357,35 +1248,64 @@ func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		payload.Balance = Balance{
+
+		payload.Balance = &Balance{
 			Algorithm: balanceModel.Algorithm.ValueString(),
-			UrlParam:  balanceModel.UrlParam.ValueString(),
+		}
+		if !balanceModel.UrlParam.IsNull() {
+			payload.Balance.UrlParam = balanceModel.UrlParam.ValueString()
 		}
 	}
 
+	// Handle httpchk_params block
 	if !plan.HttpchkParams.IsNull() {
-		var httpchkParamsModel struct {
+		var httpchkModel struct {
 			Method  types.String `tfsdk:"method"`
 			Uri     types.String `tfsdk:"uri"`
 			Version types.String `tfsdk:"version"`
 		}
-		diags := plan.HttpchkParams.As(ctx, &httpchkParamsModel, basetypes.ObjectAsOptions{})
+		diags := plan.HttpchkParams.As(ctx, &httpchkModel, basetypes.ObjectAsOptions{})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		payload.HttpchkParams = HttpchkParams{
-			Method:  httpchkParamsModel.Method.ValueString(),
-			Uri:     httpchkParamsModel.Uri.ValueString(),
-			Version: httpchkParamsModel.Version.ValueString(),
+
+		payload.HttpchkParams = &HttpchkParams{
+			Method: httpchkModel.Method.ValueString(),
+			Uri:    httpchkModel.Uri.ValueString(),
+		}
+		if !httpchkModel.Version.IsNull() {
+			payload.HttpchkParams.Version = httpchkModel.Version.ValueString()
 		}
 	}
 
-	err := r.client.CreateBackend(ctx, payload)
+	// Use the new transaction handling to avoid timeout issues
+	transactionID, err := r.client.BeginTransaction()
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating backend",
+			"Could not begin transaction: "+err.Error(),
+		)
+		return
+	}
+
+	err = r.client.CreateBackendInTransaction(ctx, transactionID, payload)
+	if err != nil {
+		// Try to rollback the transaction
+		_ = r.client.CommitTransaction(transactionID) // This will fail but that's okay
+		resp.Diagnostics.AddError(
+			"Error creating backend",
 			"Could not create backend, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	// Commit the transaction
+	err = r.client.CommitTransaction(transactionID)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating backend",
+			"Could not commit transaction: "+err.Error(),
 		)
 		return
 	}
@@ -1434,55 +1354,16 @@ func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest
 
 		for _, httpRequestRuleModel := range httpRequestRuleModels {
 			httpRequestRulePayload := &HttpRequestRulePayload{
-				Index:                httpRequestRuleModel.Index.ValueInt64(),
-				Type:                 httpRequestRuleModel.Type.ValueString(),
-				AclFile:              httpRequestRuleModel.AclFile.ValueString(),
-				AclKeyfmt:            httpRequestRuleModel.AclKeyfmt.ValueString(),
-				BandwidthLimitName:   httpRequestRuleModel.BandwidthLimitName.ValueString(),
-				BandwidthLimitPeriod: httpRequestRuleModel.BandwidthLimitPeriod.ValueString(),
-				BandwidthLimitLimit:  httpRequestRuleModel.BandwidthLimitLimit.ValueString(),
-				CacheName:            httpRequestRuleModel.CacheName.ValueString(),
-				Cond:                 httpRequestRuleModel.Cond.ValueString(),
-				CondTest:             httpRequestRuleModel.CondTest.ValueString(),
-				Expr:                 httpRequestRuleModel.Expr.ValueString(),
-				HdrFormat:            httpRequestRuleModel.HdrFormat.ValueString(),
-				HdrMatch:             httpRequestRuleModel.HdrMatch.ValueString(),
-				HdrMethod:            httpRequestRuleModel.HdrMethod.ValueString(),
-				HdrName:              httpRequestRuleModel.HdrName.ValueString(),
-				LogLevel:             httpRequestRuleModel.LogLevel.ValueString(),
-				LuaAction:            httpRequestRuleModel.LuaAction.ValueString(),
-				LuaParams:            httpRequestRuleModel.LuaParams.ValueString(),
-				MapFile:              httpRequestRuleModel.MapFile.ValueString(),
-				MapKeyfmt:            httpRequestRuleModel.MapKeyfmt.ValueString(),
-				MapValuefmt:          httpRequestRuleModel.MapValuefmt.ValueString(),
-				MarkValue:            httpRequestRuleModel.MarkValue.ValueString(),
-				MethodFmt:            httpRequestRuleModel.MethodFmt.ValueString(),
-				NiceValue:            httpRequestRuleModel.NiceValue.ValueInt64(),
-				PathFmt:              httpRequestRuleModel.PathFmt.ValueString(),
-				PathMatch:            httpRequestRuleModel.PathMatch.ValueString(),
-				QueryFmt:             httpRequestRuleModel.QueryFmt.ValueString(),
-				RedirCode:            httpRequestRuleModel.RedirCode.ValueInt64(),
-				RedirType:            httpRequestRuleModel.RedirType.ValueString(),
-				RedirValue:           httpRequestRuleModel.RedirValue.ValueString(),
-				ScExpr:               httpRequestRuleModel.ScExpr.ValueString(),
-				ScId:                 httpRequestRuleModel.ScId.ValueInt64(),
-				ScIdx:                httpRequestRuleModel.ScIdx.ValueInt64(),
-				ScInt:                httpRequestRuleModel.ScInt.ValueInt64(),
-				Service:              httpRequestRuleModel.Service.ValueString(),
-				SpoeEngine:           httpRequestRuleModel.SpoeEngine.ValueString(),
-				SpoeGroup:            httpRequestRuleModel.SpoeGroup.ValueString(),
-				StatusCode:           httpRequestRuleModel.StatusCode.ValueInt64(),
-				StatusReason:         httpRequestRuleModel.StatusReason.ValueString(),
-				Timeout:              httpRequestRuleModel.Timeout.ValueString(),
-				TimeoutValue:         httpRequestRuleModel.TimeoutValue.ValueInt64(),
-				TosValue:             httpRequestRuleModel.TosValue.ValueString(),
-				TrackScKey:           httpRequestRuleModel.TrackScKey.ValueString(),
-				TrackScTable:         httpRequestRuleModel.TrackScTable.ValueString(),
-				UriFmt:               httpRequestRuleModel.UriFmt.ValueString(),
-				UriMatch:             httpRequestRuleModel.UriMatch.ValueString(),
-				VarName:              httpRequestRuleModel.VarName.ValueString(),
-				VarScope:             httpRequestRuleModel.VarScope.ValueString(),
-				WaitTime:             httpRequestRuleModel.WaitTime.ValueInt64(),
+				Index:        httpRequestRuleModel.Index.ValueInt64(),
+				Type:         httpRequestRuleModel.Type.ValueString(),
+				Cond:         httpRequestRuleModel.Cond.ValueString(),
+				CondTest:     httpRequestRuleModel.CondTest.ValueString(),
+				HdrName:      httpRequestRuleModel.HdrName.ValueString(),
+				HdrFormat:    httpRequestRuleModel.HdrFormat.ValueString(),
+				RedirType:    httpRequestRuleModel.RedirType.ValueString(),
+				RedirValue:   httpRequestRuleModel.RedirValue.ValueString(),
+				StatusCode:   httpRequestRuleModel.StatusCode.ValueInt64(),
+				StatusReason: httpRequestRuleModel.StatusReason.ValueString(),
 			}
 			err := r.client.CreateHttpRequestRule(ctx, "backend", plan.Name.ValueString(), httpRequestRulePayload)
 			if err != nil {
@@ -1621,45 +1502,8 @@ func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
-	if !plan.Httpchecks.IsNull() {
-		var httpcheckModels []backendHttpcheckResourceModel
-		diags := plan.Httpchecks.ElementsAs(ctx, &httpcheckModels, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		sort.Slice(httpcheckModels, func(i, j int) bool {
-			return httpcheckModels[i].GetIndex() < httpcheckModels[j].GetIndex()
-		})
-
-		for _, httpcheckModel := range httpcheckModels {
-			httpcheckPayload := &HttpcheckPayload{
-				Index:           httpcheckModel.Index.ValueInt64(),
-				Addr:            httpcheckModel.Addr.ValueString(),
-				Match:           httpcheckModel.Match.ValueString(),
-				Pattern:         httpcheckModel.Pattern.ValueString(),
-				Type:            httpcheckModel.Type.ValueString(),
-				Method:          httpcheckModel.Method.ValueString(),
-				Port:            httpcheckModel.Port.ValueInt64(),
-				Uri:             httpcheckModel.Uri.ValueString(),
-				Version:         httpcheckModel.Version.ValueString(),
-				ExclamationMark: httpcheckModel.ExclamationMark.ValueString(),
-				LogLevel:        httpcheckModel.LogLevel.ValueString(),
-				SendProxy:       httpcheckModel.SendProxy.ValueString(),
-				ViaSocks4:       httpcheckModel.ViaSocks4.ValueString(),
-				CheckComment:    httpcheckModel.CheckComment.ValueString(),
-			}
-			err := r.client.CreateHttpcheck(ctx, "backend", plan.Name.ValueString(), httpcheckPayload)
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Error creating httpcheck",
-					fmt.Sprintf("Could not create httpcheck, unexpected error: %s", err.Error()),
-				)
-				return
-			}
-		}
-	}
+	// TODO: Handle httpcheck from blocks instead of attributes
+	// This is now defined as a block in the schema
 
 	if !plan.TcpChecks.IsNull() {
 		var tcpCheckModels []backendTcpCheckResourceModel
@@ -1736,71 +1580,221 @@ func (r *backendResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	state.Name = types.StringValue(backend.Name)
 	state.Mode = types.StringValue(backend.Mode)
-	state.HttpConnectionMode = types.StringValue(backend.HttpConnectionMode)
-	state.AdvCheck = types.StringValue(backend.AdvCheck)
-	state.ServerTimeout = types.Int64Value(backend.ServerTimeout)
-	state.CheckTimeout = types.Int64Value(backend.CheckTimeout)
-	state.ConnectTimeout = types.Int64Value(backend.ConnectTimeout)
-	state.QueueTimeout = types.Int64Value(backend.QueueTimeout)
-	state.TunnelTimeout = types.Int64Value(backend.TunnelTimeout)
-	state.TarpitTimeout = types.Int64Value(backend.TarpitTimeout)
-	state.CheckCache = types.StringValue(backend.CheckCache)
-	state.Retries = types.Int64Value(backend.Retries)
-	
-	// SSL/TLS Configuration Fields
-	// Deprecated fields (API v2)
-	state.NoSslv3 = types.BoolValue(backend.NoSslv3)
-	state.NoTlsv10 = types.BoolValue(backend.NoTlsv10)
-	state.NoTlsv11 = types.BoolValue(backend.NoTlsv11)
-	state.NoTlsv12 = types.BoolValue(backend.NoTlsv12)
-	state.NoTlsv13 = types.BoolValue(backend.NoTlsv13)
-	state.ForceSslv3 = types.BoolValue(backend.ForceSslv3)
-	state.ForceTlsv10 = types.BoolValue(backend.ForceTlsv10)
-	state.ForceTlsv11 = types.BoolValue(backend.ForceTlsv11)
-	state.ForceTlsv12 = types.BoolValue(backend.ForceTlsv12)
-	state.ForceTlsv13 = types.BoolValue(backend.ForceTlsv13)
-	state.ForceStrictSni = types.StringValue(backend.ForceStrictSni)
-	
-	// New v3 fields (non-deprecated)
-	state.Sslv3 = types.BoolValue(backend.Sslv3)
-	state.Tlsv10 = types.BoolValue(backend.Tlsv10)
-	state.Tlsv11 = types.BoolValue(backend.Tlsv11)
-	state.Tlsv12 = types.BoolValue(backend.Tlsv12)
-	state.Tlsv13 = types.BoolValue(backend.Tlsv13)
-	
-	// SSL/TLS Configuration
-	state.Ssl = types.BoolValue(backend.Ssl)
-	state.SslCafile = types.StringValue(backend.SslCafile)
-	state.SslCertificate = types.StringValue(backend.SslCertificate)
-	state.SslMaxVer = types.StringValue(backend.SslMaxVer)
-	state.SslMinVer = types.StringValue(backend.SslMinVer)
-	state.SslReuse = types.StringValue(backend.SslReuse)
-	state.Ciphers = types.StringValue(backend.Ciphers)
-	state.Ciphersuites = types.StringValue(backend.Ciphersuites)
-	state.Verify = types.StringValue(backend.Verify)
+	// Only set string fields if they have meaningful values (not empty)
+	if backend.HttpConnectionMode != "" {
+		state.HttpConnectionMode = types.StringValue(backend.HttpConnectionMode)
+	} else {
+		state.HttpConnectionMode = types.StringNull()
+	}
+	if backend.AdvCheck != "" {
+		state.AdvCheck = types.StringValue(backend.AdvCheck)
+	} else {
+		state.AdvCheck = types.StringNull()
+	}
+	// Only set timeout fields if they have meaningful values (not zero/empty)
+	if backend.ServerTimeout > 0 {
+		state.ServerTimeout = types.Int64Value(backend.ServerTimeout)
+	} else {
+		state.ServerTimeout = types.Int64Null()
+	}
+	if backend.CheckTimeout > 0 {
+		state.CheckTimeout = types.Int64Value(backend.CheckTimeout)
+	} else {
+		state.CheckTimeout = types.Int64Null()
+	}
+	if backend.ConnectTimeout > 0 {
+		state.ConnectTimeout = types.Int64Value(backend.ConnectTimeout)
+	} else {
+		state.ConnectTimeout = types.Int64Null()
+	}
+	if backend.QueueTimeout > 0 {
+		state.QueueTimeout = types.Int64Value(backend.QueueTimeout)
+	} else {
+		state.QueueTimeout = types.Int64Null()
+	}
+	if backend.TunnelTimeout > 0 {
+		state.TunnelTimeout = types.Int64Value(backend.TunnelTimeout)
+	} else {
+		state.TunnelTimeout = types.Int64Null()
+	}
+	if backend.TarpitTimeout > 0 {
+		state.TarpitTimeout = types.Int64Value(backend.TarpitTimeout)
+	} else {
+		state.TarpitTimeout = types.Int64Null()
+	}
+	if backend.CheckCache != "" {
+		state.CheckCache = types.StringValue(backend.CheckCache)
+	} else {
+		state.CheckCache = types.StringNull()
+	}
+	if backend.Retries > 0 {
+		state.Retries = types.Int64Value(backend.Retries)
+	} else {
+		state.Retries = types.Int64Null()
+	}
 
-	if backend.Forwardfor != (ForwardFor{}) {
+	// SSL/TLS Configuration Fields
+	// Deprecated fields (API v2) - only set if true
+	if backend.NoSslv3 {
+		state.NoSslv3 = types.BoolValue(true)
+	} else {
+		state.NoSslv3 = types.BoolNull()
+	}
+	if backend.NoTlsv10 {
+		state.NoTlsv10 = types.BoolValue(true)
+	} else {
+		state.NoTlsv10 = types.BoolNull()
+	}
+	if backend.NoTlsv11 {
+		state.NoTlsv11 = types.BoolValue(true)
+	} else {
+		state.NoTlsv11 = types.BoolNull()
+	}
+	if backend.NoTlsv12 {
+		state.NoTlsv12 = types.BoolValue(true)
+	} else {
+		state.NoTlsv12 = types.BoolNull()
+	}
+	if backend.NoTlsv13 {
+		state.NoTlsv13 = types.BoolValue(true)
+	} else {
+		state.NoTlsv13 = types.BoolNull()
+	}
+	if backend.ForceSslv3 {
+		state.ForceSslv3 = types.BoolValue(true)
+	} else {
+		state.ForceSslv3 = types.BoolNull()
+	}
+	if backend.ForceTlsv10 {
+		state.ForceTlsv10 = types.BoolValue(true)
+	} else {
+		state.ForceTlsv10 = types.BoolNull()
+	}
+	if backend.ForceTlsv11 {
+		state.ForceTlsv11 = types.BoolValue(true)
+	} else {
+		state.ForceTlsv11 = types.BoolNull()
+	}
+	if backend.ForceTlsv12 {
+		state.ForceTlsv12 = types.BoolValue(true)
+	} else {
+		state.ForceTlsv12 = types.BoolNull()
+	}
+	if backend.ForceTlsv13 {
+		state.ForceTlsv13 = types.BoolValue(true)
+	} else {
+		state.ForceTlsv13 = types.BoolNull()
+	}
+	if backend.ForceStrictSni != "" {
+		state.ForceStrictSni = types.StringValue(backend.ForceStrictSni)
+	} else {
+		state.ForceStrictSni = types.StringNull()
+	}
+
+	// New v3 fields (non-deprecated) - only set if true
+	if backend.Sslv3 {
+		state.Sslv3 = types.BoolValue(true)
+	} else {
+		state.Sslv3 = types.BoolNull()
+	}
+	if backend.Tlsv10 {
+		state.Tlsv10 = types.BoolValue(true)
+	} else {
+		state.Tlsv10 = types.BoolNull()
+	}
+	if backend.Tlsv11 {
+		state.Tlsv11 = types.BoolValue(true)
+	} else {
+		state.Tlsv11 = types.BoolNull()
+	}
+	if backend.Tlsv12 {
+		state.Tlsv12 = types.BoolValue(true)
+	} else {
+		state.Tlsv12 = types.BoolNull()
+	}
+	if backend.Tlsv13 {
+		state.Tlsv13 = types.BoolValue(true)
+	} else {
+		state.Tlsv13 = types.BoolNull()
+	}
+
+	// SSL/TLS Configuration - only set if true
+	if backend.Ssl {
+		state.Ssl = types.BoolValue(true)
+	} else {
+		state.Ssl = types.BoolNull()
+	}
+	// Only set SSL string fields if they have meaningful values (not empty)
+	if backend.SslCafile != "" {
+		state.SslCafile = types.StringValue(backend.SslCafile)
+	} else {
+		state.SslCafile = types.StringNull()
+	}
+	if backend.SslCertificate != "" {
+		state.SslCertificate = types.StringValue(backend.SslCertificate)
+	} else {
+		state.SslCertificate = types.StringNull()
+	}
+	if backend.SslMaxVer != "" {
+		state.SslMaxVer = types.StringValue(backend.SslMaxVer)
+	} else {
+		state.SslMaxVer = types.StringNull()
+	}
+	if backend.SslMinVer != "" {
+		state.SslMinVer = types.StringValue(backend.SslMinVer)
+	} else {
+		state.SslMinVer = types.StringNull()
+	}
+	if backend.SslReuse != "" {
+		state.SslReuse = types.StringValue(backend.SslReuse)
+	} else {
+		state.SslReuse = types.StringNull()
+	}
+	if backend.Ciphers != "" {
+		state.Ciphers = types.StringValue(backend.Ciphers)
+	} else {
+		state.Ciphers = types.StringNull()
+	}
+	if backend.Ciphersuites != "" {
+		state.Ciphersuites = types.StringValue(backend.Ciphersuites)
+	} else {
+		state.Ciphersuites = types.StringNull()
+	}
+	if backend.Verify != "" {
+		state.Verify = types.StringValue(backend.Verify)
+	} else {
+		state.Verify = types.StringNull()
+	}
+
+	if backend.Forwardfor != nil {
 		var forwardforModel struct {
 			Enabled types.String `tfsdk:"enabled"`
 		}
 		forwardforModel.Enabled = types.StringValue(backend.Forwardfor.Enabled)
-		state.Forwardfor, diags = types.ObjectValueFrom(ctx, map[string]attr.Type{
-			"enabled": types.StringType,
-		}, forwardforModel)
+		forwardforList, diags := types.ListValueFrom(ctx, types.ObjectType{
+			AttrTypes: map[string]attr.Type{
+				"enabled": types.StringType,
+			},
+		}, []interface{}{forwardforModel})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
+		state.Forwardfor = forwardforList
 	}
 
-	if backend.Balance != (Balance{}) {
+	// Handle balance block
+	if backend.Balance != nil {
 		var balanceModel struct {
 			Algorithm types.String `tfsdk:"algorithm"`
 			UrlParam  types.String `tfsdk:"url_param"`
 		}
 		balanceModel.Algorithm = types.StringValue(backend.Balance.Algorithm)
-		balanceModel.UrlParam = types.StringValue(backend.Balance.UrlParam)
-		state.Balance, diags = types.ObjectValueFrom(ctx, map[string]attr.Type{
+		if backend.Balance.UrlParam != "" {
+			balanceModel.UrlParam = types.StringValue(backend.Balance.UrlParam)
+		}
+
+		balanceObj, diags := types.ObjectValueFrom(ctx, map[string]attr.Type{
 			"algorithm": types.StringType,
 			"url_param": types.StringType,
 		}, balanceModel)
@@ -1808,27 +1802,36 @@ func (r *backendResource) Read(ctx context.Context, req resource.ReadRequest, re
 		if resp.Diagnostics.HasError() {
 			return
 		}
+		state.Balance = balanceObj
 	}
 
-	if backend.HttpchkParams != (HttpchkParams{}) {
-		var httpchkParamsModel struct {
+	// Handle httpchk_params block
+	if backend.HttpchkParams != nil {
+		var httpchkModel struct {
 			Method  types.String `tfsdk:"method"`
 			Uri     types.String `tfsdk:"uri"`
 			Version types.String `tfsdk:"version"`
 		}
-		httpchkParamsModel.Method = types.StringValue(backend.HttpchkParams.Method)
-		httpchkParamsModel.Uri = types.StringValue(backend.HttpchkParams.Uri)
-		httpchkParamsModel.Version = types.StringValue(backend.HttpchkParams.Version)
-		state.HttpchkParams, diags = types.ObjectValueFrom(ctx, map[string]attr.Type{
+		httpchkModel.Method = types.StringValue(backend.HttpchkParams.Method)
+		httpchkModel.Uri = types.StringValue(backend.HttpchkParams.Uri)
+		if backend.HttpchkParams.Version != "" {
+			httpchkModel.Version = types.StringValue(backend.HttpchkParams.Version)
+		}
+
+		httpchkObj, diags := types.ObjectValueFrom(ctx, map[string]attr.Type{
 			"method":  types.StringType,
 			"uri":     types.StringType,
 			"version": types.StringType,
-		}, httpchkParamsModel)
+		}, httpchkModel)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
+		state.HttpchkParams = httpchkObj
 	}
+
+	// TODO: Handle balance and httpchk_params from blocks instead of attributes
+	// These are now defined as blocks in the schema
 
 	acls, err := r.client.ReadAcls(ctx, "backend", state.Name.ValueString())
 	if err != nil {
@@ -2010,43 +2013,8 @@ func (r *backendResource) Read(ctx context.Context, req resource.ReadRequest, re
 		}
 	}
 
-	httpchecks, err := r.client.ReadHttpchecks(ctx, "backend", state.Name.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading httpchecks",
-			"Could not read httpchecks, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	if len(httpchecks) > 0 {
-		var httpcheckModels []backendHttpcheckResourceModel
-		for _, httpcheck := range httpchecks {
-			httpcheckModels = append(httpcheckModels, backendHttpcheckResourceModel{
-				Index:           types.Int64Value(httpcheck.Index),
-				Addr:            types.StringValue(httpcheck.Addr),
-				Match:           types.StringValue(httpcheck.Match),
-				Pattern:         types.StringValue(httpcheck.Pattern),
-				Type:            types.StringValue(httpcheck.Type),
-				Method:          types.StringValue(httpcheck.Method),
-				Port:            types.Int64Value(httpcheck.Port),
-				Uri:             types.StringValue(httpcheck.Uri),
-				Version:         types.StringValue(httpcheck.Version),
-				ExclamationMark: types.StringValue(httpcheck.ExclamationMark),
-				LogLevel:        types.StringValue(httpcheck.LogLevel),
-				SendProxy:       types.StringValue(httpcheck.SendProxy),
-				ViaSocks4:       types.StringValue(httpcheck.ViaSocks4),
-				CheckComment:    types.StringValue(httpcheck.CheckComment),
-			})
-		}
-		state.Httpchecks, diags = types.ListValueFrom(ctx, types.ObjectType{
-			AttrTypes: backendHttpcheckResourceModel{}.attrTypes(),
-		}, httpcheckModels)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	}
+	// TODO: Handle httpcheck from blocks instead of attributes
+	// This is now defined as a block in the schema
 
 	tcpChecks, err := r.client.ReadTcpChecks(ctx, "backend", state.Name.ValueString())
 	if err != nil {
@@ -2118,53 +2086,56 @@ func (r *backendResource) Update(ctx context.Context, req resource.UpdateRequest
 		TarpitTimeout:      plan.TarpitTimeout.ValueInt64(),
 		CheckCache:         plan.CheckCache.ValueString(),
 		Retries:            plan.Retries.ValueInt64(),
-		
+
 		// SSL/TLS Configuration Fields
 		// Deprecated fields (API v2)
-		NoSslv3:            plan.NoSslv3.ValueBool(),
-		NoTlsv10:           plan.NoTlsv10.ValueBool(),
-		NoTlsv11:           plan.NoTlsv11.ValueBool(),
-		NoTlsv12:           plan.NoTlsv12.ValueBool(),
-		NoTlsv13:           plan.NoTlsv13.ValueBool(),
-		ForceSslv3:         plan.ForceSslv3.ValueBool(),
-		ForceTlsv10:        plan.ForceTlsv10.ValueBool(),
-		ForceTlsv11:        plan.ForceTlsv11.ValueBool(),
-		ForceTlsv12:        plan.ForceTlsv12.ValueBool(),
-		ForceTlsv13:        plan.ForceTlsv13.ValueBool(),
-		ForceStrictSni:     plan.ForceStrictSni.ValueString(),
-		
+		NoSslv3:        plan.NoSslv3.ValueBool(),
+		NoTlsv10:       plan.NoTlsv10.ValueBool(),
+		NoTlsv11:       plan.NoTlsv11.ValueBool(),
+		NoTlsv12:       plan.NoTlsv12.ValueBool(),
+		NoTlsv13:       plan.NoTlsv13.ValueBool(),
+		ForceSslv3:     plan.ForceSslv3.ValueBool(),
+		ForceTlsv10:    plan.ForceTlsv10.ValueBool(),
+		ForceTlsv11:    plan.ForceTlsv11.ValueBool(),
+		ForceTlsv12:    plan.ForceTlsv12.ValueBool(),
+		ForceTlsv13:    plan.ForceTlsv13.ValueBool(),
+		ForceStrictSni: plan.ForceStrictSni.ValueString(),
+
 		// New v3 fields (non-deprecated)
-		Sslv3:              plan.Sslv3.ValueBool(),
-		Tlsv10:             plan.Tlsv10.ValueBool(),
-		Tlsv11:             plan.Tlsv11.ValueBool(),
-		Tlsv12:             plan.Tlsv11.ValueBool(),
-		Tlsv13:             plan.Tlsv13.ValueBool(),
-		
+		Sslv3:  plan.Sslv3.ValueBool(),
+		Tlsv10: plan.Tlsv10.ValueBool(),
+		Tlsv11: plan.Tlsv11.ValueBool(),
+		Tlsv12: plan.Tlsv11.ValueBool(),
+		Tlsv13: plan.Tlsv13.ValueBool(),
+
 		// SSL/TLS Configuration
-		Ssl:                plan.Ssl.ValueBool(),
-		SslCafile:          plan.SslCafile.ValueString(),
-		SslMinVer:          plan.SslMinVer.ValueString(),
-		SslMaxVer:          plan.SslMaxVer.ValueString(),
-		SslReuse:           plan.SslReuse.ValueString(),
-		Ciphers:            plan.Ciphers.ValueString(),
-		Ciphersuites:       plan.Ciphersuites.ValueString(),
-		Verify:             plan.Verify.ValueString(),
+		Ssl:          plan.Ssl.ValueBool(),
+		SslCafile:    plan.SslCafile.ValueString(),
+		SslMinVer:    plan.SslMinVer.ValueString(),
+		SslMaxVer:    plan.SslMaxVer.ValueString(),
+		SslReuse:     plan.SslReuse.ValueString(),
+		Ciphers:      plan.Ciphers.ValueString(),
+		Ciphersuites: plan.Ciphersuites.ValueString(),
+		Verify:       plan.Verify.ValueString(),
 	}
 
-	if !plan.Forwardfor.IsNull() {
-		var forwardforModel struct {
+	if !plan.Forwardfor.IsNull() && len(plan.Forwardfor.Elements()) > 0 {
+		var forwardforModels []struct {
 			Enabled types.String `tfsdk:"enabled"`
 		}
-		diags := plan.Forwardfor.As(ctx, &forwardforModel, basetypes.ObjectAsOptions{})
+		diags := plan.Forwardfor.ElementsAs(ctx, &forwardforModels, false)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		payload.Forwardfor = ForwardFor{
-			Enabled: forwardforModel.Enabled.ValueString(),
+		if len(forwardforModels) > 0 {
+			payload.Forwardfor = &ForwardFor{
+				Enabled: forwardforModels[0].Enabled.ValueString(),
+			}
 		}
 	}
 
+	// Handle balance block
 	if !plan.Balance.IsNull() {
 		var balanceModel struct {
 			Algorithm types.String `tfsdk:"algorithm"`
@@ -2175,29 +2146,39 @@ func (r *backendResource) Update(ctx context.Context, req resource.UpdateRequest
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		payload.Balance = Balance{
+
+		payload.Balance = &Balance{
 			Algorithm: balanceModel.Algorithm.ValueString(),
-			UrlParam:  balanceModel.UrlParam.ValueString(),
+		}
+		if !balanceModel.UrlParam.IsNull() {
+			payload.Balance.UrlParam = balanceModel.UrlParam.ValueString()
 		}
 	}
 
+	// Handle httpchk_params block
 	if !plan.HttpchkParams.IsNull() {
-		var httpchkParamsModel struct {
+		var httpchkModel struct {
 			Method  types.String `tfsdk:"method"`
 			Uri     types.String `tfsdk:"uri"`
 			Version types.String `tfsdk:"version"`
 		}
-		diags := plan.HttpchkParams.As(ctx, &httpchkParamsModel, basetypes.ObjectAsOptions{})
+		diags := plan.HttpchkParams.As(ctx, &httpchkModel, basetypes.ObjectAsOptions{})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		payload.HttpchkParams = HttpchkParams{
-			Method:  httpchkParamsModel.Method.ValueString(),
-			Uri:     httpchkParamsModel.Uri.ValueString(),
-			Version: httpchkParamsModel.Version.ValueString(),
+
+		payload.HttpchkParams = &HttpchkParams{
+			Method: httpchkModel.Method.ValueString(),
+			Uri:    httpchkModel.Uri.ValueString(),
+		}
+		if !httpchkModel.Version.IsNull() {
+			payload.HttpchkParams.Version = httpchkModel.Version.ValueString()
 		}
 	}
+
+	// TODO: Handle balance and httpchk_params from blocks instead of attributes
+	// These are now defined as blocks in the schema
 
 	err := r.client.UpdateBackend(ctx, plan.Name.ValueString(), payload)
 	if err != nil {
@@ -2723,112 +2704,8 @@ func (r *backendResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	if !plan.Httpchecks.IsNull() {
-		var planHttpchecks []backendHttpcheckResourceModel
-		diags := plan.Httpchecks.ElementsAs(ctx, &planHttpchecks, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		var stateHttpchecks []backendHttpcheckResourceModel
-		if !req.State.Raw.IsNull() {
-			var state backendResourceModel
-			diags := req.State.Get(ctx, &state)
-			resp.Diagnostics.Append(diags...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-			if !state.Httpchecks.IsNull() {
-				diags := state.Httpchecks.ElementsAs(ctx, &stateHttpchecks, false)
-				resp.Diagnostics.Append(diags...)
-				if resp.Diagnostics.HasError() {
-					return
-				}
-			}
-		}
-
-		planHttpchecksMap := make(map[int64]backendHttpcheckResourceModel)
-		for _, httpcheck := range planHttpchecks {
-			planHttpchecksMap[httpcheck.Index.ValueInt64()] = httpcheck
-		}
-
-		stateHttpchecksMap := make(map[int64]backendHttpcheckResourceModel)
-		for _, httpcheck := range stateHttpchecks {
-			stateHttpchecksMap[httpcheck.Index.ValueInt64()] = httpcheck
-		}
-
-		for index, planHttpcheck := range planHttpchecksMap {
-			stateHttpcheck, ok := stateHttpchecksMap[index]
-			if !ok {
-				// Create new httpcheck
-				httpcheckPayload := &HttpcheckPayload{
-					Index:           planHttpcheck.Index.ValueInt64(),
-					Addr:            planHttpcheck.Addr.ValueString(),
-					Match:           planHttpcheck.Match.ValueString(),
-					Pattern:         planHttpcheck.Pattern.ValueString(),
-					Type:            planHttpcheck.Type.ValueString(),
-					Method:          planHttpcheck.Method.ValueString(),
-					Port:            planHttpcheck.Port.ValueInt64(),
-					Uri:             planHttpcheck.Uri.ValueString(),
-					Version:         planHttpcheck.Version.ValueString(),
-					ExclamationMark: planHttpcheck.ExclamationMark.ValueString(),
-					LogLevel:        planHttpcheck.LogLevel.ValueString(),
-					SendProxy:       planHttpcheck.SendProxy.ValueString(),
-					ViaSocks4:       planHttpcheck.ViaSocks4.ValueString(),
-					CheckComment:    planHttpcheck.CheckComment.ValueString(),
-				}
-				err := r.client.CreateHttpcheck(ctx, "backend", plan.Name.ValueString(), httpcheckPayload)
-				if err != nil {
-					resp.Diagnostics.AddError(
-						"Error creating httpcheck",
-						fmt.Sprintf("Could not create httpcheck, unexpected error: %s", err.Error()),
-					)
-					return
-				}
-			} else if !planHttpcheck.Type.Equal(stateHttpcheck.Type) {
-				// Update existing httpcheck
-				httpcheckPayload := &HttpcheckPayload{
-					Index:           planHttpcheck.Index.ValueInt64(),
-					Addr:            planHttpcheck.Addr.ValueString(),
-					Match:           planHttpcheck.Match.ValueString(),
-					Pattern:         planHttpcheck.Pattern.ValueString(),
-					Type:            planHttpcheck.Type.ValueString(),
-					Method:          planHttpcheck.Method.ValueString(),
-					Port:            planHttpcheck.Port.ValueInt64(),
-					Uri:             planHttpcheck.Uri.ValueString(),
-					Version:         planHttpcheck.Version.ValueString(),
-					ExclamationMark: planHttpcheck.ExclamationMark.ValueString(),
-					LogLevel:        planHttpcheck.LogLevel.ValueString(),
-					SendProxy:       planHttpcheck.SendProxy.ValueString(),
-					ViaSocks4:       planHttpcheck.ViaSocks4.ValueString(),
-					CheckComment:    planHttpcheck.CheckComment.ValueString(),
-				}
-				err := r.client.UpdateHttpcheck(ctx, index, "backend", plan.Name.ValueString(), httpcheckPayload)
-				if err != nil {
-					resp.Diagnostics.AddError(
-						"Error updating httpcheck",
-						fmt.Sprintf("Could not update httpcheck %d, unexpected error: %s", index, err.Error()),
-					)
-					return
-				}
-			}
-		}
-
-		for index := range stateHttpchecksMap {
-			if _, ok := planHttpchecksMap[index]; !ok {
-				// Delete httpcheck
-				err := r.client.DeleteHttpcheck(ctx, index, "backend", plan.Name.ValueString())
-				if err != nil {
-					resp.Diagnostics.AddError(
-						"Error deleting httpcheck",
-						fmt.Sprintf("Could not delete httpcheck %d, unexpected error: %s", index, err.Error()),
-					)
-					return
-				}
-			}
-		}
-	}
+	// TODO: Handle httpcheck from blocks instead of attributes
+	// This is now defined as a block in the schema
 
 	if !plan.TcpChecks.IsNull() {
 		var planTcpChecks []backendTcpCheckResourceModel
