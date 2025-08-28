@@ -3,6 +3,7 @@ package haproxy
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -48,7 +49,7 @@ type frontendResourceModel struct {
 	TcpLog                   types.Bool   `tfsdk:"tcplog"`
 	From                     types.String `tfsdk:"from"`
 	Binds                    types.List   `tfsdk:"bind"`
-	MonitorFail              types.Object `tfsdk:"monitor_fail"`
+	MonitorFail              types.List   `tfsdk:"monitor_fail"`
 	Acls                     types.List   `tfsdk:"acl"`
 	HttpRequestRules         types.List   `tfsdk:"httprequestrule"`
 	HttpResponseRules        types.List   `tfsdk:"httpresponserule"`
@@ -131,26 +132,26 @@ type bindResourceModel struct {
 	NoTlsv12             types.Bool   `tfsdk:"no_tlsv12"`
 	NoTlsv13             types.Bool   `tfsdk:"no_tlsv13"`
 	// New v3 fields (non-deprecated)
-	Sslv3                types.Bool   `tfsdk:"sslv3"`
-	Tlsv10               types.Bool   `tfsdk:"tlsv10"`
-	Tlsv11               types.Bool   `tfsdk:"tlsv11"`
-	Tlsv12               types.Bool   `tfsdk:"tlsv12"`
-	Tlsv13               types.Bool   `tfsdk:"tlsv13"`
+	Sslv3  types.Bool `tfsdk:"sslv3"`
+	Tlsv10 types.Bool `tfsdk:"tlsv10"`
+	Tlsv11 types.Bool `tfsdk:"tlsv11"`
+	Tlsv12 types.Bool `tfsdk:"tlsv12"`
+	Tlsv13 types.Bool `tfsdk:"tlsv13"`
 
-	Npn                  types.String `tfsdk:"npn"`
-	PreferClientCiphers  types.Bool   `tfsdk:"prefer_client_ciphers"`
-	Process              types.String `tfsdk:"process"`
-	Proto                types.String `tfsdk:"proto"`
-	SeverityOutput       types.String `tfsdk:"severity_output"`
-	StrictSni            types.Bool   `tfsdk:"strict_sni"`
-	TcpUserTimeout       types.Int64  `tfsdk:"tcp_user_timeout"`
-	Tfo                  types.Bool   `tfsdk:"tfo"`
-	TlsTicketKeys        types.String `tfsdk:"tls_ticket_keys"`
-	Uid                  types.String `tfsdk:"uid"`
-	V4v6                 types.Bool   `tfsdk:"v4v6"`
-	V6only               types.Bool   `tfsdk:"v6only"`
-	Verify               types.String `tfsdk:"verify"`
-	Metadata             types.String `tfsdk:"metadata"`
+	Npn                 types.String `tfsdk:"npn"`
+	PreferClientCiphers types.Bool   `tfsdk:"prefer_client_ciphers"`
+	Process             types.String `tfsdk:"process"`
+	Proto               types.String `tfsdk:"proto"`
+	SeverityOutput      types.String `tfsdk:"severity_output"`
+	StrictSni           types.Bool   `tfsdk:"strict_sni"`
+	TcpUserTimeout      types.Int64  `tfsdk:"tcp_user_timeout"`
+	Tfo                 types.Bool   `tfsdk:"tfo"`
+	TlsTicketKeys       types.String `tfsdk:"tls_ticket_keys"`
+	Uid                 types.String `tfsdk:"uid"`
+	V4v6                types.Bool   `tfsdk:"v4v6"`
+	V6only              types.Bool   `tfsdk:"v6only"`
+	Verify              types.String `tfsdk:"verify"`
+	Metadata            types.String `tfsdk:"metadata"`
 }
 
 func (b bindResourceModel) attrTypes() map[string]attr.Type {
@@ -206,11 +207,11 @@ func (b bindResourceModel) attrTypes() map[string]attr.Type {
 		"no_tlsv12":             types.BoolType,
 		"no_tlsv13":             types.BoolType,
 		// New v3 fields
-		"sslv3":                 types.BoolType,
-		"tlsv10":                types.BoolType,
-		"tlsv11":                types.BoolType,
-		"tlsv12":                types.BoolType,
-		"tlsv13":                types.BoolType,
+		"sslv3":  types.BoolType,
+		"tlsv10": types.BoolType,
+		"tlsv11": types.BoolType,
+		"tlsv12": types.BoolType,
+		"tlsv13": types.BoolType,
 
 		"npn":                   types.StringType,
 		"prefer_client_ciphers": types.BoolType,
@@ -252,55 +253,16 @@ func (a frontendAclResourceModel) attrTypes() map[string]attr.Type {
 
 // httpRequestRuleResourceModel maps the resource schema data.
 type httpRequestRuleResourceModel struct {
-	Index                types.Int64  `tfsdk:"index"`
-	Type                 types.String `tfsdk:"type"`
-	AclFile              types.String `tfsdk:"acl_file"`
-	AclKeyfmt            types.String `tfsdk:"acl_keyfmt"`
-	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
-	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
-	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
-	CacheName            types.String `tfsdk:"cache_name"`
-	Cond                 types.String `tfsdk:"cond"`
-	CondTest             types.String `tfsdk:"cond_test"`
-	Expr                 types.String `tfsdk:"expr"`
-	HdrFormat            types.String `tfsdk:"hdr_format"`
-	HdrMatch             types.String `tfsdk:"hdr_match"`
-	HdrMethod            types.String `tfsdk:"hdr_method"`
-	HdrName              types.String `tfsdk:"hdr_name"`
-	LogLevel             types.String `tfsdk:"log_level"`
-	LuaAction            types.String `tfsdk:"lua_action"`
-	LuaParams            types.String `tfsdk:"lua_params"`
-	MapFile              types.String `tfsdk:"map_file"`
-	MapKeyfmt            types.String `tfsdk:"map_keyfmt"`
-	MapValuefmt          types.String `tfsdk:"map_valuefmt"`
-	MarkValue            types.String `tfsdk:"mark_value"`
-	MethodFmt            types.String `tfsdk:"method_fmt"`
-	NiceValue            types.Int64  `tfsdk:"nice_value"`
-	PathFmt              types.String `tfsdk:"path_fmt"`
-	PathMatch            types.String `tfsdk:"path_match"`
-	QueryFmt             types.String `tfsdk:"query_fmt"`
-	RedirCode            types.Int64  `tfsdk:"redir_code"`
-	RedirType            types.String `tfsdk:"redir_type"`
-	RedirValue           types.String `tfsdk:"redir_value"`
-	ScExpr               types.String `tfsdk:"sc_expr"`
-	ScId                 types.Int64  `tfsdk:"sc_id"`
-	ScIdx                types.Int64  `tfsdk:"sc_idx"`
-	ScInt                types.Int64  `tfsdk:"sc_int"`
-	Service              types.String `tfsdk:"service"`
-	SpoeEngine           types.String `tfsdk:"spoe_engine"`
-	SpoeGroup            types.String `tfsdk:"spoe_group"`
-	StatusCode           types.Int64  `tfsdk:"status_code"`
-	StatusReason         types.String `tfsdk:"status_reason"`
-	Timeout              types.String `tfsdk:"timeout"`
-	TimeoutValue         types.Int64  `tfsdk:"timeout_value"`
-	TosValue             types.String `tfsdk:"tos_value"`
-	TrackScKey           types.String `tfsdk:"track_sc_key"`
-	TrackScTable         types.String `tfsdk:"track_sc_table"`
-	UriFmt               types.String `tfsdk:"uri_fmt"`
-	UriMatch             types.String `tfsdk:"uri_match"`
-	VarName              types.String `tfsdk:"var_name"`
-	VarScope             types.String `tfsdk:"var_scope"`
-	WaitTime             types.Int64  `tfsdk:"wait_time"`
+	Index        types.Int64  `tfsdk:"index"`
+	Type         types.String `tfsdk:"type"`
+	Cond         types.String `tfsdk:"cond"`
+	CondTest     types.String `tfsdk:"cond_test"`
+	HdrName      types.String `tfsdk:"hdr_name"`
+	HdrFormat    types.String `tfsdk:"hdr_format"`
+	RedirType    types.String `tfsdk:"redir_type"`
+	RedirValue   types.String `tfsdk:"redir_value"`
+	StatusCode   types.Int64  `tfsdk:"status_code"`
+	StatusReason types.String `tfsdk:"status_reason"`
 }
 
 func (h httpRequestRuleResourceModel) GetIndex() int64 {
@@ -309,55 +271,16 @@ func (h httpRequestRuleResourceModel) GetIndex() int64 {
 
 func (h httpRequestRuleResourceModel) attrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"index":                  types.Int64Type,
-		"type":                   types.StringType,
-		"acl_file":               types.StringType,
-		"acl_keyfmt":             types.StringType,
-		"bandwidth_limit_name":   types.StringType,
-		"bandwidth_limit_period": types.StringType,
-		"bandwidth_limit_limit":  types.StringType,
-		"cache_name":             types.StringType,
-		"cond":                   types.StringType,
-		"cond_test":              types.StringType,
-		"expr":                   types.StringType,
-		"hdr_format":             types.StringType,
-		"hdr_match":              types.StringType,
-		"hdr_method":             types.StringType,
-		"hdr_name":               types.StringType,
-		"log_level":              types.StringType,
-		"lua_action":             types.StringType,
-		"lua_params":             types.StringType,
-		"map_file":               types.StringType,
-		"map_keyfmt":             types.StringType,
-		"map_valuefmt":           types.StringType,
-		"mark_value":             types.StringType,
-		"method_fmt":             types.StringType,
-		"nice_value":             types.Int64Type,
-		"path_fmt":               types.StringType,
-		"path_match":             types.StringType,
-		"query_fmt":              types.StringType,
-		"redir_code":             types.Int64Type,
-		"redir_type":             types.StringType,
-		"redir_value":            types.StringType,
-		"sc_expr":                types.StringType,
-		"sc_id":                  types.Int64Type,
-		"sc_idx":                 types.Int64Type,
-		"sc_int":                 types.Int64Type,
-		"service":                types.StringType,
-		"spoe_engine":            types.StringType,
-		"spoe_group":             types.StringType,
-		"status_code":            types.Int64Type,
-		"status_reason":          types.StringType,
-		"timeout":                types.StringType,
-		"timeout_value":          types.Int64Type,
-		"tos_value":              types.StringType,
-		"track_sc_key":           types.StringType,
-		"track_sc_table":         types.StringType,
-		"uri_fmt":                types.StringType,
-		"uri_match":              types.StringType,
-		"var_name":               types.StringType,
-		"var_scope":              types.StringType,
-		"wait_time":              types.Int64Type,
+		"index":         types.Int64Type,
+		"type":          types.StringType,
+		"cond":          types.StringType,
+		"cond_test":     types.StringType,
+		"hdr_name":      types.StringType,
+		"hdr_format":    types.StringType,
+		"redir_type":    types.StringType,
+		"redir_value":   types.StringType,
+		"status_code":   types.Int64Type,
+		"status_reason": types.StringType,
 	}
 }
 
@@ -983,292 +906,6 @@ func (r *frontendResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 					},
 				},
 			},
-			"monitor_fail": schema.SingleNestedAttribute{
-				Optional: true,
-				Attributes: map[string]schema.Attribute{
-					"cond": schema.StringAttribute{
-						Required:    true,
-						Description: "The cond of the monitor_fail. Allowed: if|unless",
-					},
-					"cond_test": schema.StringAttribute{
-						Required:    true,
-						Description: "The cond_test of the monitor_fail.",
-					},
-				},
-			},
-			"acl": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"acl_name": schema.StringAttribute{
-							Required:    true,
-							Description: "The acl name. Pattern: ^[^\\s]+$",
-						},
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index of the acl",
-						},
-						"criterion": schema.StringAttribute{
-							Required:    true,
-							Description: "The criterion. Pattern: ^[^\\s]+$",
-						},
-						"value": schema.StringAttribute{
-							Required:    true,
-							Description: "The value of the criterion",
-						},
-					},
-				},
-			},
-			"httprequestrule": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index of the http-request rule",
-						},
-						"type": schema.StringAttribute{
-							Required:    true,
-							Description: "The type of the http-request rule",
-						},
-						"acl_file": schema.StringAttribute{
-							Optional:    true,
-							Description: "The acl file of the http-request rule",
-						},
-						"acl_keyfmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The acl keyfmt of the http-request rule",
-						},
-						"bandwidth_limit_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The bandwidth limit name of the http-request rule",
-						},
-						"bandwidth_limit_period": schema.StringAttribute{
-							Optional:    true,
-							Description: "The bandwidth limit period of the http-request rule",
-						},
-						"bandwidth_limit_limit": schema.StringAttribute{
-							Optional:    true,
-							Description: "The bandwidth limit limit of the http-request rule",
-						},
-						"cache_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The cache name of the http-request rule",
-						},
-						"cond": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition of the http-request rule",
-						},
-						"cond_test": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition test of the http-request rule",
-						},
-						"expr": schema.StringAttribute{
-							Optional:    true,
-							Description: "The expr of the http-request rule",
-						},
-						"hdr_format": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header format of the http-request rule",
-						},
-						"hdr_match": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header match of the http-request rule",
-						},
-						"hdr_method": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header method of the http-request rule",
-						},
-						"hdr_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header name of the http-request rule",
-						},
-						"log_level": schema.StringAttribute{
-							Optional:    true,
-							Description: "The log level of the http-request rule",
-						},
-						"lua_action": schema.StringAttribute{
-							Optional:    true,
-							Description: "The lua action of the http-request rule",
-						},
-						"lua_params": schema.StringAttribute{
-							Optional:    true,
-							Description: "The lua params of the http-request rule",
-						},
-						"map_file": schema.StringAttribute{
-							Optional:    true,
-							Description: "The map file of the http-request rule",
-						},
-						"map_keyfmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The map keyfmt of the http-request rule",
-						},
-						"map_valuefmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The map valuefmt of the http-request rule",
-						},
-						"mark_value": schema.StringAttribute{
-							Optional:    true,
-							Description: "The mark value of the http-request rule",
-						},
-						"method_fmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The method fmt of the http-request rule",
-						},
-						"nice_value": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The nice value of the http-request rule",
-						},
-						"path_fmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The path fmt of the http-request rule",
-						},
-						"path_match": schema.StringAttribute{
-							Optional:    true,
-							Description: "The path match of the http-request rule",
-						},
-						"query_fmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The query fmt of the http-request rule",
-						},
-						"redir_code": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The redir code of the http-request rule",
-						},
-						"redir_type": schema.StringAttribute{
-							Optional:    true,
-							Description: "The redirection type of the http-request rule",
-						},
-						"redir_value": schema.StringAttribute{
-							Optional:    true,
-							Description: "The redirection value of the http-request rule",
-						},
-						"sc_expr": schema.StringAttribute{
-							Optional:    true,
-							Description: "The sc expr of the http-request rule",
-						},
-						"sc_id": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The sc id of the http-request rule",
-						},
-						"sc_idx": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The sc idx of the http-request rule",
-						},
-						"sc_int": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The sc int of the http-request rule",
-						},
-						"service": schema.StringAttribute{
-							Optional:    true,
-							Description: "The service of the http-request rule",
-						},
-						"spoe_engine": schema.StringAttribute{
-							Optional:    true,
-							Description: "The spoe engine of the http-request rule",
-						},
-						"spoe_group": schema.StringAttribute{
-							Optional:    true,
-							Description: "The spoe group of the http-request rule",
-						},
-						"status_code": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The status code of the http-request rule",
-						},
-						"status_reason": schema.StringAttribute{
-							Optional:    true,
-							Description: "The status reason of the http-request rule",
-						},
-						"timeout": schema.StringAttribute{
-							Optional:    true,
-							Description: "The timeout of the http-request rule",
-						},
-						"timeout_value": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The timeout value of the http-request rule",
-						},
-						"tos_value": schema.StringAttribute{
-							Optional:    true,
-							Description: "The tos value of the http-request rule",
-						},
-						"track_sc_key": schema.StringAttribute{
-							Optional:    true,
-							Description: "The track sc key of the http-request rule",
-						},
-						"track_sc_table": schema.StringAttribute{
-							Optional:    true,
-							Description: "The track sc table of the http-request rule",
-						},
-						"uri_fmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The uri fmt of the http-request rule",
-						},
-						"uri_match": schema.StringAttribute{
-							Optional:    true,
-							Description: "The uri match of the http-request rule",
-						},
-						"var_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The var name of the http-request rule",
-						},
-						"var_scope": schema.StringAttribute{
-							Optional:    true,
-							Description: "The var scope of the http-request rule",
-						},
-						"wait_time": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The wait time of the http-request rule",
-						},
-					},
-				},
-			},
-			"httpresponserule": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index of the http-response rule",
-						},
-						"type": schema.StringAttribute{
-							Required:    true,
-							Description: "The type of the http-response rule",
-						},
-						"cond": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition of the http-response rule",
-						},
-						"cond_test": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition test of the http-response rule",
-						},
-						"hdr_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header name of the http-response rule",
-						},
-						"hdr_format": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header format of the http-response rule",
-						},
-						"redir_type": schema.StringAttribute{
-							Optional:    true,
-							Description: "The redirection type of the http-response rule",
-						},
-						"redir_value": schema.StringAttribute{
-							Optional:    true,
-							Description: "The redirection value of the http-response rule",
-						},
-						"status_code": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The status code of the http-response rule",
-						},
-						"status_reason": schema.StringAttribute{
-							Optional:    true,
-							Description: "The status reason of the http-response rule",
-						},
-					},
-				},
-			},
 			"tcprequestrule": schema.ListNestedAttribute{
 				Optional: true,
 				NestedObject: schema.NestedAttributeObject{
@@ -1436,6 +1073,136 @@ func (r *frontendResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				},
 			},
 		},
+		Blocks: map[string]schema.Block{
+			"monitor_fail": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"cond": schema.StringAttribute{
+							Required:    true,
+							Description: "The cond of the monitor_fail. Allowed: if|unless",
+						},
+						"cond_test": schema.StringAttribute{
+							Required:    true,
+							Description: "The cond_test of the monitor_fail.",
+						},
+					},
+				},
+			},
+			"acl": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"acl_name": schema.StringAttribute{
+							Required:    true,
+							Description: "The acl name. Pattern: ^[^\\s]+$",
+						},
+						"index": schema.Int64Attribute{
+							Required:    true,
+							Description: "The index of the acl",
+						},
+						"criterion": schema.StringAttribute{
+							Required:    true,
+							Description: "The criterion. Pattern: ^[^\\s]+$",
+						},
+						"value": schema.StringAttribute{
+							Required:    true,
+							Description: "The value of the criterion",
+						},
+					},
+				},
+			},
+			"httprequestrule": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"index": schema.Int64Attribute{
+							Required:    true,
+							Description: "The index of the http-request rule",
+						},
+						"type": schema.StringAttribute{
+							Required:    true,
+							Description: "The type of the http-request rule",
+						},
+						"cond": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition of the http-request rule",
+						},
+						"cond_test": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition test of the http-request rule",
+						},
+						"hdr_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header name of the http-request rule",
+						},
+						"hdr_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header format of the http-request rule",
+						},
+						"redir_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection type of the http-request rule",
+						},
+						"redir_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection value of the http-request rule",
+						},
+						"status_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The status code of the http-request rule",
+						},
+						"status_reason": schema.StringAttribute{
+							Optional:    true,
+							Description: "The status reason of the http-request rule",
+						},
+					},
+				},
+			},
+			"httpresponserule": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"index": schema.Int64Attribute{
+							Required:    true,
+							Description: "The index of the http-response rule",
+						},
+						"type": schema.StringAttribute{
+							Required:    true,
+							Description: "The type of the http-response rule",
+						},
+						"cond": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition of the http-response rule",
+						},
+						"cond_test": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition test of the http-response rule",
+						},
+						"hdr_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header name of the http-response rule",
+						},
+						"hdr_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header format of the http-response rule",
+						},
+						"redir_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection type of the http-response rule",
+						},
+						"redir_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection value of the http-response rule",
+						},
+						"status_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The status code of the http-response rule",
+						},
+						"status_reason": schema.StringAttribute{
+							Optional:    true,
+							Description: "The status reason of the http-response rule",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -1544,22 +1311,9 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 		}
 	}
 
-	if !plan.MonitorFail.IsNull() {
-		var monitorFailModel struct {
-			Cond     types.String `tfsdk:"cond"`
-			CondTest types.String `tfsdk:"cond_test"`
-		}
-		diags := plan.MonitorFail.As(ctx, &monitorFailModel, basetypes.ObjectAsOptions{})
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		payload.MonitorFail = MonitorFailPayload{
-			Cond:     monitorFailModel.Cond.ValueString(),
-			CondTest: monitorFailModel.CondTest.ValueString(),
-		}
-	}
+	log.Printf("Creating frontend with payload: %+v", payload)
 
+	// Use the old transaction method which has built-in retry logic
 	err := r.client.CreateFrontend(ctx, payload)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -1568,6 +1322,8 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 		)
 		return
 	}
+
+	log.Printf("Frontend created successfully")
 
 	if !plan.Binds.IsNull() {
 		var bindModels []bindResourceModel
@@ -1628,25 +1384,25 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 				NoTlsv12:             bindModel.NoTlsv12.ValueBool(),
 				NoTlsv13:             bindModel.NoTlsv13.ValueBool(),
 				// New v3 fields
-				Sslv3:                bindModel.Sslv3.ValueBool(),
-				Tlsv10:               bindModel.Tlsv10.ValueBool(),
-				Tlsv11:               bindModel.Tlsv11.ValueBool(),
-				Tlsv12:               bindModel.Tlsv12.ValueBool(),
-				Tlsv13:               bindModel.Tlsv13.ValueBool(),
-				Npn:                  bindModel.Npn.ValueString(),
-				PreferClientCiphers:  bindModel.PreferClientCiphers.ValueBool(),
-				Process:              bindModel.Process.ValueString(),
-				Proto:                bindModel.Proto.ValueString(),
-				SeverityOutput:       bindModel.SeverityOutput.ValueString(),
-				StrictSni:            bindModel.StrictSni.ValueBool(),
-				TcpUserTimeout:       bindModel.TcpUserTimeout.ValueInt64(),
-				Tfo:                  bindModel.Tfo.ValueBool(),
-				TlsTicketKeys:        bindModel.TlsTicketKeys.ValueString(),
-				Uid:                  bindModel.Uid.ValueString(),
-				V4v6:                 bindModel.V4v6.ValueBool(),
-				V6only:               bindModel.V6only.ValueBool(),
-				Verify:               bindModel.Verify.ValueString(),
-				Metadata:             bindModel.Metadata.ValueString(),
+				Sslv3:               bindModel.Sslv3.ValueBool(),
+				Tlsv10:              bindModel.Tlsv10.ValueBool(),
+				Tlsv11:              bindModel.Tlsv11.ValueBool(),
+				Tlsv12:              bindModel.Tlsv12.ValueBool(),
+				Tlsv13:              bindModel.Tlsv13.ValueBool(),
+				Npn:                 bindModel.Npn.ValueString(),
+				PreferClientCiphers: bindModel.PreferClientCiphers.ValueBool(),
+				Process:             bindModel.Process.ValueString(),
+				Proto:               bindModel.Proto.ValueString(),
+				SeverityOutput:      bindModel.SeverityOutput.ValueString(),
+				StrictSni:           bindModel.StrictSni.ValueBool(),
+				TcpUserTimeout:      bindModel.TcpUserTimeout.ValueInt64(),
+				Tfo:                 bindModel.Tfo.ValueBool(),
+				TlsTicketKeys:       bindModel.TlsTicketKeys.ValueString(),
+				Uid:                 bindModel.Uid.ValueString(),
+				V4v6:                bindModel.V4v6.ValueBool(),
+				V6only:              bindModel.V6only.ValueBool(),
+				Verify:              bindModel.Verify.ValueString(),
+				Metadata:            bindModel.Metadata.ValueString(),
 			}
 			if !bindModel.Port.IsNull() {
 				p := bindModel.Port.ValueInt64()
@@ -1697,6 +1453,37 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 		}
 	}
 
+	// Create monitor_fail AFTER ACLs are created
+	if !plan.MonitorFail.IsNull() {
+		var monitorFailModels []struct {
+			Cond     types.String `tfsdk:"cond"`
+			CondTest types.String `tfsdk:"cond_test"`
+		}
+		diags := plan.MonitorFail.ElementsAs(ctx, &monitorFailModels, false)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if len(monitorFailModels) > 0 {
+			// Update the frontend payload with monitor_fail after ACLs are created
+			updatePayload := &FrontendPayload{
+				Name: plan.Name.ValueString(),
+				MonitorFail: &MonitorFailPayload{
+					Cond:     monitorFailModels[0].Cond.ValueString(),
+					CondTest: monitorFailModels[0].CondTest.ValueString(),
+				},
+			}
+			err := r.client.UpdateFrontend(ctx, plan.Name.ValueString(), updatePayload)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error updating frontend with monitor_fail",
+					fmt.Sprintf("Could not update frontend with monitor_fail, unexpected error: %s", err.Error()),
+				)
+				return
+			}
+		}
+	}
+
 	if !plan.HttpRequestRules.IsNull() {
 		var httpRequestRuleModels []httpRequestRuleResourceModel
 		diags := plan.HttpRequestRules.ElementsAs(ctx, &httpRequestRuleModels, false)
@@ -1711,55 +1498,16 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 
 		for _, httpRequestRuleModel := range httpRequestRuleModels {
 			httpRequestRulePayload := &HttpRequestRulePayload{
-				Index:                httpRequestRuleModel.Index.ValueInt64(),
-				Type:                 httpRequestRuleModel.Type.ValueString(),
-				AclFile:              httpRequestRuleModel.AclFile.ValueString(),
-				AclKeyfmt:            httpRequestRuleModel.AclKeyfmt.ValueString(),
-				BandwidthLimitName:   httpRequestRuleModel.BandwidthLimitName.ValueString(),
-				BandwidthLimitPeriod: httpRequestRuleModel.BandwidthLimitPeriod.ValueString(),
-				BandwidthLimitLimit:  httpRequestRuleModel.BandwidthLimitLimit.ValueString(),
-				CacheName:            httpRequestRuleModel.CacheName.ValueString(),
-				Cond:                 httpRequestRuleModel.Cond.ValueString(),
-				CondTest:             httpRequestRuleModel.CondTest.ValueString(),
-				Expr:                 httpRequestRuleModel.Expr.ValueString(),
-				HdrFormat:            httpRequestRuleModel.HdrFormat.ValueString(),
-				HdrMatch:             httpRequestRuleModel.HdrMatch.ValueString(),
-				HdrMethod:            httpRequestRuleModel.HdrMethod.ValueString(),
-				HdrName:              httpRequestRuleModel.HdrName.ValueString(),
-				LogLevel:             httpRequestRuleModel.LogLevel.ValueString(),
-				LuaAction:            httpRequestRuleModel.LuaAction.ValueString(),
-				LuaParams:            httpRequestRuleModel.LuaParams.ValueString(),
-				MapFile:              httpRequestRuleModel.MapFile.ValueString(),
-				MapKeyfmt:            httpRequestRuleModel.MapKeyfmt.ValueString(),
-				MapValuefmt:          httpRequestRuleModel.MapValuefmt.ValueString(),
-				MarkValue:            httpRequestRuleModel.MarkValue.ValueString(),
-				MethodFmt:            httpRequestRuleModel.MethodFmt.ValueString(),
-				NiceValue:            httpRequestRuleModel.NiceValue.ValueInt64(),
-				PathFmt:              httpRequestRuleModel.PathFmt.ValueString(),
-				PathMatch:            httpRequestRuleModel.PathMatch.ValueString(),
-				QueryFmt:             httpRequestRuleModel.QueryFmt.ValueString(),
-				RedirCode:            httpRequestRuleModel.RedirCode.ValueInt64(),
-				RedirType:            httpRequestRuleModel.RedirType.ValueString(),
-				RedirValue:           httpRequestRuleModel.RedirValue.ValueString(),
-				ScExpr:               httpRequestRuleModel.ScExpr.ValueString(),
-				ScId:                 httpRequestRuleModel.ScId.ValueInt64(),
-				ScIdx:                httpRequestRuleModel.ScIdx.ValueInt64(),
-				ScInt:                httpRequestRuleModel.ScInt.ValueInt64(),
-				Service:              httpRequestRuleModel.Service.ValueString(),
-				SpoeEngine:           httpRequestRuleModel.SpoeEngine.ValueString(),
-				SpoeGroup:            httpRequestRuleModel.SpoeGroup.ValueString(),
-				StatusCode:           httpRequestRuleModel.StatusCode.ValueInt64(),
-				StatusReason:         httpRequestRuleModel.StatusReason.ValueString(),
-				Timeout:              httpRequestRuleModel.Timeout.ValueString(),
-				TimeoutValue:         httpRequestRuleModel.TimeoutValue.ValueInt64(),
-				TosValue:             httpRequestRuleModel.TosValue.ValueString(),
-				TrackScKey:           httpRequestRuleModel.TrackScKey.ValueString(),
-				TrackScTable:         httpRequestRuleModel.TrackScTable.ValueString(),
-				UriFmt:               httpRequestRuleModel.UriFmt.ValueString(),
-				UriMatch:             httpRequestRuleModel.UriMatch.ValueString(),
-				VarName:              httpRequestRuleModel.VarName.ValueString(),
-				VarScope:             httpRequestRuleModel.VarScope.ValueString(),
-				WaitTime:             httpRequestRuleModel.WaitTime.ValueInt64(),
+				Index:        httpRequestRuleModel.Index.ValueInt64(),
+				Type:         httpRequestRuleModel.Type.ValueString(),
+				Cond:         httpRequestRuleModel.Cond.ValueString(),
+				CondTest:     httpRequestRuleModel.CondTest.ValueString(),
+				HdrName:      httpRequestRuleModel.HdrName.ValueString(),
+				HdrFormat:    httpRequestRuleModel.HdrFormat.ValueString(),
+				RedirType:    httpRequestRuleModel.RedirType.ValueString(),
+				RedirValue:   httpRequestRuleModel.RedirValue.ValueString(),
+				StatusCode:   httpRequestRuleModel.StatusCode.ValueInt64(),
+				StatusReason: httpRequestRuleModel.StatusReason.ValueString(),
 			}
 			err := r.client.CreateHttpRequestRule(ctx, "frontend", plan.Name.ValueString(), httpRequestRulePayload)
 			if err != nil {
@@ -1934,44 +1682,194 @@ func (r *frontendResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	state.Name = types.StringValue(frontend.Name)
-	state.DefaultBackend = types.StringValue(frontend.DefaultBackend)
-	state.HttpConnectionMode = types.StringValue(frontend.HttpConnectionMode)
-	state.AcceptInvalidHttpRequest = types.StringValue(frontend.AcceptInvalidHttpRequest)
-	state.MaxConn = types.Int64Value(frontend.MaxConn)
 	state.Mode = types.StringValue(frontend.Mode)
-	state.Backlog = types.Int64Value(frontend.Backlog)
-	state.HttpKeepAliveTimeout = types.Int64Value(frontend.HttpKeepAliveTimeout)
-	state.HttpRequestTimeout = types.Int64Value(frontend.HttpRequestTimeout)
-	state.HttpUseProxyHeader = types.StringValue(frontend.HttpUseProxyHeader)
-	state.HttpLog = types.BoolValue(frontend.HttpLog)
-	state.HttpsLog = types.StringValue(frontend.HttpsLog)
-	state.ErrorLogFormat = types.StringValue(frontend.ErrorLogFormat)
-	state.LogFormat = types.StringValue(frontend.LogFormat)
-	state.LogFormatSd = types.StringValue(frontend.LogFormatSd)
-	state.MonitorUri = types.StringValue(frontend.MonitorUri)
-	state.TcpLog = types.BoolValue(frontend.TcpLog)
-	state.From = types.StringValue(frontend.From)
-	state.ClientTimeout = types.Int64Value(frontend.ClientTimeout)
-	state.HttpUseHtx = types.StringValue(frontend.HttpUseHtx)
-	state.HttpIgnoreProbes = types.StringValue(frontend.HttpIgnoreProbes)
-	state.LogTag = types.StringValue(frontend.LogTag)
-	state.Clflog = types.BoolValue(frontend.Clflog)
-	state.Contstats = types.StringValue(frontend.Contstats)
-	state.Dontlognull = types.StringValue(frontend.Dontlognull)
-	state.LogSeparateErrors = types.StringValue(frontend.LogSeparateErrors)
-	state.OptionHttpServerClose = types.StringValue(frontend.OptionHttpServerClose)
-	state.OptionHttpclose = types.StringValue(frontend.OptionHttpclose)
-	state.OptionHttpKeepAlive = types.StringValue(frontend.OptionHttpKeepAlive)
-	state.OptionDontlogNormal = types.StringValue(frontend.OptionDontlogNormal)
-	state.OptionLogasap = types.StringValue(frontend.OptionLogasap)
-	state.OptionTcplog = types.StringValue(frontend.OptionTcplog)
-	state.OptionSocketStats = types.StringValue(frontend.OptionSocketStats)
-	state.OptionForwardfor = types.StringValue(frontend.OptionForwardfor)
-	state.TimeoutClient = types.Int64Value(frontend.TimeoutClient)
-	state.TimeoutHttpKeepAlive = types.Int64Value(frontend.TimeoutHttpKeepAlive)
-	state.TimeoutHttpRequest = types.Int64Value(frontend.TimeoutHttpRequest)
-	state.TimeoutCont = types.Int64Value(frontend.TimeoutCont)
-	state.TimeoutTarpit = types.Int64Value(frontend.TimeoutTarpit)
+	// Only set fields if they have meaningful values (not empty/zero)
+	if frontend.DefaultBackend != "" {
+		state.DefaultBackend = types.StringValue(frontend.DefaultBackend)
+	} else {
+		state.DefaultBackend = types.StringNull()
+	}
+	if frontend.HttpConnectionMode != "" {
+		state.HttpConnectionMode = types.StringValue(frontend.HttpConnectionMode)
+	} else {
+		state.HttpConnectionMode = types.StringNull()
+	}
+	if frontend.AcceptInvalidHttpRequest != "" {
+		state.AcceptInvalidHttpRequest = types.StringValue(frontend.AcceptInvalidHttpRequest)
+	} else {
+		state.AcceptInvalidHttpRequest = types.StringNull()
+	}
+	if frontend.MaxConn > 0 {
+		state.MaxConn = types.Int64Value(frontend.MaxConn)
+	} else {
+		state.MaxConn = types.Int64Null()
+	}
+	if frontend.Backlog > 0 {
+		state.Backlog = types.Int64Value(frontend.Backlog)
+	} else {
+		state.Backlog = types.Int64Null()
+	}
+	if frontend.HttpKeepAliveTimeout > 0 {
+		state.HttpKeepAliveTimeout = types.Int64Value(frontend.HttpKeepAliveTimeout)
+	} else {
+		state.HttpKeepAliveTimeout = types.Int64Null()
+	}
+	if frontend.HttpRequestTimeout > 0 {
+		state.HttpRequestTimeout = types.Int64Value(frontend.HttpRequestTimeout)
+	} else {
+		state.HttpRequestTimeout = types.Int64Null()
+	}
+	if frontend.HttpUseProxyHeader != "" {
+		state.HttpUseProxyHeader = types.StringValue(frontend.HttpUseProxyHeader)
+	} else {
+		state.HttpUseProxyHeader = types.StringNull()
+	}
+	if frontend.HttpLog {
+		state.HttpLog = types.BoolValue(true)
+	} else {
+		state.HttpLog = types.BoolNull()
+	}
+	if frontend.HttpsLog != "" {
+		state.HttpsLog = types.StringValue(frontend.HttpsLog)
+	} else {
+		state.HttpsLog = types.StringNull()
+	}
+	if frontend.ErrorLogFormat != "" {
+		state.ErrorLogFormat = types.StringValue(frontend.ErrorLogFormat)
+	} else {
+		state.ErrorLogFormat = types.StringNull()
+	}
+	if frontend.LogFormat != "" {
+		state.LogFormat = types.StringValue(frontend.LogFormat)
+	} else {
+		state.LogFormat = types.StringNull()
+	}
+	if frontend.LogFormatSd != "" {
+		state.LogFormatSd = types.StringValue(frontend.LogFormatSd)
+	} else {
+		state.LogFormatSd = types.StringNull()
+	}
+	if frontend.MonitorUri != "" {
+		state.MonitorUri = types.StringValue(frontend.MonitorUri)
+	} else {
+		state.MonitorUri = types.StringNull()
+	}
+	if frontend.TcpLog {
+		state.TcpLog = types.BoolValue(true)
+	} else {
+		state.TcpLog = types.BoolNull()
+	}
+	if frontend.From != "" {
+		state.From = types.StringValue(frontend.From)
+	} else {
+		state.From = types.StringNull()
+	}
+	if frontend.ClientTimeout > 0 {
+		state.ClientTimeout = types.Int64Value(frontend.ClientTimeout)
+	} else {
+		state.ClientTimeout = types.Int64Null()
+	}
+	if frontend.HttpUseHtx != "" {
+		state.HttpUseHtx = types.StringValue(frontend.HttpUseHtx)
+	} else {
+		state.HttpUseHtx = types.StringNull()
+	}
+	if frontend.HttpIgnoreProbes != "" {
+		state.HttpIgnoreProbes = types.StringValue(frontend.HttpIgnoreProbes)
+	} else {
+		state.HttpIgnoreProbes = types.StringNull()
+	}
+	if frontend.LogTag != "" {
+		state.LogTag = types.StringValue(frontend.LogTag)
+	} else {
+		state.LogTag = types.StringNull()
+	}
+	if frontend.Clflog {
+		state.Clflog = types.BoolValue(true)
+	} else {
+		state.Clflog = types.BoolNull()
+	}
+	if frontend.Contstats != "" {
+		state.Contstats = types.StringValue(frontend.Contstats)
+	} else {
+		state.Contstats = types.StringNull()
+	}
+	if frontend.Dontlognull != "" {
+		state.Dontlognull = types.StringValue(frontend.Dontlognull)
+	} else {
+		state.Dontlognull = types.StringNull()
+	}
+	if frontend.LogSeparateErrors != "" {
+		state.LogSeparateErrors = types.StringValue(frontend.LogSeparateErrors)
+	} else {
+		state.LogSeparateErrors = types.StringNull()
+	}
+	if frontend.OptionHttpServerClose != "" {
+		state.OptionHttpServerClose = types.StringValue(frontend.OptionHttpServerClose)
+	} else {
+		state.OptionHttpServerClose = types.StringNull()
+	}
+	if frontend.OptionHttpclose != "" {
+		state.OptionHttpclose = types.StringValue(frontend.OptionHttpclose)
+	} else {
+		state.OptionHttpclose = types.StringNull()
+	}
+	if frontend.OptionHttpKeepAlive != "" {
+		state.OptionHttpKeepAlive = types.StringValue(frontend.OptionHttpKeepAlive)
+	} else {
+		state.OptionHttpKeepAlive = types.StringNull()
+	}
+	if frontend.OptionDontlogNormal != "" {
+		state.OptionDontlogNormal = types.StringValue(frontend.OptionDontlogNormal)
+	} else {
+		state.OptionDontlogNormal = types.StringNull()
+	}
+	if frontend.OptionLogasap != "" {
+		state.OptionLogasap = types.StringValue(frontend.OptionLogasap)
+	} else {
+		state.OptionLogasap = types.StringNull()
+	}
+	if frontend.OptionTcplog != "" {
+		state.OptionTcplog = types.StringValue(frontend.OptionTcplog)
+	} else {
+		state.OptionTcplog = types.StringNull()
+	}
+	if frontend.OptionSocketStats != "" {
+		state.OptionSocketStats = types.StringValue(frontend.OptionSocketStats)
+	} else {
+		state.OptionSocketStats = types.StringNull()
+	}
+	if frontend.OptionForwardfor != "" {
+		state.OptionForwardfor = types.StringValue(frontend.OptionForwardfor)
+	} else {
+		state.OptionForwardfor = types.StringNull()
+	}
+	// Only set timeout fields if they have meaningful values (not zero)
+	if frontend.TimeoutClient > 0 {
+		state.TimeoutClient = types.Int64Value(frontend.TimeoutClient)
+	} else {
+		state.TimeoutClient = types.Int64Null()
+	}
+	if frontend.TimeoutHttpKeepAlive > 0 {
+		state.TimeoutHttpKeepAlive = types.Int64Value(frontend.TimeoutHttpKeepAlive)
+	} else {
+		state.TimeoutHttpKeepAlive = types.Int64Null()
+	}
+	if frontend.TimeoutHttpRequest > 0 {
+		state.TimeoutHttpRequest = types.Int64Value(frontend.TimeoutHttpRequest)
+	} else {
+		state.TimeoutHttpRequest = types.Int64Null()
+	}
+	if frontend.TimeoutCont > 0 {
+		state.TimeoutCont = types.Int64Value(frontend.TimeoutCont)
+	} else {
+		state.TimeoutCont = types.Int64Null()
+	}
+	if frontend.TimeoutTarpit > 0 {
+		state.TimeoutTarpit = types.Int64Value(frontend.TimeoutTarpit)
+	} else {
+		state.TimeoutTarpit = types.Int64Null()
+	}
 
 	if frontend.StatsOptions != (StatsOptionsPayload{}) {
 		var statsOptionsModel struct {
@@ -2070,26 +1968,26 @@ func (r *frontendResource) Read(ctx context.Context, req resource.ReadRequest, r
 				NoTlsv12:             types.BoolValue(bind.NoTlsv12),
 				NoTlsv13:             types.BoolValue(bind.NoTlsv13),
 				// New v3 fields
-				Sslv3:                types.BoolValue(bind.Sslv3),
-				Tlsv10:               types.BoolValue(bind.Tlsv10),
-				Tlsv11:               types.BoolValue(bind.Tlsv11),
-				Tlsv12:               types.BoolValue(bind.Tlsv12),
-				Tlsv13:               types.BoolValue(bind.Tlsv13),
+				Sslv3:  types.BoolValue(bind.Sslv3),
+				Tlsv10: types.BoolValue(bind.Tlsv10),
+				Tlsv11: types.BoolValue(bind.Tlsv11),
+				Tlsv12: types.BoolValue(bind.Tlsv12),
+				Tlsv13: types.BoolValue(bind.Tlsv13),
 
-				Npn:                  types.StringValue(bind.Npn),
-				PreferClientCiphers:  types.BoolValue(bind.PreferClientCiphers),
-				Process:              types.StringValue(bind.Process),
-				Proto:                types.StringValue(bind.Proto),
-				SeverityOutput:       types.StringValue(bind.SeverityOutput),
-				StrictSni:            types.BoolValue(bind.StrictSni),
-				TcpUserTimeout:       types.Int64Value(bind.TcpUserTimeout),
-				Tfo:                  types.BoolValue(bind.Tfo),
-				TlsTicketKeys:        types.StringValue(bind.TlsTicketKeys),
-				Uid:                  types.StringValue(bind.Uid),
-				V4v6:                 types.BoolValue(bind.V4v6),
-				V6only:               types.BoolValue(bind.V6only),
-				Verify:               types.StringValue(bind.Verify),
-				Metadata:             types.StringValue(bind.Metadata),
+				Npn:                 types.StringValue(bind.Npn),
+				PreferClientCiphers: types.BoolValue(bind.PreferClientCiphers),
+				Process:             types.StringValue(bind.Process),
+				Proto:               types.StringValue(bind.Proto),
+				SeverityOutput:      types.StringValue(bind.SeverityOutput),
+				StrictSni:           types.BoolValue(bind.StrictSni),
+				TcpUserTimeout:      types.Int64Value(bind.TcpUserTimeout),
+				Tfo:                 types.BoolValue(bind.Tfo),
+				TlsTicketKeys:       types.StringValue(bind.TlsTicketKeys),
+				Uid:                 types.StringValue(bind.Uid),
+				V4v6:                types.BoolValue(bind.V4v6),
+				V6only:              types.BoolValue(bind.V6only),
+				Verify:              types.StringValue(bind.Verify),
+				Metadata:            types.StringValue(bind.Metadata),
 			}
 			if bind.Port != nil {
 				bm.Port = types.Int64Value(*bind.Port)
@@ -2108,17 +2006,24 @@ func (r *frontendResource) Read(ctx context.Context, req resource.ReadRequest, r
 		}
 	}
 
-	if frontend.MonitorFail != (MonitorFailPayload{}) {
-		var monitorFailModel struct {
+	if frontend.MonitorFail != nil {
+		var monitorFailModels []struct {
 			Cond     types.String `tfsdk:"cond"`
 			CondTest types.String `tfsdk:"cond_test"`
 		}
-		monitorFailModel.Cond = types.StringValue(frontend.MonitorFail.Cond)
-		monitorFailModel.CondTest = types.StringValue(frontend.MonitorFail.CondTest)
-		state.MonitorFail, diags = types.ObjectValueFrom(ctx, map[string]attr.Type{
-			"cond":      types.StringType,
-			"cond_test": types.StringType,
-		}, monitorFailModel)
+		monitorFailModels = append(monitorFailModels, struct {
+			Cond     types.String `tfsdk:"cond"`
+			CondTest types.String `tfsdk:"cond_test"`
+		}{
+			Cond:     types.StringValue(frontend.MonitorFail.Cond),
+			CondTest: types.StringValue(frontend.MonitorFail.CondTest),
+		})
+		state.MonitorFail, diags = types.ListValueFrom(ctx, types.ObjectType{
+			AttrTypes: map[string]attr.Type{
+				"cond":      types.StringType,
+				"cond_test": types.StringType,
+			},
+		}, monitorFailModels)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -2397,18 +2302,20 @@ func (r *frontendResource) Update(ctx context.Context, req resource.UpdateReques
 	}
 
 	if !plan.MonitorFail.IsNull() {
-		var monitorFailModel struct {
+		var monitorFailModels []struct {
 			Cond     types.String `tfsdk:"cond"`
 			CondTest types.String `tfsdk:"cond_test"`
 		}
-		diags := plan.MonitorFail.As(ctx, &monitorFailModel, basetypes.ObjectAsOptions{})
+		diags := plan.MonitorFail.ElementsAs(ctx, &monitorFailModels, false)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		payload.MonitorFail = MonitorFailPayload{
-			Cond:     monitorFailModel.Cond.ValueString(),
-			CondTest: monitorFailModel.CondTest.ValueString(),
+		if len(monitorFailModels) > 0 {
+			payload.MonitorFail = &MonitorFailPayload{
+				Cond:     monitorFailModels[0].Cond.ValueString(),
+				CondTest: monitorFailModels[0].CondTest.ValueString(),
+			}
 		}
 	}
 
@@ -2510,25 +2417,25 @@ func (r *frontendResource) Update(ctx context.Context, req resource.UpdateReques
 					NoTlsv12:             planBind.NoTlsv12.ValueBool(),
 					NoTlsv13:             planBind.NoTlsv13.ValueBool(),
 					// New v3 fields
-					Sslv3:                planBind.Sslv3.ValueBool(),
-					Tlsv10:               planBind.Tlsv10.ValueBool(),
-					Tlsv11:               planBind.Tlsv11.ValueBool(),
-					Tlsv12:               planBind.Tlsv12.ValueBool(),
-					Tlsv13:               planBind.Tlsv13.ValueBool(),
-					Npn:                  planBind.Npn.ValueString(),
-					PreferClientCiphers:  planBind.PreferClientCiphers.ValueBool(),
-					Process:              planBind.Process.ValueString(),
-					Proto:                planBind.Proto.ValueString(),
-					SeverityOutput:       planBind.SeverityOutput.ValueString(),
-					StrictSni:            planBind.StrictSni.ValueBool(),
-					TcpUserTimeout:       planBind.TcpUserTimeout.ValueInt64(),
-					Tfo:                  planBind.Tfo.ValueBool(),
-					TlsTicketKeys:        planBind.TlsTicketKeys.ValueString(),
-					Uid:                  planBind.Uid.ValueString(),
-					V4v6:                 planBind.V4v6.ValueBool(),
-					V6only:               planBind.V6only.ValueBool(),
-					Verify:               planBind.Verify.ValueString(),
-					Metadata:             planBind.Metadata.ValueString(),
+					Sslv3:               planBind.Sslv3.ValueBool(),
+					Tlsv10:              planBind.Tlsv10.ValueBool(),
+					Tlsv11:              planBind.Tlsv11.ValueBool(),
+					Tlsv12:              planBind.Tlsv12.ValueBool(),
+					Tlsv13:              planBind.Tlsv13.ValueBool(),
+					Npn:                 planBind.Npn.ValueString(),
+					PreferClientCiphers: planBind.PreferClientCiphers.ValueBool(),
+					Process:             planBind.Process.ValueString(),
+					Proto:               planBind.Proto.ValueString(),
+					SeverityOutput:      planBind.SeverityOutput.ValueString(),
+					StrictSni:           planBind.StrictSni.ValueBool(),
+					TcpUserTimeout:      planBind.TcpUserTimeout.ValueInt64(),
+					Tfo:                 planBind.Tfo.ValueBool(),
+					TlsTicketKeys:       planBind.TlsTicketKeys.ValueString(),
+					Uid:                 planBind.Uid.ValueString(),
+					V4v6:                planBind.V4v6.ValueBool(),
+					V6only:              planBind.V6only.ValueBool(),
+					Verify:              planBind.Verify.ValueString(),
+					Metadata:            planBind.Metadata.ValueString(),
 				}
 				if !planBind.Port.IsNull() {
 					p := planBind.Port.ValueInt64()
@@ -2598,25 +2505,25 @@ func (r *frontendResource) Update(ctx context.Context, req resource.UpdateReques
 					NoTlsv12:             planBind.NoTlsv12.ValueBool(),
 					NoTlsv13:             planBind.NoTlsv13.ValueBool(),
 					// New v3 fields
-					Sslv3:                planBind.Sslv3.ValueBool(),
-					Tlsv10:               planBind.Tlsv10.ValueBool(),
-					Tlsv11:               planBind.Tlsv11.ValueBool(),
-					Tlsv12:               planBind.Tlsv12.ValueBool(),
-					Tlsv13:               planBind.Tlsv13.ValueBool(),
-					Npn:                  planBind.Npn.ValueString(),
-					PreferClientCiphers:  planBind.PreferClientCiphers.ValueBool(),
-					Process:              planBind.Process.ValueString(),
-					Proto:                planBind.Proto.ValueString(),
-					SeverityOutput:       planBind.SeverityOutput.ValueString(),
-					StrictSni:            planBind.StrictSni.ValueBool(),
-					TcpUserTimeout:       planBind.TcpUserTimeout.ValueInt64(),
-					Tfo:                  planBind.Tfo.ValueBool(),
-					TlsTicketKeys:        planBind.TlsTicketKeys.ValueString(),
-					Uid:                  planBind.Uid.ValueString(),
-					V4v6:                 planBind.V4v6.ValueBool(),
-					V6only:               planBind.V6only.ValueBool(),
-					Verify:               planBind.Verify.ValueString(),
-					Metadata:             planBind.Metadata.ValueString(),
+					Sslv3:               planBind.Sslv3.ValueBool(),
+					Tlsv10:              planBind.Tlsv10.ValueBool(),
+					Tlsv11:              planBind.Tlsv11.ValueBool(),
+					Tlsv12:              planBind.Tlsv12.ValueBool(),
+					Tlsv13:              planBind.Tlsv13.ValueBool(),
+					Npn:                 planBind.Npn.ValueString(),
+					PreferClientCiphers: planBind.PreferClientCiphers.ValueBool(),
+					Process:             planBind.Process.ValueString(),
+					Proto:               planBind.Proto.ValueString(),
+					SeverityOutput:      planBind.SeverityOutput.ValueString(),
+					StrictSni:           planBind.StrictSni.ValueBool(),
+					TcpUserTimeout:      planBind.TcpUserTimeout.ValueInt64(),
+					Tfo:                 planBind.Tfo.ValueBool(),
+					TlsTicketKeys:       planBind.TlsTicketKeys.ValueString(),
+					Uid:                 planBind.Uid.ValueString(),
+					V4v6:                planBind.V4v6.ValueBool(),
+					V6only:              planBind.V6only.ValueBool(),
+					Verify:              planBind.Verify.ValueString(),
+					Metadata:            planBind.Metadata.ValueString(),
 				}
 				if !planBind.Port.IsNull() {
 					p := planBind.Port.ValueInt64()
