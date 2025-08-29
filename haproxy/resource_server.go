@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -76,14 +78,15 @@ type serverStandaloneResourceModel struct {
 	Tlsv11           types.String `tfsdk:"tlsv11"`
 	Tlsv12           types.String `tfsdk:"tlsv12"`
 	Tlsv13           types.String `tfsdk:"tlsv13"`
-	OnError          types.String `tfsdk:"on_error"`
-	OnMarkedDown     types.String `tfsdk:"on_marked_down"`
-	OnMarkedUp       types.String `tfsdk:"on_marked_up"`
+	OnError          types.String `tfsdk:"onerror"`
+	OnMarkedDown     types.String `tfsdk:"onmarkeddown"`
+	OnMarkedUp       types.String `tfsdk:"onmarkedup"`
 	PoolLowConn      types.Int64  `tfsdk:"pool_low_conn"`
 	PoolMaxConn      types.Int64  `tfsdk:"pool_max_conn"`
 	PoolPurgeDelay   types.Int64  `tfsdk:"pool_purge_delay"`
 	Proto            types.String `tfsdk:"proto"`
 	ProxyV2Options   types.List   `tfsdk:"proxy_v2_options"`
+	Redir            types.String `tfsdk:"redir"`
 	Rise             types.Int64  `tfsdk:"rise"`
 	SendProxy        types.String `tfsdk:"send_proxy"`
 	SendProxyV2      types.String `tfsdk:"send_proxy_v2"`
@@ -104,6 +107,11 @@ type serverStandaloneResourceModel struct {
 	Track            types.String `tfsdk:"track"`
 	Verify           types.String `tfsdk:"verify"`
 	Weight           types.Int64  `tfsdk:"weight"`
+	Disabled         types.Bool   `tfsdk:"disabled"`
+	LogProto         types.String `tfsdk:"log_proto"`
+	Observe          types.String `tfsdk:"observe"`
+	VerifyHost       types.String `tfsdk:"verifyhost"`
+	HttpchkParams    types.Object `tfsdk:"httpchk_params"`
 }
 
 // Metadata returns the resource type name.
@@ -312,15 +320,15 @@ func (r *serverResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Optional:    true,
 				Description: "Enable TLSv1.3 protocol support (v3 API, replaces no_tlsv13). Allowed: enabled|disabled",
 			},
-			"on_error": schema.StringAttribute{
+			"onerror": schema.StringAttribute{
 				Optional:    true,
 				Description: "The on error of the server.",
 			},
-			"on_marked_down": schema.StringAttribute{
+			"onmarkeddown": schema.StringAttribute{
 				Optional:    true,
 				Description: "The on marked down of the server.",
 			},
-			"on_marked_up": schema.StringAttribute{
+			"onmarkedup": schema.StringAttribute{
 				Optional:    true,
 				Description: "The on marked up of the server.",
 			},
@@ -344,6 +352,10 @@ func (r *serverResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				ElementType: types.StringType,
 				Optional:    true,
 				Description: "The proxy v2 options of the server.",
+			},
+			"redir": schema.StringAttribute{
+				Optional:    true,
+				Description: "The redir of the server.",
 			},
 			"rise": schema.Int64Attribute{
 				Optional:    true,
@@ -425,6 +437,41 @@ func (r *serverResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Optional:    true,
 				Description: "The weight of the server",
 			},
+			"disabled": schema.BoolAttribute{
+				Optional:    true,
+				Description: "The disabled state of the server",
+			},
+			"log_proto": schema.StringAttribute{
+				Optional:    true,
+				Description: "The log protocol of the server",
+			},
+			"observe": schema.StringAttribute{
+				Optional:    true,
+				Description: "The observe mode of the server",
+			},
+
+			"verifyhost": schema.StringAttribute{
+				Optional:    true,
+				Description: "The verify host configuration of the server",
+			},
+		},
+		Blocks: map[string]schema.Block{
+			"httpchk_params": schema.SingleNestedBlock{
+				Attributes: map[string]schema.Attribute{
+					"method": schema.StringAttribute{
+						Optional:    true,
+						Description: "The HTTP method for health checks",
+					},
+					"uri": schema.StringAttribute{
+						Optional:    true,
+						Description: "The URI for health checks",
+					},
+					"version": schema.StringAttribute{
+						Optional:    true,
+						Description: "The HTTP version for health checks",
+					},
+				},
+			},
 		},
 	}
 }
@@ -473,6 +520,25 @@ func (r *serverResource) Create(ctx context.Context, req resource.CreateRequest,
 		}
 	}
 
+	var httpchkParams *HttpchkParams
+	if !plan.HttpchkParams.IsNull() {
+		var httpchkParamsModel struct {
+			Method  types.String `tfsdk:"method"`
+			Uri     types.String `tfsdk:"uri"`
+			Version types.String `tfsdk:"version"`
+		}
+		diags := plan.HttpchkParams.As(ctx, &httpchkParamsModel, basetypes.ObjectAsOptions{})
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		httpchkParams = &HttpchkParams{
+			Method:  httpchkParamsModel.Method.ValueString(),
+			Uri:     httpchkParamsModel.Uri.ValueString(),
+			Version: httpchkParamsModel.Version.ValueString(),
+		}
+	}
+
 	payload := &ServerPayload{
 		Name:             plan.Name.ValueString(),
 		Address:          plan.Address.ValueString(),
@@ -484,7 +550,6 @@ func (r *serverResource) Create(ctx context.Context, req resource.CreateRequest,
 		AgentSend:        plan.AgentSend.ValueString(),
 		Allow0rtt:        plan.Allow0rtt.ValueBool(),
 		Alpn:             plan.Alpn.ValueString(),
-		Backup:           plan.Backup.ValueString(),
 		Check:            plan.Check.ValueString(),
 		CheckAlpn:        plan.CheckAlpn.ValueString(),
 		CheckSni:         plan.CheckSni.ValueString(),
@@ -523,6 +588,7 @@ func (r *serverResource) Create(ctx context.Context, req resource.CreateRequest,
 		PoolPurgeDelay:   plan.PoolPurgeDelay.ValueInt64(),
 		Proto:            plan.Proto.ValueString(),
 		ProxyV2Options:   proxyV2Options,
+		Redir:            plan.Redir.ValueString(),
 		Rise:             plan.Rise.ValueInt64(),
 		SendProxy:        plan.SendProxy.ValueString(),
 		SendProxyV2:      plan.SendProxyV2.ValueString(),
@@ -543,6 +609,16 @@ func (r *serverResource) Create(ctx context.Context, req resource.CreateRequest,
 		Track:            plan.Track.ValueString(),
 		Verify:           plan.Verify.ValueString(),
 		Weight:           plan.Weight.ValueInt64(),
+		Disabled:         plan.Disabled.ValueBool(),
+		LogProto:         plan.LogProto.ValueString(),
+		Observe:          plan.Observe.ValueString(),
+		VerifyHost:       plan.VerifyHost.ValueString(),
+		HttpchkParams:    httpchkParams,
+	}
+
+	// Only add backup field if it's explicitly set
+	if !plan.Backup.IsNull() && plan.Backup.ValueString() != "" {
+		payload.Backup = plan.Backup.ValueString()
 	}
 
 	// Use the old transaction method which has built-in retry logic
@@ -832,6 +908,12 @@ func (r *serverResource) Read(ctx context.Context, req resource.ReadRequest, res
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// Only set Redir field if it has meaningful values (not empty)
+	if server.Redir != "" {
+		state.Redir = types.StringValue(server.Redir)
+	} else {
+		state.Redir = types.StringNull()
+	}
 	// Only set fields if they have meaningful values (not zero)
 	if server.Rise > 0 {
 		state.Rise = types.Int64Value(server.Rise)
@@ -938,6 +1020,61 @@ func (r *serverResource) Read(ctx context.Context, req resource.ReadRequest, res
 		state.Weight = types.Int64Null()
 	}
 
+	// Handle new fields
+	if server.Disabled {
+		state.Disabled = types.BoolValue(server.Disabled)
+	} else {
+		state.Disabled = types.BoolNull()
+	}
+	if server.LogProto != "" {
+		state.LogProto = types.StringValue(server.LogProto)
+	} else {
+		state.LogProto = types.StringNull()
+	}
+	if server.Observe != "" {
+		state.Observe = types.StringValue(server.Observe)
+	} else {
+		state.Observe = types.StringNull()
+	}
+	if server.VerifyHost != "" {
+		state.VerifyHost = types.StringValue(server.VerifyHost)
+	} else {
+		state.VerifyHost = types.StringNull()
+	}
+
+	// Handle httpchk_params block
+	if server.HttpchkParams != nil {
+		var httpchkParamsModel struct {
+			Method  types.String `tfsdk:"method"`
+			Uri     types.String `tfsdk:"uri"`
+			Version types.String `tfsdk:"version"`
+		}
+		httpchkParamsModel.Method = types.StringValue(server.HttpchkParams.Method)
+		httpchkParamsModel.Uri = types.StringValue(server.HttpchkParams.Uri)
+		httpchkParamsModel.Version = types.StringValue(server.HttpchkParams.Version)
+
+		httpchkParamsObj, diags := types.ObjectValueFrom(ctx, map[string]attr.Type{
+			"method":  types.StringType,
+			"uri":     types.StringType,
+			"version": types.StringType,
+		}, map[string]attr.Value{
+			"method":  httpchkParamsModel.Method,
+			"uri":     httpchkParamsModel.Uri,
+			"version": httpchkParamsModel.Version,
+		})
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		state.HttpchkParams = httpchkParamsObj
+	} else {
+		state.HttpchkParams = types.ObjectNull(map[string]attr.Type{
+			"method":  types.StringType,
+			"uri":     types.StringType,
+			"version": types.StringType,
+		})
+	}
+
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 }
@@ -959,32 +1096,123 @@ func (r *serverResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
+	// Handle proxy_v2_options for update
+	var proxyV2Options []string
+	if !plan.ProxyV2Options.IsNull() {
+		diags := plan.ProxyV2Options.ElementsAs(ctx, &proxyV2Options, false)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
+	// Handle httpchk_params for update
+	var httpchkParams *HttpchkParams
+	if !plan.HttpchkParams.IsNull() {
+		var httpchkParamsModel struct {
+			Method  types.String `tfsdk:"method"`
+			Uri     types.String `tfsdk:"uri"`
+			Version types.String `tfsdk:"version"`
+		}
+		diags := plan.HttpchkParams.As(ctx, &httpchkParamsModel, basetypes.ObjectAsOptions{})
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		httpchkParams = &HttpchkParams{
+			Method:  httpchkParamsModel.Method.ValueString(),
+			Uri:     httpchkParamsModel.Uri.ValueString(),
+			Version: httpchkParamsModel.Version.ValueString(),
+		}
+	}
+
 	payload := &ServerPayload{
-		Name:            plan.Name.ValueString(),
-		Address:         plan.Address.ValueString(),
-		Port:            plan.Port.ValueInt64(),
-		SendProxy:       plan.SendProxy.ValueString(),
-		Check:           plan.Check.ValueString(),
-		CheckSsl:        plan.CheckSsl.ValueString(),
-		Inter:           plan.Inter.ValueInt64(),
-		Rise:            plan.Rise.ValueInt64(),
-		Fall:            plan.Fall.ValueInt64(),
-		Ssl:             plan.Ssl.ValueString(),
-		SslCafile:       plan.SslCafile.ValueString(),
-		SslCertificate:  plan.SslCertificate.ValueString(),
-		SslMaxVer:       plan.SslMaxVer.ValueString(),
-		SslMinVer:       plan.SslMinVer.ValueString(),
-		SslReuse:        plan.SslReuse.ValueString(),
-		Verify:          plan.Verify.ValueString(),
-		HealthCheckPort: plan.HealthCheckPort.ValueInt64(),
-		Weight:          plan.Weight.ValueInt64(),
-		Ciphers:         plan.Ciphers.ValueString(),
-		Ciphersuites:    plan.Ciphersuites.ValueString(),
-		ForceSslv3:      plan.ForceSslv3.ValueString(),
-		ForceTlsv10:     plan.ForceTlsv10.ValueString(),
-		ForceTlsv11:     plan.ForceTlsv11.ValueString(),
-		ForceTlsv12:     plan.ForceTlsv12.ValueString(),
-		ForceTlsv13:     plan.ForceTlsv13.ValueString(),
+		Name:       plan.Name.ValueString(),
+		Address:    plan.Address.ValueString(),
+		Port:       plan.Port.ValueInt64(),
+		AgentAddr:  plan.AgentAddr.ValueString(),
+		AgentCheck: plan.AgentCheck.ValueString(),
+		AgentInter: plan.AgentInter.ValueInt64(),
+		AgentPort:  plan.AgentPort.ValueInt64(),
+		AgentSend:  plan.AgentSend.ValueString(),
+		Allow0rtt:  plan.Allow0rtt.ValueBool(),
+		Alpn:       plan.Alpn.ValueString(),
+
+		Check:            plan.Check.ValueString(),
+		CheckAlpn:        plan.CheckAlpn.ValueString(),
+		CheckSni:         plan.CheckSni.ValueString(),
+		CheckSsl:         plan.CheckSsl.ValueString(),
+		CheckViaSocks4:   plan.CheckViaSocks4.ValueString(),
+		Ciphers:          plan.Ciphers.ValueString(),
+		Ciphersuites:     plan.Ciphersuites.ValueString(),
+		Cookie:           plan.Cookie.ValueString(),
+		Crt:              plan.Crt.ValueString(),
+		Downinter:        plan.Downinter.ValueInt64(),
+		ErrorLimit:       plan.ErrorLimit.ValueInt64(),
+		Fall:             plan.Fall.ValueInt64(),
+		Fastinter:        plan.Fastinter.ValueInt64(),
+		ForceSslv3:       plan.ForceSslv3.ValueString(),
+		ForceTlsv10:      plan.ForceTlsv10.ValueString(),
+		ForceTlsv11:      plan.ForceTlsv11.ValueString(),
+		ForceTlsv12:      plan.ForceTlsv12.ValueString(),
+		ForceTlsv13:      plan.ForceTlsv13.ValueString(),
+		ForceStrictSni:   plan.ForceStrictSni.ValueString(),
+		HealthCheckPort:  plan.HealthCheckPort.ValueInt64(),
+		InitAddr:         plan.InitAddr.ValueString(),
+		Inter:            plan.Inter.ValueInt64(),
+		Maintenance:      plan.Maintenance.ValueString(),
+		Maxconn:          plan.Maxconn.ValueInt64(),
+		Maxqueue:         plan.Maxqueue.ValueInt64(),
+		Minconn:          plan.Minconn.ValueInt64(),
+		NoSslv3:          plan.NoSslv3.ValueString(),
+		NoTlsv10:         plan.NoTlsv10.ValueString(),
+		NoTlsv11:         plan.NoTlsv11.ValueString(),
+		NoTlsv12:         plan.NoTlsv12.ValueString(),
+		NoTlsv13:         plan.NoTlsv13.ValueString(),
+		Sslv3:            plan.Sslv3.ValueString(),
+		Tlsv10:           plan.Tlsv10.ValueString(),
+		Tlsv11:           plan.Tlsv11.ValueString(),
+		Tlsv12:           plan.Tlsv12.ValueString(),
+		Tlsv13:           plan.Tlsv13.ValueString(),
+		OnError:          plan.OnError.ValueString(),
+		OnMarkedDown:     plan.OnMarkedDown.ValueString(),
+		OnMarkedUp:       plan.OnMarkedUp.ValueString(),
+		PoolLowConn:      plan.PoolLowConn.ValueInt64(),
+		PoolMaxConn:      plan.PoolMaxConn.ValueInt64(),
+		PoolPurgeDelay:   plan.PoolPurgeDelay.ValueInt64(),
+		Proto:            plan.Proto.ValueString(),
+		ProxyV2Options:   proxyV2Options,
+		Redir:            plan.Redir.ValueString(),
+		Rise:             plan.Rise.ValueInt64(),
+		SendProxy:        plan.SendProxy.ValueString(),
+		SendProxyV2:      plan.SendProxyV2.ValueString(),
+		SendProxyV2Ssl:   plan.SendProxyV2Ssl.ValueString(),
+		SendProxyV2SslCn: plan.SendProxyV2SslCn.ValueString(),
+		Slowstart:        plan.Slowstart.ValueInt64(),
+		Sni:              plan.Sni.ValueString(),
+		Source:           plan.Source.ValueString(),
+		Ssl:              plan.Ssl.ValueString(),
+		SslCafile:        plan.SslCafile.ValueString(),
+		SslCertificate:   plan.SslCertificate.ValueString(),
+		SslMaxVer:        plan.SslMaxVer.ValueString(),
+		SslMinVer:        plan.SslMinVer.ValueString(),
+		SslReuse:         plan.SslReuse.ValueString(),
+		Stick:            plan.Stick.ValueString(),
+		Tfo:              plan.Tfo.ValueString(),
+		TlsTickets:       plan.TlsTickets.ValueString(),
+		Track:            plan.Track.ValueString(),
+		Verify:           plan.Verify.ValueString(),
+		Weight:           plan.Weight.ValueInt64(),
+		Disabled:         plan.Disabled.ValueBool(),
+		LogProto:         plan.LogProto.ValueString(),
+		Observe:          plan.Observe.ValueString(),
+		VerifyHost:       plan.VerifyHost.ValueString(),
+		HttpchkParams:    httpchkParams,
+	}
+
+	// Only add backup field if it's explicitly set
+	if !plan.Backup.IsNull() && plan.Backup.ValueString() != "" {
+		payload.Backup = plan.Backup.ValueString()
 	}
 
 	err := r.client.UpdateServer(ctx, plan.Name.ValueString(), plan.ParentType.ValueString(), plan.ParentName.ValueString(), payload)

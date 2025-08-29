@@ -134,5 +134,6 @@ func (p *haproxyProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewStickRuleResource,
 		NewStickTableResource,
 		NewLogForwardResource,
+		NewHaproxyStackResource,
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -51,10 +52,10 @@ type frontendResourceModel struct {
 	Binds                    types.List   `tfsdk:"bind"`
 	MonitorFail              types.List   `tfsdk:"monitor_fail"`
 	Acls                     types.List   `tfsdk:"acl"`
-	HttpRequestRules         types.List   `tfsdk:"httprequestrule"`
-	HttpResponseRules        types.List   `tfsdk:"httpresponserule"`
-	TcpRequestRules          types.List   `tfsdk:"tcprequestrule"`
-	TcpResponseRules         types.List   `tfsdk:"tcpresponserule"`
+	HttpRequestRules         types.List   `tfsdk:"http_request_rule"`
+	HttpResponseRules        types.List   `tfsdk:"http_response_rule"`
+	TcpRequestRules          types.List   `tfsdk:"tcp_request_rule"`
+	TcpResponseRules         types.List   `tfsdk:"tcp_response_rule"`
 	ClientTimeout            types.Int64  `tfsdk:"client_timeout"`
 	HttpUseHtx               types.String `tfsdk:"http_use_htx"`
 	HttpIgnoreProbes         types.String `tfsdk:"http_ignore_probes"`
@@ -131,7 +132,8 @@ type bindResourceModel struct {
 	NoTlsv11             types.Bool   `tfsdk:"no_tlsv11"`
 	NoTlsv12             types.Bool   `tfsdk:"no_tlsv12"`
 	NoTlsv13             types.Bool   `tfsdk:"no_tlsv13"`
-	// New v3 fields (non-deprecated)
+
+	// SSL/TLS Configuration (v3 fields)
 	Sslv3  types.Bool `tfsdk:"sslv3"`
 	Tlsv10 types.Bool `tfsdk:"tlsv10"`
 	Tlsv11 types.Bool `tfsdk:"tlsv11"`
@@ -206,7 +208,8 @@ func (b bindResourceModel) attrTypes() map[string]attr.Type {
 		"no_tlsv11":             types.BoolType,
 		"no_tlsv12":             types.BoolType,
 		"no_tlsv13":             types.BoolType,
-		// New v3 fields
+
+		// SSL/TLS Configuration (v3 fields)
 		"sslv3":  types.BoolType,
 		"tlsv10": types.BoolType,
 		"tlsv11": types.BoolType,
@@ -252,17 +255,57 @@ func (a frontendAclResourceModel) attrTypes() map[string]attr.Type {
 }
 
 // httpRequestRuleResourceModel maps the resource schema data.
+// This struct handles HTTP request rules with SC fields as Int64 to match API models
 type httpRequestRuleResourceModel struct {
-	Index        types.Int64  `tfsdk:"index"`
-	Type         types.String `tfsdk:"type"`
-	Cond         types.String `tfsdk:"cond"`
-	CondTest     types.String `tfsdk:"cond_test"`
-	HdrName      types.String `tfsdk:"hdr_name"`
-	HdrFormat    types.String `tfsdk:"hdr_format"`
-	RedirType    types.String `tfsdk:"redir_type"`
-	RedirValue   types.String `tfsdk:"redir_value"`
-	StatusCode   types.Int64  `tfsdk:"status_code"`
-	StatusReason types.String `tfsdk:"status_reason"`
+	Index                types.Int64  `tfsdk:"index"`
+	Type                 types.String `tfsdk:"type"`
+	Cond                 types.String `tfsdk:"cond"`
+	CondTest             types.String `tfsdk:"cond_test"`
+	HdrName              types.String `tfsdk:"hdr_name"`
+	HdrFormat            types.String `tfsdk:"hdr_format"`
+	RedirType            types.String `tfsdk:"redir_type"`
+	RedirValue           types.String `tfsdk:"redir_value"`
+	StatusCode           types.Int64  `tfsdk:"status_code"`
+	StatusReason         types.String `tfsdk:"status_reason"`
+	RedirCode            types.Int64  `tfsdk:"redir_code"`
+	HdrMethod            types.String `tfsdk:"hdr_method"`
+	PathFmt              types.String `tfsdk:"path_fmt"`
+	ScExpr               types.String `tfsdk:"sc_expr"`
+	ScId                 types.Int64  `tfsdk:"sc_id"`
+	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
+	CacheName            types.String `tfsdk:"cache_name"`
+	MapKeyfmt            types.String `tfsdk:"map_keyfmt"`
+	ScIdx                types.Int64  `tfsdk:"sc_idx"`
+	TrackScKey           types.String `tfsdk:"track_sc_key"`
+	UriFmt               types.String `tfsdk:"uri_fmt"`
+	UriMatch             types.String `tfsdk:"uri_match"`
+	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
+	MethodFmt            types.String `tfsdk:"method_fmt"`
+	AclKeyfmt            types.String `tfsdk:"acl_keyfmt"`
+	PathMatch            types.String `tfsdk:"path_match"`
+	TosValue             types.String `tfsdk:"tos_value"`
+	AclFile              types.String `tfsdk:"acl_file"`
+	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
+	NiceValue            types.String `tfsdk:"nice_value"`
+	QueryFmt             types.String `tfsdk:"query_fmt"`
+	MapFile              types.String `tfsdk:"map_file"`
+	MapValuefmt          types.String `tfsdk:"map_valuefmt"`
+	MarkValue            types.String `tfsdk:"mark_value"`
+	Service              types.String `tfsdk:"service"`
+	SpoeEngine           types.String `tfsdk:"spoe_engine"`
+	TrackScTable         types.String `tfsdk:"track_sc_table"`
+	LogLevel             types.String `tfsdk:"log_level"`
+	LuaAction            types.String `tfsdk:"lua_action"`
+	ScInt                types.Int64  `tfsdk:"sc_int"`
+	SpoeGroup            types.String `tfsdk:"spoe_group"`
+	Timeout              types.String `tfsdk:"timeout"`
+	Expr                 types.String `tfsdk:"expr"`
+	LuaParams            types.String `tfsdk:"lua_params"`
+	TimeoutValue         types.String `tfsdk:"timeout_value"`
+	VarName              types.String `tfsdk:"var_name"`
+	VarScope             types.String `tfsdk:"var_scope"`
+	WaitTime             types.String `tfsdk:"wait_time"`
+	HdrMatch             types.String `tfsdk:"hdr_match"`
 }
 
 func (h httpRequestRuleResourceModel) GetIndex() int64 {
@@ -271,31 +314,110 @@ func (h httpRequestRuleResourceModel) GetIndex() int64 {
 
 func (h httpRequestRuleResourceModel) attrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"index":         types.Int64Type,
-		"type":          types.StringType,
-		"cond":          types.StringType,
-		"cond_test":     types.StringType,
-		"hdr_name":      types.StringType,
-		"hdr_format":    types.StringType,
-		"redir_type":    types.StringType,
-		"redir_value":   types.StringType,
-		"status_code":   types.Int64Type,
-		"status_reason": types.StringType,
+		"index":                  types.Int64Type,
+		"type":                   types.StringType,
+		"cond":                   types.StringType,
+		"cond_test":              types.StringType,
+		"hdr_name":               types.StringType,
+		"hdr_format":             types.StringType,
+		"redir_type":             types.StringType,
+		"redir_value":            types.StringType,
+		"status_code":            types.Int64Type,
+		"status_reason":          types.StringType,
+		"redir_code":             types.Int64Type,
+		"hdr_method":             types.StringType,
+		"path_fmt":               types.StringType,
+		"sc_expr":                types.StringType,
+		"sc_id":                  types.Int64Type,
+		"bandwidth_limit_period": types.StringType,
+		"cache_name":             types.StringType,
+		"map_keyfmt":             types.StringType,
+		"sc_idx":                 types.Int64Type,
+		"track_sc_key":           types.StringType,
+		"uri_fmt":                types.StringType,
+		"uri_match":              types.StringType,
+		"bandwidth_limit_limit":  types.StringType,
+		"method_fmt":             types.StringType,
+		"acl_keyfmt":             types.StringType,
+		"path_match":             types.StringType,
+		"tos_value":              types.StringType,
+		"acl_file":               types.StringType,
+		"bandwidth_limit_name":   types.StringType,
+		"nice_value":             types.StringType,
+		"query_fmt":              types.StringType,
+		"map_file":               types.StringType,
+		"map_valuefmt":           types.StringType,
+		"mark_value":             types.StringType,
+		"service":                types.StringType,
+		"spoe_engine":            types.StringType,
+		"track_sc_table":         types.StringType,
+		"log_level":              types.StringType,
+		"lua_action":             types.StringType,
+		"sc_int":                 types.Int64Type,
+		"spoe_group":             types.StringType,
+		"timeout":                types.StringType,
+		"expr":                   types.StringType,
+		"lua_params":             types.StringType,
+		"timeout_value":          types.StringType,
+		"var_name":               types.StringType,
+		"var_scope":              types.StringType,
+		"wait_time":              types.StringType,
+		"hdr_match":              types.StringType,
 	}
 }
 
 // httpResponseRuleResourceModel maps the resource schema data.
+// This struct handles HTTP response rules with SC fields as Int64 to match API models
 type httpResponseRuleResourceModel struct {
-	Index        types.Int64  `tfsdk:"index"`
-	Type         types.String `tfsdk:"type"`
-	Cond         types.String `tfsdk:"cond"`
-	CondTest     types.String `tfsdk:"cond_test"`
-	HdrName      types.String `tfsdk:"hdr_name"`
-	HdrFormat    types.String `tfsdk:"hdr_format"`
-	RedirType    types.String `tfsdk:"redir_type"`
-	RedirValue   types.String `tfsdk:"redir_value"`
-	StatusCode   types.Int64  `tfsdk:"status_code"`
-	StatusReason types.String `tfsdk:"status_reason"`
+	Index                types.Int64  `tfsdk:"index"`
+	Type                 types.String `tfsdk:"type"`
+	Cond                 types.String `tfsdk:"cond"`
+	CondTest             types.String `tfsdk:"cond_test"`
+	HdrName              types.String `tfsdk:"hdr_name"`
+	HdrFormat            types.String `tfsdk:"hdr_format"`
+	RedirType            types.String `tfsdk:"redir_type"`
+	RedirValue           types.String `tfsdk:"redir_value"`
+	StatusCode           types.Int64  `tfsdk:"status_code"`
+	StatusReason         types.String `tfsdk:"status_reason"`
+	RedirCode            types.Int64  `tfsdk:"redir_code"`
+	HdrMethod            types.String `tfsdk:"hdr_method"`
+	PathFmt              types.String `tfsdk:"path_fmt"`
+	ScExpr               types.String `tfsdk:"sc_expr"`
+	ScId                 types.Int64  `tfsdk:"sc_id"`
+	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
+	CacheName            types.String `tfsdk:"cache_name"`
+	MapKeyfmt            types.String `tfsdk:"map_keyfmt"`
+	ScIdx                types.Int64  `tfsdk:"sc_idx"`
+	TrackScKey           types.String `tfsdk:"track_sc_key"`
+	UriFmt               types.String `tfsdk:"uri_fmt"`
+	UriMatch             types.String `tfsdk:"uri_match"`
+	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
+	MethodFmt            types.String `tfsdk:"method_fmt"`
+	AclKeyfmt            types.String `tfsdk:"acl_keyfmt"`
+	PathMatch            types.String `tfsdk:"path_match"`
+	TosValue             types.String `tfsdk:"tos_value"`
+	AclFile              types.String `tfsdk:"acl_file"`
+	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
+	NiceValue            types.String `tfsdk:"nice_value"`
+	QueryFmt             types.String `tfsdk:"query_fmt"`
+	MapFile              types.String `tfsdk:"map_file"`
+	MapValuefmt          types.String `tfsdk:"map_valuefmt"`
+	MarkValue            types.String `tfsdk:"mark_value"`
+	Service              types.String `tfsdk:"service"`
+	SpoeEngine           types.String `tfsdk:"spoe_engine"`
+	TrackScTable         types.String `tfsdk:"track_sc_table"`
+	LogLevel             types.String `tfsdk:"log_level"`
+	LuaAction            types.String `tfsdk:"lua_action"`
+	ScInt                types.Int64  `tfsdk:"sc_int"`
+	SpoeGroup            types.String `tfsdk:"spoe_group"`
+	Timeout              types.String `tfsdk:"timeout"`
+	Expr                 types.String `tfsdk:"expr"`
+	LuaParams            types.String `tfsdk:"lua_params"`
+	TimeoutValue         types.String `tfsdk:"timeout_value"`
+	VarName              types.String `tfsdk:"var_name"`
+	VarScope             types.String `tfsdk:"var_scope"`
+	WaitTime             types.String `tfsdk:"wait_time"`
+	HdrMatch             types.String `tfsdk:"hdr_match"`
 }
 
 func (h httpResponseRuleResourceModel) GetIndex() int64 {
@@ -304,20 +426,60 @@ func (h httpResponseRuleResourceModel) GetIndex() int64 {
 
 func (h httpResponseRuleResourceModel) attrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"index":         types.Int64Type,
-		"type":          types.StringType,
-		"cond":          types.StringType,
-		"cond_test":     types.StringType,
-		"hdr_name":      types.StringType,
-		"hdr_format":    types.StringType,
-		"redir_type":    types.StringType,
-		"redir_value":   types.StringType,
-		"status_code":   types.Int64Type,
-		"status_reason": types.StringType,
+		"index":                  types.Int64Type,
+		"type":                   types.StringType,
+		"cond":                   types.StringType,
+		"cond_test":              types.StringType,
+		"hdr_name":               types.StringType,
+		"hdr_format":             types.StringType,
+		"redir_type":             types.StringType,
+		"redir_value":            types.StringType,
+		"status_code":            types.Int64Type,
+		"status_reason":          types.StringType,
+		"redir_code":             types.Int64Type,
+		"hdr_method":             types.StringType,
+		"path_fmt":               types.StringType,
+		"sc_expr":                types.StringType,
+		"sc_id":                  types.Int64Type,
+		"bandwidth_limit_period": types.StringType,
+		"cache_name":             types.StringType,
+		"map_keyfmt":             types.StringType,
+		"sc_idx":                 types.Int64Type,
+		"track_sc_key":           types.StringType,
+		"uri_fmt":                types.StringType,
+		"uri_match":              types.StringType,
+		"bandwidth_limit_limit":  types.StringType,
+		"method_fmt":             types.StringType,
+		"acl_keyfmt":             types.StringType,
+		"path_match":             types.StringType,
+		"tos_value":              types.StringType,
+		"acl_file":               types.StringType,
+		"bandwidth_limit_name":   types.StringType,
+		"nice_value":             types.StringType,
+		"query_fmt":              types.StringType,
+		"map_file":               types.StringType,
+		"map_valuefmt":           types.StringType,
+		"mark_value":             types.StringType,
+		"service":                types.StringType,
+		"spoe_engine":            types.StringType,
+		"track_sc_table":         types.StringType,
+		"log_level":              types.StringType,
+		"lua_action":             types.StringType,
+		"sc_int":                 types.Int64Type,
+		"spoe_group":             types.StringType,
+		"timeout":                types.StringType,
+		"expr":                   types.StringType,
+		"lua_params":             types.StringType,
+		"timeout_value":          types.StringType,
+		"var_name":               types.StringType,
+		"var_scope":              types.StringType,
+		"wait_time":              types.StringType,
+		"hdr_match":              types.StringType,
 	}
 }
 
 // frontendTcpRequestRuleResourceModel maps the resource schema data.
+// This struct handles TCP request rules with SC fields as Int64 to match API models
 type frontendTcpRequestRuleResourceModel struct {
 	Index        types.Int64  `tfsdk:"index"`
 	Type         types.String `tfsdk:"type"`
@@ -375,6 +537,7 @@ func (t frontendTcpRequestRuleResourceModel) attrTypes() map[string]attr.Type {
 // frontendTcpResponseRuleResourceModel maps the resource schema data.
 type frontendTcpResponseRuleResourceModel struct {
 	Index     types.Int64  `tfsdk:"index"`
+	Type      types.String `tfsdk:"type"`
 	Action    types.String `tfsdk:"action"`
 	Cond      types.String `tfsdk:"cond"`
 	CondTest  types.String `tfsdk:"cond_test"`
@@ -400,6 +563,7 @@ func (t frontendTcpResponseRuleResourceModel) GetIndex() int64 {
 func (t frontendTcpResponseRuleResourceModel) attrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"index":       types.Int64Type,
+		"type":        types.StringType,
 		"action":      types.StringType,
 		"cond":        types.StringType,
 		"cond_test":   types.StringType,
@@ -584,8 +748,9 @@ func (r *frontendResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				Optional:    true,
 				Description: "The timeout tarpit of the frontend.",
 			},
-			"stats_options": schema.SingleNestedAttribute{
-				Optional: true,
+		},
+		Blocks: map[string]schema.Block{
+			"stats_options": schema.SingleNestedBlock{
 				Attributes: map[string]schema.Attribute{
 					"stats_enable": schema.BoolAttribute{
 						Optional:    true,
@@ -621,9 +786,22 @@ func (r *frontendResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 					},
 				},
 			},
-			"bind": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
+			"monitor_fail": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"cond": schema.StringAttribute{
+							Required:    true,
+							Description: "The cond of the monitor_fail. Allowed: if|unless",
+						},
+						"cond_test": schema.StringAttribute{
+							Required:    true,
+							Description: "The cond_test of the monitor_fail.",
+						},
+					},
+				},
+			},
+			"bind": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"name": schema.StringAttribute{
 							Required:    true,
@@ -825,7 +1003,8 @@ func (r *frontendResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 							Optional:    true,
 							Description: "Disable TLSv1.3. DEPRECATED: Use 'tlsv13' field instead in Data Plane API v3",
 						},
-						// New v3 fields (non-deprecated)
+
+						// SSL/TLS Configuration (v3 fields)
 						"sslv3": schema.BoolAttribute{
 							Optional:    true,
 							Description: "Enable SSLv3 protocol support (v3 API, replaces no_sslv3)",
@@ -906,9 +1085,512 @@ func (r *frontendResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 					},
 				},
 			},
-			"tcprequestrule": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
+			"acl": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"acl_name": schema.StringAttribute{
+							Required:    true,
+							Description: "The acl name. Pattern: ^[^\\s]+$",
+						},
+						"index": schema.Int64Attribute{
+							Required:    true,
+							Description: "The index of the acl",
+						},
+						"criterion": schema.StringAttribute{
+							Required:    true,
+							Description: "The criterion. Pattern: ^[^\\s]+$",
+						},
+						"value": schema.StringAttribute{
+							Required:    true,
+							Description: "The value of the criterion",
+						},
+					},
+				},
+			},
+			"http_request_rule": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"index": schema.Int64Attribute{
+							Required:    true,
+							Description: "The index of the http-request rule",
+						},
+						"type": schema.StringAttribute{
+							Required:    true,
+							Description: "The type of the http-request rule",
+						},
+						"cond": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition of the http-request rule",
+						},
+						"cond_test": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition test of the http-request rule",
+						},
+						"hdr_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header name of the http-request rule",
+						},
+						"hdr_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header format of the http-request rule",
+						},
+						"redir_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection type of the http-request rule",
+						},
+						"redir_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection value of the http-request rule",
+						},
+						"status_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The status code of the http-request rule",
+						},
+						"status_reason": schema.StringAttribute{
+							Optional:    true,
+							Description: "The status reason of the http-request rule",
+						},
+						"redir_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The redirection code of the http-request rule",
+						},
+						"hdr_method": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header method of the http-request rule",
+						},
+						"path_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The path format of the http-request rule",
+						},
+						"sc_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The sc expression of the http-request rule",
+						},
+						"sc_id": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc id of the http-request rule",
+						},
+						"bandwidth_limit_period": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit period of the http-request rule",
+						},
+						"cache_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The cache name of the http-request rule",
+						},
+						"map_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map key format of the http-request rule",
+						},
+						"sc_idx": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc index of the http-request rule",
+						},
+						"track_sc_key": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track sc key of the http-request rule",
+						},
+						"uri_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The URI format of the http-request rule",
+						},
+						"uri_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The URI match of the http-request rule",
+						},
+						"bandwidth_limit_limit": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit limit of the http-request rule",
+						},
+						"method_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The method format of the http-request rule",
+						},
+						"acl_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The ACL key format of the http-request rule",
+						},
+						"path_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The path match of the http-request rule",
+						},
+						"tos_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The TOS value of the http-request rule",
+						},
+						"acl_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The ACL file of the http-request rule",
+						},
+						"bandwidth_limit_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit name of the http-request rule",
+						},
+						"nice_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The nice value of the http-request rule",
+						},
+						"query_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The query format of the http-request rule",
+						},
+						"map_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map file of the http-request rule",
+						},
+						"map_valuefmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map value format of the http-request rule",
+						},
+						"mark_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The mark value of the http-request rule",
+						},
+						"service": schema.StringAttribute{
+							Optional:    true,
+							Description: "The service of the http-request rule",
+						},
+						"spoe_engine": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SPOE engine of the http-request rule",
+						},
+						"track_sc_table": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track sc table of the http-request rule",
+						},
+						"log_level": schema.StringAttribute{
+							Optional:    true,
+							Description: "The log level of the http-request rule",
+						},
+						"lua_action": schema.StringAttribute{
+							Optional:    true,
+							Description: "The Lua action of the http-request rule",
+						},
+						"sc_int": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc int of the http-request rule",
+						},
+						"spoe_group": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SPOE group of the http-request rule",
+						},
+						"timeout": schema.StringAttribute{
+							Optional:    true,
+							Description: "The timeout of the http-request rule",
+						},
+						"expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The expression of the http-request rule",
+						},
+						"lua_params": schema.StringAttribute{
+							Optional:    true,
+							Description: "The Lua parameters of the http-request rule",
+						},
+						"timeout_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The timeout value of the http-request rule",
+						},
+						"var_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable name of the http-request rule",
+						},
+						"var_scope": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable scope of the http-request rule",
+						},
+						"wait_time": schema.StringAttribute{
+							Optional:    true,
+							Description: "The wait time of the http-request rule",
+						},
+						"hdr_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header match of the http-request rule",
+						},
+					},
+				},
+			},
+			"http_response_rule": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"index": schema.Int64Attribute{
+							Required:    true,
+							Description: "The index of the http-response rule",
+						},
+						"type": schema.StringAttribute{
+							Required:    true,
+							Description: "The type of the http-response rule",
+						},
+						"cond": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition of the http-response rule",
+						},
+						"cond_test": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition test of the http-response rule",
+						},
+						"hdr_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header name of the http-response rule",
+						},
+						"hdr_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header format of the http-response rule",
+						},
+						"redir_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection type of the http-response rule",
+						},
+						"redir_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection value of the http-response rule",
+						},
+						"status_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The status code of the http-response rule",
+						},
+						"status_reason": schema.StringAttribute{
+							Optional:    true,
+							Description: "The status reason of the http-response rule",
+						},
+						"redir_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The redirection code of the http-response rule",
+						},
+						"hdr_method": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header method of the http-response rule",
+						},
+						"path_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The path format of the http-response rule",
+						},
+						"sc_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The sc expression of the http-response rule",
+						},
+						"sc_id": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc id of the http-response rule",
+						},
+						"bandwidth_limit_period": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit period of the http-response rule",
+						},
+						"cache_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The cache name of the http-response rule",
+						},
+						"map_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map key format of the http-response rule",
+						},
+						"sc_idx": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc index of the http-response rule",
+						},
+						"track_sc_key": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track sc key of the http-response rule",
+						},
+						"uri_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The URI format of the http-response rule",
+						},
+						"uri_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The URI match of the http-response rule",
+						},
+						"bandwidth_limit_limit": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit limit of the http-response rule",
+						},
+						"method_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The method format of the http-response rule",
+						},
+						"acl_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The ACL key format of the http-response rule",
+						},
+						"path_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The path match of the http-response rule",
+						},
+						"tos_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The TOS value of the http-response rule",
+						},
+						"acl_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The ACL file of the http-response rule",
+						},
+						"bandwidth_limit_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit name of the http-response rule",
+						},
+						"nice_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The nice value of the http-response rule",
+						},
+						"query_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The query format of the http-response rule",
+						},
+						"map_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map file of the http-response rule",
+						},
+						"map_valuefmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map value format of the http-response rule",
+						},
+						"mark_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The mark value of the http-response rule",
+						},
+						"service": schema.StringAttribute{
+							Optional:    true,
+							Description: "The service of the http-response rule",
+						},
+						"spoe_engine": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SPOE engine of the http-response rule",
+						},
+						"track_sc_table": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track sc table of the http-response rule",
+						},
+						"log_level": schema.StringAttribute{
+							Optional:    true,
+							Description: "The log level of the http-response rule",
+						},
+						"lua_action": schema.StringAttribute{
+							Optional:    true,
+							Description: "The Lua action of the http-response rule",
+						},
+						"sc_int": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc int of the http-response rule",
+						},
+						"spoe_group": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SPOE group of the http-response rule",
+						},
+						"timeout": schema.StringAttribute{
+							Optional:    true,
+							Description: "The timeout of the http-response rule",
+						},
+						"expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The expression of the http-response rule",
+						},
+						"lua_params": schema.StringAttribute{
+							Optional:    true,
+							Description: "The Lua parameters of the http-response rule",
+						},
+						"timeout_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The timeout value of the http-response rule",
+						},
+						"var_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable name of the http-response rule",
+						},
+						"var_scope": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable scope of the http-response rule",
+						},
+						"wait_time": schema.StringAttribute{
+							Optional:    true,
+							Description: "The wait time of the http-response rule",
+						},
+						"hdr_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header match of the http-response rule",
+						},
+					},
+				},
+			},
+			"tcp_response_rule": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"index": schema.Int64Attribute{
+							Required:    true,
+							Description: "The index of the tcp-response rule",
+						},
+						"type": schema.StringAttribute{
+							Required:    true,
+							Description: "The type of the tcp-response rule",
+						},
+						"action": schema.StringAttribute{
+							Required:    true,
+							Description: "The action of the tcp-response rule",
+						},
+						"cond": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition of the tcp-response rule",
+						},
+						"cond_test": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition test of the tcp-response rule",
+						},
+						"lua_action": schema.StringAttribute{
+							Optional:    true,
+							Description: "The lua action of the tcp-response rule",
+						},
+						"lua_params": schema.StringAttribute{
+							Optional:    true,
+							Description: "The lua params of the tcp-response rule",
+						},
+						"sc_id": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc id of the tcp-response rule",
+						},
+						"sc_idx": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc idx of the tcp-response rule",
+						},
+						"sc_int": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc int of the tcp-response rule",
+						},
+						"sc_inc_gpc0": schema.StringAttribute{
+							Optional:    true,
+							Description: "The sc inc gpc0 of the tcp-response rule",
+						},
+						"sc_inc_gpc1": schema.StringAttribute{
+							Optional:    true,
+							Description: "The sc inc gpc1 of the tcp-response rule",
+						},
+						"sc_set_gpt0": schema.StringAttribute{
+							Optional:    true,
+							Description: "The sc set gpt0 of the tcp-response rule",
+						},
+						"var_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The var name of the tcp-response rule",
+						},
+						"var_scope": schema.StringAttribute{
+							Optional:    true,
+							Description: "The var scope of the tcp-response rule",
+						},
+						"var_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The var expr of the tcp-response rule",
+						},
+						"var_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The var format of the tcp-response rule",
+						},
+						"var_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The var type of the tcp-response rule",
+						},
+					},
+				},
+			},
+			"tcp_request_rule": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"index": schema.Int64Attribute{
 							Required:    true,
@@ -993,211 +1675,6 @@ func (r *frontendResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 						"var_type": schema.StringAttribute{
 							Optional:    true,
 							Description: "The var type of the tcp-request rule",
-						},
-					},
-				},
-			},
-			"tcpresponserule": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index of the tcp-response rule",
-						},
-						"action": schema.StringAttribute{
-							Required:    true,
-							Description: "The action of the tcp-response rule",
-						},
-						"cond": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition of the tcp-response rule",
-						},
-						"cond_test": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition test of the tcp-response rule",
-						},
-						"lua_action": schema.StringAttribute{
-							Optional:    true,
-							Description: "The lua action of the tcp-response rule",
-						},
-						"lua_params": schema.StringAttribute{
-							Optional:    true,
-							Description: "The lua params of the tcp-response rule",
-						},
-						"sc_id": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The sc id of the tcp-response rule",
-						},
-						"sc_idx": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The sc idx of the tcp-response rule",
-						},
-						"sc_int": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The sc int of the tcp-response rule",
-						},
-						"sc_inc_gpc0": schema.StringAttribute{
-							Optional:    true,
-							Description: "The sc inc gpc0 of the tcp-response rule",
-						},
-						"sc_inc_gpc1": schema.StringAttribute{
-							Optional:    true,
-							Description: "The sc inc gpc1 of the tcp-response rule",
-						},
-						"sc_set_gpt0": schema.StringAttribute{
-							Optional:    true,
-							Description: "The sc set gpt0 of the tcp-response rule",
-						},
-						"var_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The var name of the tcp-response rule",
-						},
-						"var_scope": schema.StringAttribute{
-							Optional:    true,
-							Description: "The var scope of the tcp-response rule",
-						},
-						"var_expr": schema.StringAttribute{
-							Optional:    true,
-							Description: "The var expr of the tcp-response rule",
-						},
-						"var_format": schema.StringAttribute{
-							Optional:    true,
-							Description: "The var format of the tcp-response rule",
-						},
-						"var_type": schema.StringAttribute{
-							Optional:    true,
-							Description: "The var type of the tcp-response rule",
-						},
-					},
-				},
-			},
-		},
-		Blocks: map[string]schema.Block{
-			"monitor_fail": schema.ListNestedBlock{
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"cond": schema.StringAttribute{
-							Required:    true,
-							Description: "The cond of the monitor_fail. Allowed: if|unless",
-						},
-						"cond_test": schema.StringAttribute{
-							Required:    true,
-							Description: "The cond_test of the monitor_fail.",
-						},
-					},
-				},
-			},
-			"acl": schema.ListNestedBlock{
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"acl_name": schema.StringAttribute{
-							Required:    true,
-							Description: "The acl name. Pattern: ^[^\\s]+$",
-						},
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index of the acl",
-						},
-						"criterion": schema.StringAttribute{
-							Required:    true,
-							Description: "The criterion. Pattern: ^[^\\s]+$",
-						},
-						"value": schema.StringAttribute{
-							Required:    true,
-							Description: "The value of the criterion",
-						},
-					},
-				},
-			},
-			"httprequestrule": schema.ListNestedBlock{
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index of the http-request rule",
-						},
-						"type": schema.StringAttribute{
-							Required:    true,
-							Description: "The type of the http-request rule",
-						},
-						"cond": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition of the http-request rule",
-						},
-						"cond_test": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition test of the http-request rule",
-						},
-						"hdr_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header name of the http-request rule",
-						},
-						"hdr_format": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header format of the http-request rule",
-						},
-						"redir_type": schema.StringAttribute{
-							Optional:    true,
-							Description: "The redirection type of the http-request rule",
-						},
-						"redir_value": schema.StringAttribute{
-							Optional:    true,
-							Description: "The redirection value of the http-request rule",
-						},
-						"status_code": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The status code of the http-request rule",
-						},
-						"status_reason": schema.StringAttribute{
-							Optional:    true,
-							Description: "The status reason of the http-request rule",
-						},
-					},
-				},
-			},
-			"httpresponserule": schema.ListNestedBlock{
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index of the http-response rule",
-						},
-						"type": schema.StringAttribute{
-							Required:    true,
-							Description: "The type of the http-response rule",
-						},
-						"cond": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition of the http-response rule",
-						},
-						"cond_test": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition test of the http-response rule",
-						},
-						"hdr_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header name of the http-response rule",
-						},
-						"hdr_format": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header format of the http-response rule",
-						},
-						"redir_type": schema.StringAttribute{
-							Optional:    true,
-							Description: "The redirection type of the http-response rule",
-						},
-						"redir_value": schema.StringAttribute{
-							Optional:    true,
-							Description: "The redirection value of the http-response rule",
-						},
-						"status_code": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The status code of the http-response rule",
-						},
-						"status_reason": schema.StringAttribute{
-							Optional:    true,
-							Description: "The status reason of the http-response rule",
 						},
 					},
 				},
@@ -1299,16 +1776,18 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		payload.StatsOptions = StatsOptionsPayload{
-			StatsEnable:      statsOptionsModel.StatsEnable.ValueBool(),
-			StatsHideVersion: statsOptionsModel.StatsHideVersion.ValueBool(),
-			StatsShowLegends: statsOptionsModel.StatsShowLegends.ValueBool(),
-			StatsShowNode:    statsOptionsModel.StatsShowNode.ValueBool(),
-			StatsUri:         statsOptionsModel.StatsUri.ValueString(),
-			StatsRealm:       statsOptionsModel.StatsRealm.ValueString(),
-			StatsAuth:        statsOptionsModel.StatsAuth.ValueString(),
-			StatsRefresh:     statsOptionsModel.StatsRefresh.ValueString(),
+
+		// Only include fields that are actually set
+		statsOptions := &StatsOptionsPayload{
+			StatsEnable: statsOptionsModel.StatsEnable.ValueBool(),
 		}
+
+		// Only add other fields if they're not null/empty
+		if !statsOptionsModel.StatsUri.IsNull() && statsOptionsModel.StatsUri.ValueString() != "" {
+			statsOptions.StatsUri = statsOptionsModel.StatsUri.ValueString()
+		}
+
+		payload.StatsOptions = statsOptions
 	}
 
 	log.Printf("Creating frontend with payload: %+v", payload)
@@ -1498,16 +1977,55 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 
 		for _, httpRequestRuleModel := range httpRequestRuleModels {
 			httpRequestRulePayload := &HttpRequestRulePayload{
-				Index:        httpRequestRuleModel.Index.ValueInt64(),
-				Type:         httpRequestRuleModel.Type.ValueString(),
-				Cond:         httpRequestRuleModel.Cond.ValueString(),
-				CondTest:     httpRequestRuleModel.CondTest.ValueString(),
-				HdrName:      httpRequestRuleModel.HdrName.ValueString(),
-				HdrFormat:    httpRequestRuleModel.HdrFormat.ValueString(),
-				RedirType:    httpRequestRuleModel.RedirType.ValueString(),
-				RedirValue:   httpRequestRuleModel.RedirValue.ValueString(),
-				StatusCode:   httpRequestRuleModel.StatusCode.ValueInt64(),
-				StatusReason: httpRequestRuleModel.StatusReason.ValueString(),
+				Index:                httpRequestRuleModel.Index.ValueInt64(),
+				Type:                 httpRequestRuleModel.Type.ValueString(),
+				Cond:                 httpRequestRuleModel.Cond.ValueString(),
+				CondTest:             httpRequestRuleModel.CondTest.ValueString(),
+				HdrName:              httpRequestRuleModel.HdrName.ValueString(),
+				HdrFormat:            httpRequestRuleModel.HdrFormat.ValueString(),
+				RedirType:            httpRequestRuleModel.RedirType.ValueString(),
+				RedirValue:           httpRequestRuleModel.RedirValue.ValueString(),
+				StatusCode:           httpRequestRuleModel.StatusCode.ValueInt64(),
+				StatusReason:         httpRequestRuleModel.StatusReason.ValueString(),
+				RedirCode:            httpRequestRuleModel.RedirCode.ValueInt64(),
+				HdrMethod:            httpRequestRuleModel.HdrMethod.ValueString(),
+				PathFmt:              httpRequestRuleModel.PathFmt.ValueString(),
+				ScExpr:               httpRequestRuleModel.ScExpr.ValueString(),
+				ScId:                 strconv.FormatInt(httpRequestRuleModel.ScId.ValueInt64(), 10),
+				BandwidthLimitPeriod: httpRequestRuleModel.BandwidthLimitPeriod.ValueString(),
+				CacheName:            httpRequestRuleModel.CacheName.ValueString(),
+				MapKeyfmt:            httpRequestRuleModel.MapKeyfmt.ValueString(),
+				ScIdx:                strconv.FormatInt(httpRequestRuleModel.ScIdx.ValueInt64(), 10),
+				TrackScKey:           httpRequestRuleModel.TrackScKey.ValueString(),
+				UriFmt:               httpRequestRuleModel.UriFmt.ValueString(),
+				UriMatch:             httpRequestRuleModel.UriMatch.ValueString(),
+				BandwidthLimitLimit:  httpRequestRuleModel.BandwidthLimitLimit.ValueString(),
+				MethodFmt:            httpRequestRuleModel.MethodFmt.ValueString(),
+				AclKeyfmt:            httpRequestRuleModel.AclKeyfmt.ValueString(),
+				PathMatch:            httpRequestRuleModel.PathMatch.ValueString(),
+				TosValue:             httpRequestRuleModel.TosValue.ValueString(),
+				AclFile:              httpRequestRuleModel.AclFile.ValueString(),
+				BandwidthLimitName:   httpRequestRuleModel.BandwidthLimitName.ValueString(),
+				NiceValue:            httpRequestRuleModel.NiceValue.ValueString(),
+				QueryFmt:             httpRequestRuleModel.QueryFmt.ValueString(),
+				MapFile:              httpRequestRuleModel.MapFile.ValueString(),
+				MapValuefmt:          httpRequestRuleModel.MapValuefmt.ValueString(),
+				MarkValue:            httpRequestRuleModel.MarkValue.ValueString(),
+				Service:              httpRequestRuleModel.Service.ValueString(),
+				SpoeEngine:           httpRequestRuleModel.SpoeEngine.ValueString(),
+				TrackScTable:         httpRequestRuleModel.TrackScTable.ValueString(),
+				LogLevel:             httpRequestRuleModel.LogLevel.ValueString(),
+				LuaAction:            httpRequestRuleModel.LuaAction.ValueString(),
+				ScInt:                strconv.FormatInt(httpRequestRuleModel.ScInt.ValueInt64(), 10),
+				SpoeGroup:            httpRequestRuleModel.SpoeGroup.ValueString(),
+				Timeout:              httpRequestRuleModel.Timeout.ValueString(),
+				Expr:                 httpRequestRuleModel.Expr.ValueString(),
+				LuaParams:            httpRequestRuleModel.LuaParams.ValueString(),
+				TimeoutValue:         httpRequestRuleModel.TimeoutValue.ValueString(),
+				VarName:              httpRequestRuleModel.VarName.ValueString(),
+				VarScope:             httpRequestRuleModel.VarScope.ValueString(),
+				WaitTime:             httpRequestRuleModel.WaitTime.ValueString(),
+				HdrMatch:             httpRequestRuleModel.HdrMatch.ValueString(),
 			}
 			err := r.client.CreateHttpRequestRule(ctx, "frontend", plan.Name.ValueString(), httpRequestRulePayload)
 			if err != nil {
@@ -1534,16 +2052,55 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 
 		for _, httpResponseRuleModel := range httpResponseRuleModels {
 			httpResponseRulePayload := &HttpResponseRulePayload{
-				Index:        httpResponseRuleModel.Index.ValueInt64(),
-				Type:         httpResponseRuleModel.Type.ValueString(),
-				Cond:         httpResponseRuleModel.Cond.ValueString(),
-				CondTest:     httpResponseRuleModel.CondTest.ValueString(),
-				HdrName:      httpResponseRuleModel.HdrName.ValueString(),
-				HdrFormat:    httpResponseRuleModel.HdrFormat.ValueString(),
-				RedirType:    httpResponseRuleModel.RedirType.ValueString(),
-				RedirValue:   httpResponseRuleModel.RedirValue.ValueString(),
-				StatusCode:   httpResponseRuleModel.StatusCode.ValueInt64(),
-				StatusReason: httpResponseRuleModel.StatusReason.ValueString(),
+				Index:                httpResponseRuleModel.Index.ValueInt64(),
+				Type:                 httpResponseRuleModel.Type.ValueString(),
+				Cond:                 httpResponseRuleModel.Cond.ValueString(),
+				CondTest:             httpResponseRuleModel.CondTest.ValueString(),
+				HdrName:              httpResponseRuleModel.HdrName.ValueString(),
+				HdrFormat:            httpResponseRuleModel.HdrFormat.ValueString(),
+				RedirType:            httpResponseRuleModel.RedirType.ValueString(),
+				RedirValue:           httpResponseRuleModel.RedirValue.ValueString(),
+				StatusCode:           httpResponseRuleModel.StatusCode.ValueInt64(),
+				StatusReason:         httpResponseRuleModel.StatusReason.ValueString(),
+				RedirCode:            httpResponseRuleModel.RedirCode.ValueInt64(),
+				HdrMethod:            httpResponseRuleModel.HdrMethod.ValueString(),
+				PathFmt:              httpResponseRuleModel.PathFmt.ValueString(),
+				ScExpr:               httpResponseRuleModel.ScExpr.ValueString(),
+				ScId:                 strconv.FormatInt(httpResponseRuleModel.ScId.ValueInt64(), 10),
+				BandwidthLimitPeriod: httpResponseRuleModel.BandwidthLimitPeriod.ValueString(),
+				CacheName:            httpResponseRuleModel.CacheName.ValueString(),
+				MapKeyfmt:            httpResponseRuleModel.MapKeyfmt.ValueString(),
+				ScIdx:                strconv.FormatInt(httpResponseRuleModel.ScIdx.ValueInt64(), 10),
+				TrackScKey:           httpResponseRuleModel.TrackScKey.ValueString(),
+				UriFmt:               httpResponseRuleModel.UriFmt.ValueString(),
+				UriMatch:             httpResponseRuleModel.UriMatch.ValueString(),
+				BandwidthLimitLimit:  httpResponseRuleModel.BandwidthLimitLimit.ValueString(),
+				MethodFmt:            httpResponseRuleModel.MethodFmt.ValueString(),
+				AclKeyfmt:            httpResponseRuleModel.AclKeyfmt.ValueString(),
+				PathMatch:            httpResponseRuleModel.PathMatch.ValueString(),
+				TosValue:             httpResponseRuleModel.TosValue.ValueString(),
+				AclFile:              httpResponseRuleModel.AclFile.ValueString(),
+				BandwidthLimitName:   httpResponseRuleModel.BandwidthLimitName.ValueString(),
+				NiceValue:            httpResponseRuleModel.NiceValue.ValueString(),
+				QueryFmt:             httpResponseRuleModel.QueryFmt.ValueString(),
+				MapFile:              httpResponseRuleModel.MapFile.ValueString(),
+				MapValuefmt:          httpResponseRuleModel.MapValuefmt.ValueString(),
+				MarkValue:            httpResponseRuleModel.MarkValue.ValueString(),
+				Service:              httpResponseRuleModel.Service.ValueString(),
+				SpoeEngine:           httpResponseRuleModel.SpoeEngine.ValueString(),
+				TrackScTable:         httpResponseRuleModel.TrackScTable.ValueString(),
+				LogLevel:             httpResponseRuleModel.LogLevel.ValueString(),
+				LuaAction:            httpResponseRuleModel.LuaAction.ValueString(),
+				ScInt:                strconv.FormatInt(httpResponseRuleModel.ScInt.ValueInt64(), 10),
+				SpoeGroup:            httpResponseRuleModel.SpoeGroup.ValueString(),
+				Timeout:              httpResponseRuleModel.Timeout.ValueString(),
+				Expr:                 httpResponseRuleModel.Expr.ValueString(),
+				LuaParams:            httpResponseRuleModel.LuaParams.ValueString(),
+				TimeoutValue:         httpResponseRuleModel.TimeoutValue.ValueString(),
+				VarName:              httpResponseRuleModel.VarName.ValueString(),
+				VarScope:             httpResponseRuleModel.VarScope.ValueString(),
+				WaitTime:             httpResponseRuleModel.WaitTime.ValueString(),
+				HdrMatch:             httpResponseRuleModel.HdrMatch.ValueString(),
 			}
 			err := r.client.CreateHttpResponseRule(ctx, "frontend", plan.Name.ValueString(), httpResponseRulePayload)
 			if err != nil {
@@ -1618,6 +2175,7 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 		for _, tcpResponseRuleModel := range tcpResponseRuleModels {
 			tcpResponseRulePayload := &TcpResponseRulePayload{
 				Index:     tcpResponseRuleModel.Index.ValueInt64(),
+				Type:      tcpResponseRuleModel.Type.ValueString(),
 				Action:    tcpResponseRuleModel.Action.ValueString(),
 				Cond:      tcpResponseRuleModel.Cond.ValueString(),
 				CondTest:  tcpResponseRuleModel.CondTest.ValueString(),
@@ -1646,8 +2204,14 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 		}
 	}
 
+	// Set the state to the plan after successful creation
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	log.Printf("Frontend resource creation completed successfully")
 }
 
 // Read resource information.
@@ -1871,7 +2435,7 @@ func (r *frontendResource) Read(ctx context.Context, req resource.ReadRequest, r
 		state.TimeoutTarpit = types.Int64Null()
 	}
 
-	if frontend.StatsOptions != (StatsOptionsPayload{}) {
+	if frontend.StatsOptions != nil {
 		var statsOptionsModel struct {
 			StatsEnable      types.Bool   `tfsdk:"stats_enable"`
 			StatsHideVersion types.Bool   `tfsdk:"stats_hide_version"`
@@ -1967,7 +2531,8 @@ func (r *frontendResource) Read(ctx context.Context, req resource.ReadRequest, r
 				NoTlsv11:             types.BoolValue(bind.NoTlsv11),
 				NoTlsv12:             types.BoolValue(bind.NoTlsv12),
 				NoTlsv13:             types.BoolValue(bind.NoTlsv13),
-				// New v3 fields
+
+				// SSL/TLS Configuration (v3 fields)
 				Sslv3:  types.BoolValue(bind.Sslv3),
 				Tlsv10: types.BoolValue(bind.Tlsv10),
 				Tlsv11: types.BoolValue(bind.Tlsv11),
@@ -2289,16 +2854,17 @@ func (r *frontendResource) Update(ctx context.Context, req resource.UpdateReques
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		payload.StatsOptions = StatsOptionsPayload{
-			StatsEnable:      statsOptionsModel.StatsEnable.ValueBool(),
-			StatsHideVersion: statsOptionsModel.StatsHideVersion.ValueBool(),
-			StatsShowLegends: statsOptionsModel.StatsShowLegends.ValueBool(),
-			StatsShowNode:    statsOptionsModel.StatsShowNode.ValueBool(),
-			StatsUri:         statsOptionsModel.StatsUri.ValueString(),
-			StatsRealm:       statsOptionsModel.StatsRealm.ValueString(),
-			StatsAuth:        statsOptionsModel.StatsAuth.ValueString(),
-			StatsRefresh:     statsOptionsModel.StatsRefresh.ValueString(),
+		// Only include fields that are actually set
+		statsOptions := &StatsOptionsPayload{
+			StatsEnable: statsOptionsModel.StatsEnable.ValueBool(),
 		}
+
+		// Only add other fields if they're not null/empty
+		if !statsOptionsModel.StatsUri.IsNull() && statsOptionsModel.StatsUri.ValueString() != "" {
+			statsOptions.StatsUri = statsOptionsModel.StatsUri.ValueString()
+		}
+
+		payload.StatsOptions = statsOptions
 	}
 
 	if !plan.MonitorFail.IsNull() {
