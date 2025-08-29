@@ -2,47 +2,47 @@ package haproxy
 
 // FrontendPayload is the payload for the frontend resource.
 type FrontendPayload struct {
-	Name                     string              `json:"name"`
-	DefaultBackend           string              `json:"default_backend"`
-	HttpConnectionMode       string              `json:"http-connection-mode,omitempty"`
-	AcceptInvalidHttpRequest string              `json:"accept_invalid_http_request,omitempty"`
-	MaxConn                  int64               `json:"maxconn,omitempty"`
-	Mode                     string              `json:"mode,omitempty"`
-	Backlog                  int64               `json:"backlog,omitempty"`
-	HttpKeepAliveTimeout     int64               `json:"http-keep-alive-timeout,omitempty"`
-	HttpRequestTimeout       int64               `json:"http-request-timeout,omitempty"`
-	HttpUseProxyHeader       string              `json:"http-use-proxy-header,omitempty"`
-	HttpLog                  bool                `json:"httplog,omitempty"`
-	HttpsLog                 string              `json:"httpslog,omitempty"`
-	ErrorLogFormat           string              `json:"error_log_format,omitempty"`
-	LogFormat                string              `json:"log_format,omitempty"`
-	LogFormatSd              string              `json:"log_format_sd,omitempty"`
-	MonitorUri               string              `json:"monitor_uri,omitempty"`
-	TcpLog                   bool                `json:"tcplog,omitempty"`
-	From                     string              `json:"from,omitempty"`
-	ClientTimeout            int64               `json:"client_timeout,omitempty"`
-	HttpUseHtx               string              `json:"http_use_htx,omitempty"`
-	HttpIgnoreProbes         string              `json:"http_ignore_probes,omitempty"`
-	LogTag                   string              `json:"log_tag,omitempty"`
-	Clflog                   bool                `json:"clflog,omitempty"`
-	Contstats                string              `json:"contstats,omitempty"`
-	Dontlognull              string              `json:"dontlognull,omitempty"`
-	LogSeparateErrors        string              `json:"log_separate_errors,omitempty"`
-	OptionHttpServerClose    string              `json:"option_http_server_close,omitempty"`
-	OptionHttpclose          string              `json:"option_httpclose,omitempty"`
-	OptionHttpKeepAlive      string              `json:"option_http_keep_alive,omitempty"`
-	OptionDontlogNormal      string              `json:"option_dontlog_normal,omitempty"`
-	OptionLogasap            string              `json:"option_logasap,omitempty"`
-	OptionTcplog             string              `json:"option_tcplog,omitempty"`
-	OptionSocketStats        string              `json:"option_socket_stats,omitempty"`
-	OptionForwardfor         string              `json:"option_forwardfor,omitempty"`
-	TimeoutClient            int64               `json:"timeout_client,omitempty"`
-	TimeoutHttpKeepAlive     int64               `json:"timeout_http_keep_alive,omitempty"`
-	TimeoutHttpRequest       int64               `json:"timeout_http_request,omitempty"`
-	TimeoutCont              int64               `json:"timeout_cont,omitempty"`
-	TimeoutTarpit            int64               `json:"timeout_tarpit,omitempty"`
-	StatsOptions             StatsOptionsPayload `json:"stats_options,omitempty"`
-	MonitorFail              MonitorFailPayload  `json:"monitor_fail,omitempty"`
+	Name                     string               `json:"name"`
+	DefaultBackend           string               `json:"default_backend"`
+	HttpConnectionMode       string               `json:"http-connection-mode,omitempty"`
+	AcceptInvalidHttpRequest string               `json:"accept_invalid_http_request,omitempty"`
+	MaxConn                  int64                `json:"maxconn,omitempty"`
+	Mode                     string               `json:"mode,omitempty"`
+	Backlog                  int64                `json:"backlog,omitempty"`
+	HttpKeepAliveTimeout     int64                `json:"http-keep-alive-timeout,omitempty"`
+	HttpRequestTimeout       int64                `json:"http-request-timeout,omitempty"`
+	HttpUseProxyHeader       string               `json:"http-use-proxy-header,omitempty"`
+	HttpLog                  bool                 `json:"httplog,omitempty"`
+	HttpsLog                 string               `json:"httpslog,omitempty"`
+	ErrorLogFormat           string               `json:"error_log_format,omitempty"`
+	LogFormat                string               `json:"log_format,omitempty"`
+	LogFormatSd              string               `json:"log_format_sd,omitempty"`
+	MonitorUri               string               `json:"monitor_uri,omitempty"`
+	TcpLog                   bool                 `json:"tcplog,omitempty"`
+	From                     string               `json:"from,omitempty"`
+	ClientTimeout            int64                `json:"client_timeout,omitempty"`
+	HttpUseHtx               string               `json:"http_use_htx,omitempty"`
+	HttpIgnoreProbes         string               `json:"http_ignore_probes,omitempty"`
+	LogTag                   string               `json:"log_tag,omitempty"`
+	Clflog                   bool                 `json:"clflog,omitempty"`
+	Contstats                string               `json:"contstats,omitempty"`
+	Dontlognull              string               `json:"dontlognull,omitempty"`
+	LogSeparateErrors        string               `json:"log_separate_errors,omitempty"`
+	OptionHttpServerClose    string               `json:"option_http_server_close,omitempty"`
+	OptionHttpclose          string               `json:"option_httpclose,omitempty"`
+	OptionHttpKeepAlive      string               `json:"option_http_keep_alive,omitempty"`
+	OptionDontlogNormal      string               `json:"option_dontlog_normal,omitempty"`
+	OptionLogasap            string               `json:"option_logasap,omitempty"`
+	OptionTcplog             string               `json:"option_tcplog,omitempty"`
+	OptionSocketStats        string               `json:"option_socket_stats,omitempty"`
+	OptionForwardfor         string               `json:"option_forwardfor,omitempty"`
+	TimeoutClient            int64                `json:"timeout_client,omitempty"`
+	TimeoutHttpKeepAlive     int64                `json:"timeout_http_keep_alive,omitempty"`
+	TimeoutHttpRequest       int64                `json:"timeout_http_request,omitempty"`
+	TimeoutCont              int64                `json:"timeout_cont,omitempty"`
+	TimeoutTarpit            int64                `json:"timeout_tarpit,omitempty"`
+	StatsOptions             *StatsOptionsPayload `json:"stats_options,omitempty"`
+	MonitorFail              *MonitorFailPayload  `json:"monitor_fail,omitempty"`
 }
 
 // StatsOptionsPayload is the payload for the stats_options resource.
@@ -61,6 +61,20 @@ type StatsOptionsPayload struct {
 type MonitorFailPayload struct {
 	Cond     string `json:"cond"`
 	CondTest string `json:"cond_test"`
+}
+
+// AllResourcesPayload contains all resources to be created in a single transaction.
+type AllResourcesPayload struct {
+	Backend  *BackendPayload  `json:"backend,omitempty"`
+	Servers  []ServerResource `json:"servers,omitempty"`
+	Frontend *FrontendPayload `json:"frontend,omitempty"`
+}
+
+// ServerResource contains server creation information.
+type ServerResource struct {
+	ParentType string         `json:"parent_type"`
+	ParentName string         `json:"parent_name"`
+	Payload    *ServerPayload `json:"payload"`
 }
 
 // TransactionResponse is the response from the HAProxy Data Plane API when creating a transaction.
@@ -85,53 +99,25 @@ type GlobalPayload struct {
 
 // BackendPayload is the payload for the backend resource.
 type BackendPayload struct {
-	Name               string        `json:"name"`
-	Mode               string        `json:"mode"`
-	AdvCheck           string        `json:"adv_check"`
-	HttpConnectionMode string        `json:"http_connection_mode"`
-	ServerTimeout      int64         `json:"server_timeout"`
-	CheckTimeout       int64         `json:"check_timeout"`
-	ConnectTimeout     int64         `json:"connect_timeout"`
-	QueueTimeout       int64         `json:"queue_timeout"`
-	TunnelTimeout      int64         `json:"tunnel_timeout"`
-	TarpitTimeout      int64         `json:"tarpit_timeout"`
-	CheckCache         string        `json:"checkcache"`
-	Retries            int64         `json:"retries"`
-	Balance            Balance       `json:"balance"`
-	HttpchkParams      HttpchkParams `json:"httpchk_params"`
-	Forwardfor         ForwardFor    `json:"forwardfor"`
-	
-	// SSL/TLS Configuration Fields
-	// Deprecated fields (API v2) - will be removed in future
-	NoSslv3            bool     `json:"no_sslv3,omitempty"`
-	NoTlsv10           bool     `json:"no_tlsv10,omitempty"`
-	NoTlsv11           bool     `json:"no_tlsv11,omitempty"`
-	NoTlsv12           bool     `json:"no_tlsv12,omitempty"`
-	NoTlsv13           bool     `json:"no_tlsv13,omitempty"`
-	ForceSslv3         bool     `json:"force_sslv3,omitempty"`
-	ForceTlsv10        bool     `json:"force_tlsv10,omitempty"`
-	ForceTlsv11        bool     `json:"force_tlsv11,omitempty"`
-	ForceTlsv12        bool     `json:"force_tlsv12,omitempty"`
-	ForceTlsv13        bool     `json:"force_tlsv13,omitempty"`
-	ForceStrictSni     string   `json:"force_strict_sni,omitempty"`
-	
-	// New v3 fields (non-deprecated)
-	Sslv3              bool     `json:"sslv3,omitempty"`
-	Tlsv10             bool     `json:"tlsv10,omitempty"`
-	Tlsv11             bool     `json:"tlsv11,omitempty"`
-	Tlsv12             bool     `json:"tlsv12,omitempty"`
-	Tlsv13             bool     `json:"tlsv13,omitempty"`
-	
-	// SSL/TLS Configuration
-	Ssl                bool     `json:"ssl,omitempty"`
-	SslCafile          string   `json:"ssl_cafile,omitempty"`
-	SslCertificate     string   `json:"ssl_certificate,omitempty"`
-	SslMaxVer          string   `json:"ssl_max_ver,omitempty"`
-	SslMinVer          string   `json:"ssl_min_ver,omitempty"`
-	SslReuse           string   `json:"ssl_reuse,omitempty"`
-	Ciphers            string   `json:"ciphers,omitempty"`
-	Ciphersuites       string   `json:"ciphersuites,omitempty"`
-	Verify             string   `json:"verify,omitempty"`
+	Name               string         `json:"name"`
+	Mode               string         `json:"mode"`
+	AdvCheck           string         `json:"adv_check"`
+	HttpConnectionMode string         `json:"http_connection_mode"`
+	ServerTimeout      int64          `json:"server_timeout,omitempty"`
+	CheckTimeout       int64          `json:"check_timeout,omitempty"`
+	ConnectTimeout     int64          `json:"connect_timeout,omitempty"`
+	QueueTimeout       int64          `json:"queue_timeout,omitempty"`
+	TunnelTimeout      int64          `json:"tunnel_timeout,omitempty"`
+	TarpitTimeout      int64          `json:"tarpit_timeout,omitempty"`
+	CheckCache         string         `json:"checkcache,omitempty"`
+	Retries            int64          `json:"retries,omitempty"`
+	Balance            *Balance       `json:"balance,omitempty"`
+	HttpchkParams      *HttpchkParams `json:"httpchk_params,omitempty"`
+	Forwardfor         *ForwardFor    `json:"forwardfor,omitempty"`
+
+	// Default Server Configuration (for SSL/TLS settings)
+	DefaultServer *DefaultServerPayload `json:"default_server,omitempty"`
+	StatsOptions  *StatsOptionsPayload  `json:"stats_options,omitempty"`
 }
 
 type Balance struct {
@@ -149,84 +135,126 @@ type ForwardFor struct {
 	Enabled string `json:"enabled"`
 }
 
+// DefaultServerPayload is the payload for the default_server configuration
+type DefaultServerPayload struct {
+	// SSL/TLS Configuration
+	Ssl            string `json:"ssl,omitempty"`
+	SslCafile      string `json:"ssl_cafile,omitempty"`
+	SslCertificate string `json:"ssl_certificate,omitempty"`
+	SslMaxVer      string `json:"ssl_max_ver,omitempty"`
+	SslMinVer      string `json:"ssl_min_ver,omitempty"`
+	SslReuse       string `json:"ssl_reuse,omitempty"`
+	Ciphers        string `json:"ciphers,omitempty"`
+	Ciphersuites   string `json:"ciphersuites,omitempty"`
+	Verify         string `json:"verify,omitempty"`
+
+	// SSL/TLS Protocol Control (v3 fields)
+	Sslv3  string `json:"sslv3,omitempty"`
+	Tlsv10 string `json:"tlsv10,omitempty"`
+	Tlsv11 string `json:"tlsv11,omitempty"`
+	Tlsv12 string `json:"tlsv12,omitempty"`
+	Tlsv13 string `json:"tlsv13,omitempty"`
+
+	// SSL/TLS Protocol Control (deprecated v2 fields)
+	NoSslv3        string `json:"no_sslv3,omitempty"`
+	NoTlsv10       string `json:"no_tlsv10,omitempty"`
+	NoTlsv11       string `json:"no_tlsv11,omitempty"`
+	NoTlsv12       string `json:"no_tlsv12,omitempty"`
+	NoTlsv13       string `json:"no_tlsv13,omitempty"`
+	ForceSslv3     string `json:"force_sslv3,omitempty"`
+	ForceTlsv10    string `json:"force_tlsv10,omitempty"`
+	ForceTlsv11    string `json:"force_tlsv11,omitempty"`
+	ForceTlsv12    string `json:"force_tlsv12,omitempty"`
+	ForceTlsv13    string `json:"force_tlsv13,omitempty"`
+	ForceStrictSni string `json:"force_strict_sni,omitempty"`
+}
+
 // ServerPayload is the payload for the server resource.
 type ServerPayload struct {
-	Name             string   `json:"name"`
-	Address          string   `json:"address"`
-	Port             int64    `json:"port"`
-	AgentAddr        string   `json:"agent-addr,omitempty"`
-	AgentCheck       string   `json:"agent-check,omitempty"`
-	AgentInter       int64    `json:"agent-inter,omitempty"`
-	AgentPort        int64    `json:"agent-port,omitempty"`
-	AgentSend        string   `json:"agent-send,omitempty"`
-	Allow0rtt        bool     `json:"allow_0rtt,omitempty"`
-	Alpn             string   `json:"alpn,omitempty"`
-	Backup           string   `json:"backup,omitempty"`
-	Check            string   `json:"check,omitempty"`
-	CheckAlpn        string   `json:"check-alpn,omitempty"`
-	CheckSni         string   `json:"check-sni,omitempty"`
-	CheckSsl         string   `json:"check-ssl,omitempty"`
-	CheckViaSocks4   string   `json:"check-via-socks4,omitempty"`
-	Ciphers          string   `json:"ciphers,omitempty"`
-	Ciphersuites     string   `json:"ciphersuites,omitempty"`
-	Cookie           string   `json:"cookie,omitempty"`
-	Crt              string   `json:"crt,omitempty"`
-	Downinter        int64    `json:"downinter,omitempty"`
-	ErrorLimit       int64    `json:"error-limit,omitempty"`
-	Fall             int64    `json:"fall,omitempty"`
-	Fastinter        int64    `json:"fastinter,omitempty"`
-	ForceSslv3       string   `json:"force_sslv3,omitempty"`
-	ForceTlsv10      string   `json:"force_tlsv10,omitempty"`
-	ForceTlsv11      string   `json:"force_tlsv11,omitempty"`
-	ForceTlsv12      string   `json:"force_tlsv12,omitempty"`
-	ForceTlsv13      string   `json:"force_tlsv13,omitempty"`
-	ForceStrictSni   string   `json:"force_strict_sni,omitempty"`
-	HealthCheckPort  int64    `json:"health_check_port,omitempty"`
-	InitAddr         string   `json:"init-addr,omitempty"`
-	Inter            int64    `json:"inter,omitempty"`
-	Maintenance      string   `json:"maintenance,omitempty"`
-	Maxconn          int64    `json:"maxconn,omitempty"`
-	Maxqueue         int64    `json:"maxqueue,omitempty"`
-	Minconn          int64    `json:"minconn,omitempty"`
-	NoSslv3          string   `json:"no_sslv3,omitempty"`
-	NoTlsv10         string   `json:"no_tlsv10,omitempty"`
-	NoTlsv11         string   `json:"no_tlsv11,omitempty"`
-	NoTlsv12         string   `json:"no_tlsv12,omitempty"`
-	NoTlsv13         string   `json:"no_tlsv13,omitempty"`
-	// New v3 fields (non-deprecated)
-	Sslv3            string   `json:"sslv3,omitempty"`
-	Tlsv10           string   `json:"tlsv10,omitempty"`
-	Tlsv11           string   `json:"tlsv11,omitempty"`
-	Tlsv12           string   `json:"tlsv12,omitempty"`
-	Tlsv13           string   `json:"tlsv13,omitempty"`
-	OnError          string   `json:"on-error,omitempty"`
-	OnMarkedDown     string   `json:"on-marked-down,omitempty"`
-	OnMarkedUp       string   `json:"on-marked-up,omitempty"`
-	PoolLowConn      int64    `json:"pool_low_conn,omitempty"`
-	PoolMaxConn      int64    `json:"pool_max_conn,omitempty"`
-	PoolPurgeDelay   int64    `json:"pool_purge_delay,omitempty"`
-	Proto            string   `json:"proto,omitempty"`
-	ProxyV2Options   []string `json:"proxy-v2-options,omitempty"`
-	Rise             int64    `json:"rise,omitempty"`
-	SendProxy        string   `json:"send-proxy,omitempty"`
-	SendProxyV2      string   `json:"send-proxy-v2,omitempty"`
-	SendProxyV2Ssl   string   `json:"send-proxy-v2-ssl,omitempty"`
-	SendProxyV2SslCn string   `json:"send-proxy-v2-ssl-cn,omitempty"`
-	Slowstart        int64    `json:"slowstart,omitempty"`
-	Sni              string   `json:"sni,omitempty"`
-	Source           string   `json:"source,omitempty"`
-	Ssl              string   `json:"ssl,omitempty"`
-	SslCafile        string   `json:"ssl_cafile,omitempty"`
-	SslCertificate   string   `json:"ssl_certificate,omitempty"`
-	SslMaxVer        string   `json:"ssl_max_ver,omitempty"`
-	SslMinVer        string   `json:"ssl_min_ver,omitempty"`
-	SslReuse         string   `json:"ssl_reuse,omitempty"`
-	Stick            string   `json:"stick,omitempty"`
-	Tfo              string   `json:"tfo,omitempty"`
-	TlsTickets       string   `json:"tls_tickets,omitempty"`
-	Track            string   `json:"track,omitempty"`
-	Verify           string   `json:"verify,omitempty"`
-	Weight           int64    `json:"weight,omitempty"`
+	Name            string `json:"name"`
+	Address         string `json:"address"`
+	Port            int64  `json:"port"`
+	AgentAddr       string `json:"agent-addr,omitempty"`
+	AgentCheck      string `json:"agent-check,omitempty"`
+	AgentInter      int64  `json:"agent-inter,omitempty"`
+	AgentPort       int64  `json:"agent-port,omitempty"`
+	AgentSend       string `json:"agent-send,omitempty"`
+	Allow0rtt       bool   `json:"allow_0rtt,omitempty"`
+	Alpn            string `json:"alpn,omitempty"`
+	Backup          string `json:"backup,omitempty"`
+	Check           string `json:"check,omitempty"`
+	CheckAlpn       string `json:"check-alpn,omitempty"`
+	CheckSni        string `json:"check-sni,omitempty"`
+	CheckSsl        string `json:"check-ssl,omitempty"`
+	CheckViaSocks4  string `json:"check-via-socks4,omitempty"`
+	Ciphers         string `json:"ciphers,omitempty"`
+	Ciphersuites    string `json:"ciphersuites,omitempty"`
+	Cookie          string `json:"cookie,omitempty"`
+	Crt             string `json:"crt,omitempty"`
+	Downinter       int64  `json:"downinter,omitempty"`
+	ErrorLimit      int64  `json:"error-limit,omitempty"`
+	Fall            int64  `json:"fall,omitempty"`
+	Fastinter       int64  `json:"fastinter,omitempty"`
+	ForceSslv3      string `json:"force_sslv3,omitempty"`
+	ForceTlsv10     string `json:"force_tlsv10,omitempty"`
+	ForceTlsv11     string `json:"force_tlsv11,omitempty"`
+	ForceTlsv12     string `json:"force_tlsv12,omitempty"`
+	ForceTlsv13     string `json:"force_tlsv13,omitempty"`
+	ForceStrictSni  string `json:"force_strict_sni,omitempty"`
+	HealthCheckPort int64  `json:"health_check_port,omitempty"`
+	InitAddr        string `json:"init-addr,omitempty"`
+	Inter           int64  `json:"inter,omitempty"`
+	Maintenance     string `json:"maintenance,omitempty"`
+	Maxconn         int64  `json:"maxconn,omitempty"`
+	Maxqueue        int64  `json:"maxqueue,omitempty"`
+	Minconn         int64  `json:"minconn,omitempty"`
+	NoSslv3         string `json:"no_sslv3,omitempty"`
+	NoTlsv10        string `json:"no_tlsv10,omitempty"`
+	NoTlsv11        string `json:"no_tlsv11,omitempty"`
+	NoTlsv12        string `json:"no_tlsv12,omitempty"`
+	NoTlsv13        string `json:"no_tlsv13,omitempty"`
+
+	// SSL/TLS Configuration (v3 fields)
+	Sslv3  string `json:"sslv3,omitempty"`
+	Tlsv10 string `json:"tlsv10,omitempty"`
+	Tlsv11 string `json:"tlsv11,omitempty"`
+	Tlsv12 string `json:"tlsv12,omitempty"`
+	Tlsv13 string `json:"tlsv13,omitempty"`
+
+	OnError          string         `json:"on-error,omitempty"`
+	OnMarkedDown     string         `json:"on-marked-down,omitempty"`
+	OnMarkedUp       string         `json:"on-marked-up,omitempty"`
+	PoolLowConn      int64          `json:"pool_low_conn,omitempty"`
+	PoolMaxConn      int64          `json:"pool_max_conn,omitempty"`
+	PoolPurgeDelay   int64          `json:"pool_purge_delay,omitempty"`
+	Proto            string         `json:"proto,omitempty"`
+	ProxyV2Options   []string       `json:"proxy-v2-options,omitempty"`
+	Redir            string         `json:"redir,omitempty"`
+	Rise             int64          `json:"rise,omitempty"`
+	SendProxy        string         `json:"send-proxy,omitempty"`
+	SendProxyV2      string         `json:"send-proxy-v2,omitempty"`
+	SendProxyV2Ssl   string         `json:"send-proxy-v2-ssl,omitempty"`
+	SendProxyV2SslCn string         `json:"send-proxy-v2-ssl-cn,omitempty"`
+	Slowstart        int64          `json:"slowstart,omitempty"`
+	Sni              string         `json:"sni,omitempty"`
+	Source           string         `json:"source,omitempty"`
+	Ssl              string         `json:"ssl,omitempty"`
+	SslCafile        string         `json:"ssl_cafile,omitempty"`
+	SslCertificate   string         `json:"ssl_certificate,omitempty"`
+	SslMaxVer        string         `json:"ssl_max_ver,omitempty"`
+	SslMinVer        string         `json:"ssl_min_ver,omitempty"`
+	SslReuse         string         `json:"ssl_reuse,omitempty"`
+	Stick            string         `json:"stick,omitempty"`
+	Tfo              string         `json:"tfo,omitempty"`
+	TlsTickets       string         `json:"tls_tickets,omitempty"`
+	Track            string         `json:"track,omitempty"`
+	Verify           string         `json:"verify,omitempty"`
+	Weight           int64          `json:"weight,omitempty"`
+	Disabled         bool           `json:"disabled,omitempty"`
+	LogProto         string         `json:"log-proto,omitempty"`
+	Observe          string         `json:"observe,omitempty"`
+	VerifyHost       string         `json:"verifyhost,omitempty"`
+	HttpchkParams    *HttpchkParams `json:"httpchk-params,omitempty"`
 }
 
 // BindPayload is the payload for the bind resource.
@@ -282,25 +310,25 @@ type BindPayload struct {
 	NoTlsv12             bool   `json:"no_tlsv12,omitempty"`
 	NoTlsv13             bool   `json:"no_tlsv13,omitempty"`
 	// New v3 fields (non-deprecated)
-	Sslv3                bool   `json:"sslv3,omitempty"`
-	Tlsv10               bool   `json:"tlsv10,omitempty"`
-	Tlsv11               bool   `json:"tlsv11,omitempty"`
-	Tlsv12               bool   `json:"tlsv12,omitempty"`
-	Tlsv13               bool   `json:"tlsv13,omitempty"`
-	Npn                  string `json:"npn,omitempty"`
-	PreferClientCiphers  bool   `json:"prefer_client_ciphers,omitempty"`
-	Process              string `json:"process,omitempty"`
-	Proto                string `json:"proto,omitempty"`
-	SeverityOutput       string `json:"severity_output,omitempty"`
-	StrictSni            bool   `json:"strict_sni,omitempty"`
-	TcpUserTimeout       int64  `json:"tcp_user_timeout,omitempty"`
-	Tfo                  bool   `json:"tfo,omitempty"`
-	TlsTicketKeys        string `json:"tls_ticket_keys,omitempty"`
-	Uid                  string `json:"uid,omitempty"`
-	V4v6                 bool   `json:"v4v6,omitempty"`
-	V6only               bool   `json:"v6only,omitempty"`
-	Verify               string `json:"verify,omitempty"`
-	Metadata             string `json:"metadata,omitempty"`
+	Sslv3               bool   `json:"sslv3,omitempty"`
+	Tlsv10              bool   `json:"tlsv10,omitempty"`
+	Tlsv11              bool   `json:"tlsv11,omitempty"`
+	Tlsv12              bool   `json:"tlsv12,omitempty"`
+	Tlsv13              bool   `json:"tlsv13,omitempty"`
+	Npn                 string `json:"npn,omitempty"`
+	PreferClientCiphers bool   `json:"prefer_client_ciphers,omitempty"`
+	Process             string `json:"process,omitempty"`
+	Proto               string `json:"proto,omitempty"`
+	SeverityOutput      string `json:"severity_output,omitempty"`
+	StrictSni           bool   `json:"strict_sni,omitempty"`
+	TcpUserTimeout      int64  `json:"tcp_user_timeout,omitempty"`
+	Tfo                 bool   `json:"tfo,omitempty"`
+	TlsTicketKeys       string `json:"tls_ticket_keys,omitempty"`
+	Uid                 string `json:"uid,omitempty"`
+	V4v6                bool   `json:"v4v6,omitempty"`
+	V6only              bool   `json:"v6only,omitempty"`
+	Verify              string `json:"verify,omitempty"`
+	Metadata            string `json:"metadata,omitempty"`
 }
 
 // AclPayload is the payload for the acl resource.
@@ -315,53 +343,53 @@ type AclPayload struct {
 type HttpRequestRulePayload struct {
 	Index                int64  `json:"index"`
 	Type                 string `json:"type"`
-	AclFile              string `json:"acl_file,omitempty"`
-	AclKeyfmt            string `json:"acl_keyfmt,omitempty"`
-	BandwidthLimitName   string `json:"bandwidth_limit_name,omitempty"`
-	BandwidthLimitPeriod string `json:"bandwidth_limit_period,omitempty"`
-	BandwidthLimitLimit  string `json:"bandwidth_limit_limit,omitempty"`
-	CacheName            string `json:"cache_name,omitempty"`
 	Cond                 string `json:"cond,omitempty"`
 	CondTest             string `json:"cond_test,omitempty"`
-	Expr                 string `json:"expr,omitempty"`
-	HdrFormat            string `json:"hdr_format,omitempty"`
-	HdrMatch             string `json:"hdr_match,omitempty"`
-	HdrMethod            string `json:"hdr_method,omitempty"`
 	HdrName              string `json:"hdr_name,omitempty"`
-	LogLevel             string `json:"log_level,omitempty"`
-	LuaAction            string `json:"lua_action,omitempty"`
-	LuaParams            string `json:"lua_params,omitempty"`
-	MapFile              string `json:"map_file,omitempty"`
-	MapKeyfmt            string `json:"map_keyfmt,omitempty"`
-	MapValuefmt          string `json:"map_valuefmt,omitempty"`
-	MarkValue            string `json:"mark_value,omitempty"`
-	MethodFmt            string `json:"method_fmt,omitempty"`
-	NiceValue            int64  `json:"nice_value,omitempty"`
-	PathFmt              string `json:"path_fmt,omitempty"`
-	PathMatch            string `json:"path_match,omitempty"`
-	QueryFmt             string `json:"query_fmt,omitempty"`
-	RedirCode            int64  `json:"redir_code,omitempty"`
+	HdrFormat            string `json:"hdr_format,omitempty"`
 	RedirType            string `json:"redir_type,omitempty"`
 	RedirValue           string `json:"redir_value,omitempty"`
-	ScExpr               string `json:"sc_expr,omitempty"`
-	ScId                 int64  `json:"sc_id,omitempty"`
-	ScIdx                int64  `json:"sc_idx,omitempty"`
-	ScInt                int64  `json:"sc_int,omitempty"`
-	Service              string `json:"service,omitempty"`
-	SpoeEngine           string `json:"spoe_engine,omitempty"`
-	SpoeGroup            string `json:"spoe_group,omitempty"`
 	StatusCode           int64  `json:"status_code,omitempty"`
 	StatusReason         string `json:"status_reason,omitempty"`
-	Timeout              string `json:"timeout,omitempty"`
-	TimeoutValue         int64  `json:"timeout_value,omitempty"`
-	TosValue             string `json:"tos_value,omitempty"`
+	RedirCode            int64  `json:"redir_code,omitempty"`
+	HdrMethod            string `json:"hdr_method,omitempty"`
+	PathFmt              string `json:"path_fmt,omitempty"`
+	ScExpr               string `json:"sc_expr,omitempty"`
+	ScId                 string `json:"sc_id,omitempty"`
+	BandwidthLimitPeriod string `json:"bandwidth_limit_period,omitempty"`
+	CacheName            string `json:"cache_name,omitempty"`
+	MapKeyfmt            string `json:"map_keyfmt,omitempty"`
+	ScIdx                string `json:"sc_idx,omitempty"`
 	TrackScKey           string `json:"track_sc_key,omitempty"`
-	TrackScTable         string `json:"track_sc_table,omitempty"`
 	UriFmt               string `json:"uri_fmt,omitempty"`
 	UriMatch             string `json:"uri_match,omitempty"`
+	BandwidthLimitLimit  string `json:"bandwidth_limit_limit,omitempty"`
+	MethodFmt            string `json:"method_fmt,omitempty"`
+	AclKeyfmt            string `json:"acl_keyfmt,omitempty"`
+	PathMatch            string `json:"path_match,omitempty"`
+	TosValue             string `json:"tos_value,omitempty"`
+	AclFile              string `json:"acl_file,omitempty"`
+	BandwidthLimitName   string `json:"bandwidth_limit_name,omitempty"`
+	NiceValue            string `json:"nice_value,omitempty"`
+	QueryFmt             string `json:"query_fmt,omitempty"`
+	MapFile              string `json:"map_file,omitempty"`
+	MapValuefmt          string `json:"map_valuefmt,omitempty"`
+	MarkValue            string `json:"mark_value,omitempty"`
+	Service              string `json:"service,omitempty"`
+	SpoeEngine           string `json:"spoe_engine,omitempty"`
+	TrackScTable         string `json:"track_sc_table,omitempty"`
+	LogLevel             string `json:"log_level,omitempty"`
+	LuaAction            string `json:"lua_action,omitempty"`
+	ScInt                string `json:"sc_int,omitempty"`
+	SpoeGroup            string `json:"spoe_group,omitempty"`
+	Timeout              string `json:"timeout,omitempty"`
+	Expr                 string `json:"expr,omitempty"`
+	LuaParams            string `json:"lua_params,omitempty"`
+	TimeoutValue         string `json:"timeout_value,omitempty"`
 	VarName              string `json:"var_name,omitempty"`
 	VarScope             string `json:"var_scope,omitempty"`
-	WaitTime             int64  `json:"wait_time,omitempty"`
+	WaitTime             string `json:"wait_time,omitempty"`
+	HdrMatch             string `json:"hdr_match,omitempty"`
 }
 
 // ResolverPayload is the payload for the resolver resource.
@@ -438,16 +466,55 @@ type HttpcheckPayload struct {
 
 // HttpResponseRulePayload is the payload for the httpresponserule resource.
 type HttpResponseRulePayload struct {
-	Index        int64  `json:"index"`
-	Type         string `json:"type"`
-	Cond         string `json:"cond,omitempty"`
-	CondTest     string `json:"cond_test,omitempty"`
-	HdrName      string `json:"hdr_name,omitempty"`
-	HdrFormat    string `json:"hdr_format,omitempty"`
-	RedirType    string `json:"redir_type,omitempty"`
-	RedirValue   string `json:"redir_value,omitempty"`
-	StatusCode   int64  `json:"status_code,omitempty"`
-	StatusReason string `json:"status_reason,omitempty"`
+	Index                int64  `json:"index"`
+	Type                 string `json:"type"`
+	Cond                 string `json:"cond,omitempty"`
+	CondTest             string `json:"cond_test,omitempty"`
+	HdrName              string `json:"hdr_name,omitempty"`
+	HdrFormat            string `json:"hdr_format,omitempty"`
+	RedirType            string `json:"redir_type,omitempty"`
+	RedirValue           string `json:"redir_value,omitempty"`
+	StatusCode           int64  `json:"status_code,omitempty"`
+	StatusReason         string `json:"status_reason,omitempty"`
+	RedirCode            int64  `json:"redir_code,omitempty"`
+	HdrMethod            string `json:"hdr_method,omitempty"`
+	PathFmt              string `json:"path_fmt,omitempty"`
+	ScExpr               string `json:"sc_expr,omitempty"`
+	ScId                 string `json:"sc_id,omitempty"`
+	BandwidthLimitPeriod string `json:"bandwidth_limit_period,omitempty"`
+	CacheName            string `json:"cache_name,omitempty"`
+	MapKeyfmt            string `json:"map_keyfmt,omitempty"`
+	ScIdx                string `json:"sc_idx,omitempty"`
+	TrackScKey           string `json:"track_sc_key,omitempty"`
+	UriFmt               string `json:"uri_fmt,omitempty"`
+	UriMatch             string `json:"uri_match,omitempty"`
+	BandwidthLimitLimit  string `json:"bandwidth_limit_limit,omitempty"`
+	MethodFmt            string `json:"method_fmt,omitempty"`
+	AclKeyfmt            string `json:"acl_keyfmt,omitempty"`
+	PathMatch            string `json:"path_match,omitempty"`
+	TosValue             string `json:"tos_value,omitempty"`
+	AclFile              string `json:"acl_file,omitempty"`
+	BandwidthLimitName   string `json:"bandwidth_limit_name,omitempty"`
+	NiceValue            string `json:"nice_value,omitempty"`
+	QueryFmt             string `json:"query_fmt,omitempty"`
+	MapFile              string `json:"map_file,omitempty"`
+	MapValuefmt          string `json:"map_valuefmt,omitempty"`
+	MarkValue            string `json:"mark_value,omitempty"`
+	Service              string `json:"service,omitempty"`
+	SpoeEngine           string `json:"spoe_engine,omitempty"`
+	TrackScTable         string `json:"track_sc_table,omitempty"`
+	LogLevel             string `json:"log_level,omitempty"`
+	LuaAction            string `json:"lua_action,omitempty"`
+	ScInt                string `json:"sc_int,omitempty"`
+	SpoeGroup            string `json:"spoe_group,omitempty"`
+	Timeout              string `json:"timeout,omitempty"`
+	Expr                 string `json:"expr,omitempty"`
+	LuaParams            string `json:"lua_params,omitempty"`
+	TimeoutValue         string `json:"timeout_value,omitempty"`
+	VarName              string `json:"var_name,omitempty"`
+	VarScope             string `json:"var_scope,omitempty"`
+	WaitTime             string `json:"wait_time,omitempty"`
+	HdrMatch             string `json:"hdr_match,omitempty"`
 }
 
 // TcpCheckPayload is the payload for the tcpcheck resource.
@@ -494,6 +561,7 @@ type TcpRequestRulePayload struct {
 // TcpResponseRulePayload is the payload for the tcpresponserule resource.
 type TcpResponseRulePayload struct {
 	Index     int64  `json:"index"`
+	Type      string `json:"type"`
 	Action    string `json:"action"`
 	Cond      string `json:"cond,omitempty"`
 	CondTest  string `json:"cond_test,omitempty"`

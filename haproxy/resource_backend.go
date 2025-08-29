@@ -31,13 +31,16 @@ type backendResource struct {
 type backendResourceModel struct {
 	Name               types.String `tfsdk:"name"`
 	Mode               types.String `tfsdk:"mode"`
-	Forwardfor         types.List   `tfsdk:"forwardfor"`
+	Forwardfor         types.Object `tfsdk:"forwardfor"`
+	Balance            types.Object `tfsdk:"balance"`
+	HttpchkParams      types.Object `tfsdk:"httpchk_params"`
 	HttpConnectionMode types.String `tfsdk:"http_connection_mode"`
 	Acls               types.List   `tfsdk:"acl"`
-	HttpRequestRules   types.List   `tfsdk:"httprequestrule"`
-	HttpResponseRules  types.List   `tfsdk:"httpresponserule"`
-	TcpRequestRules    types.List   `tfsdk:"tcprequestrule"`
-	TcpResponseRules   types.List   `tfsdk:"tcpresponserule"`
+	HttpRequestRules   types.List   `tfsdk:"http_request_rule"`
+	HttpResponseRules  types.List   `tfsdk:"http_response_rule"`
+	TcpRequestRules    types.List   `tfsdk:"tcp_request_rule"`
+	TcpResponseRules   types.List   `tfsdk:"tcp_response_rule"`
+	Httpchecks         types.List   `tfsdk:"httpcheck"`
 	TcpChecks          types.List   `tfsdk:"tcp_check"`
 	AdvCheck           types.String `tfsdk:"adv_check"`
 	ServerTimeout      types.Int64  `tfsdk:"server_timeout"`
@@ -49,55 +52,27 @@ type backendResourceModel struct {
 	CheckCache         types.String `tfsdk:"checkcache"`
 	Retries            types.Int64  `tfsdk:"retries"`
 
-	// SSL/TLS Configuration Fields
-	// Deprecated fields (API v2) - will be removed in future
-	NoSslv3        types.Bool   `tfsdk:"no_sslv3"`
-	NoTlsv10       types.Bool   `tfsdk:"no_tlsv10"`
-	NoTlsv11       types.Bool   `tfsdk:"no_tlsv11"`
-	NoTlsv12       types.Bool   `tfsdk:"no_tlsv12"`
-	NoTlsv13       types.Bool   `tfsdk:"no_tlsv13"`
-	ForceSslv3     types.Bool   `tfsdk:"force_sslv3"`
-	ForceTlsv10    types.Bool   `tfsdk:"force_tlsv10"`
-	ForceTlsv11    types.Bool   `tfsdk:"force_tlsv11"`
-	ForceTlsv12    types.Bool   `tfsdk:"force_tlsv12"`
-	ForceTlsv13    types.Bool   `tfsdk:"force_tlsv13"`
-	ForceStrictSni types.String `tfsdk:"force_strict_sni"`
-
-	// New v3 fields (non-deprecated)
-	Sslv3  types.Bool `tfsdk:"sslv3"`
-	Tlsv10 types.Bool `tfsdk:"tlsv10"`
-	Tlsv11 types.Bool `tfsdk:"tlsv11"`
-	Tlsv12 types.Bool `tfsdk:"tlsv12"`
-	Tlsv13 types.Bool `tfsdk:"tlsv13"`
-
-	// SSL/TLS Configuration
-	Ssl            types.Bool   `tfsdk:"ssl"`
-	SslCafile      types.String `tfsdk:"ssl_cafile"`
-	SslCertificate types.String `tfsdk:"ssl_certificate"`
-	SslMaxVer      types.String `tfsdk:"ssl_max_ver"`
-	SslMinVer      types.String `tfsdk:"ssl_min_ver"`
-	SslReuse       types.String `tfsdk:"ssl_reuse"`
-	Ciphers        types.String `tfsdk:"ciphers"`
-	Ciphersuites   types.String `tfsdk:"ciphersuites"`
-	Verify         types.String `tfsdk:"verify"`
-
-	// Block fields (defined in schema as blocks, not attributes)
-	Balance       types.Object `tfsdk:"balance"`
-	HttpchkParams types.Object `tfsdk:"httpchk_params"`
-	Httpchecks    types.List   `tfsdk:"httpcheck"`
+	// Default Server Configuration (for SSL/TLS settings)
+	DefaultServer types.Object `tfsdk:"default_server"`
+	StickTable    types.Object `tfsdk:"stick_table"`
+	StickRules    types.List   `tfsdk:"stick_rule"`
+	StatsOptions  types.Object `tfsdk:"stats_options"`
 }
 
 func (b backendResourceModel) attrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"name":                 types.StringType,
 		"mode":                 types.StringType,
-		"forwardfor":           types.ListType{ElemType: types.ObjectType{}},
+		"forwardfor":           types.ObjectType{},
+		"balance":              types.ObjectType{},
+		"httpchk_params":       types.ObjectType{},
 		"http_connection_mode": types.StringType,
 		"acl":                  types.ListType{ElemType: types.ObjectType{}},
-		"httprequestrule":      types.ListType{ElemType: types.ObjectType{}},
-		"httpresponserule":     types.ListType{ElemType: types.ObjectType{}},
-		"tcprequestrule":       types.ListType{ElemType: types.ObjectType{}},
-		"tcpresponserule":      types.ListType{ElemType: types.ObjectType{}},
+		"http_request_rule":    types.ListType{ElemType: types.ObjectType{}},
+		"http_response_rule":   types.ListType{ElemType: types.ObjectType{}},
+		"tcp_request_rule":     types.ListType{ElemType: types.ObjectType{}},
+		"tcp_response_rule":    types.ListType{ElemType: types.ObjectType{}},
+		"httpcheck":            types.ListType{ElemType: types.ObjectType{}},
 		"tcp_check":            types.ListType{ElemType: types.ObjectType{}},
 		"adv_check":            types.StringType,
 		"server_timeout":       types.Int64Type,
@@ -109,41 +84,11 @@ func (b backendResourceModel) attrTypes() map[string]attr.Type {
 		"checkcache":           types.StringType,
 		"retries":              types.Int64Type,
 
-		// SSL/TLS Configuration Fields
-		"no_sslv3":         types.BoolType,
-		"no_tlsv10":        types.BoolType,
-		"no_tlsv11":        types.BoolType,
-		"no_tlsv12":        types.BoolType,
-		"no_tlsv13":        types.BoolType,
-		"force_sslv3":      types.BoolType,
-		"force_tlsv10":     types.BoolType,
-		"force_tlsv11":     types.BoolType,
-		"force_tlsv12":     types.BoolType,
-		"force_tlsv13":     types.BoolType,
-		"force_strict_sni": types.StringType,
-
-		// New v3 fields (non-deprecated)
-		"sslv3":  types.BoolType,
-		"tlsv10": types.BoolType,
-		"tlsv11": types.BoolType,
-		"tlsv12": types.BoolType,
-		"tlsv13": types.BoolType,
-
-		// SSL/TLS Configuration
-		"ssl":             types.BoolType,
-		"ssl_cafile":      types.StringType,
-		"ssl_certificate": types.StringType,
-		"ssl_max_ver":     types.StringType,
-		"ssl_min_ver":     types.StringType,
-		"ssl_reuse":       types.StringType,
-		"ciphers":         types.StringType,
-		"ciphersuites":    types.StringType,
-		"verify":          types.StringType,
-
-		// Block fields
-		"balance":        types.ObjectType{},
-		"httpchk_params": types.ObjectType{},
-		"httpcheck":      types.ListType{ElemType: types.ObjectType{}},
+		// Default Server Configuration (for SSL/TLS settings)
+		"default_server": types.ObjectType{},
+		"stick_table":    types.ObjectType{},
+		"stick_rule":     types.ListType{ElemType: types.ObjectType{}},
+		"stats_options":  types.ObjectType{},
 	}
 }
 
@@ -170,16 +115,55 @@ func (a backendAclResourceModel) attrTypes() map[string]attr.Type {
 
 // backendHttpRequestRuleResourceModel maps the resource schema data.
 type backendHttpRequestRuleResourceModel struct {
-	Index        types.Int64  `tfsdk:"index"`
-	Type         types.String `tfsdk:"type"`
-	Cond         types.String `tfsdk:"cond"`
-	CondTest     types.String `tfsdk:"cond_test"`
-	HdrName      types.String `tfsdk:"hdr_name"`
-	HdrFormat    types.String `tfsdk:"hdr_format"`
-	RedirType    types.String `tfsdk:"redir_type"`
-	RedirValue   types.String `tfsdk:"redir_value"`
-	StatusCode   types.Int64  `tfsdk:"status_code"`
-	StatusReason types.String `tfsdk:"status_reason"`
+	Index                types.Int64  `tfsdk:"index"`
+	Type                 types.String `tfsdk:"type"`
+	AclFile              types.String `tfsdk:"acl_file"`
+	AclKeyfmt            types.String `tfsdk:"acl_keyfmt"`
+	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
+	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
+	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
+	CacheName            types.String `tfsdk:"cache_name"`
+	Cond                 types.String `tfsdk:"cond"`
+	CondTest             types.String `tfsdk:"cond_test"`
+	Expr                 types.String `tfsdk:"expr"`
+	HdrFormat            types.String `tfsdk:"hdr_format"`
+	HdrMatch             types.String `tfsdk:"hdr_match"`
+	HdrMethod            types.String `tfsdk:"hdr_method"`
+	HdrName              types.String `tfsdk:"hdr_name"`
+	LogLevel             types.String `tfsdk:"log_level"`
+	LuaAction            types.String `tfsdk:"lua_action"`
+	LuaParams            types.String `tfsdk:"lua_params"`
+	MapFile              types.String `tfsdk:"map_file"`
+	MapKeyfmt            types.String `tfsdk:"map_keyfmt"`
+	MapValuefmt          types.String `tfsdk:"map_valuefmt"`
+	MarkValue            types.String `tfsdk:"mark_value"`
+	MethodFmt            types.String `tfsdk:"method_fmt"`
+	NiceValue            types.Int64  `tfsdk:"nice_value"`
+	PathFmt              types.String `tfsdk:"path_fmt"`
+	PathMatch            types.String `tfsdk:"path_match"`
+	QueryFmt             types.String `tfsdk:"query_fmt"`
+	RedirCode            types.Int64  `tfsdk:"redir_code"`
+	RedirType            types.String `tfsdk:"redir_type"`
+	RedirValue           types.String `tfsdk:"redir_value"`
+	ScExpr               types.String `tfsdk:"sc_expr"`
+	ScId                 types.Int64  `tfsdk:"sc_id"`
+	ScIdx                types.Int64  `tfsdk:"sc_idx"`
+	ScInt                types.Int64  `tfsdk:"sc_int"`
+	Service              types.String `tfsdk:"service"`
+	SpoeEngine           types.String `tfsdk:"spoe_engine"`
+	SpoeGroup            types.String `tfsdk:"spoe_group"`
+	StatusCode           types.Int64  `tfsdk:"status_code"`
+	StatusReason         types.String `tfsdk:"status_reason"`
+	Timeout              types.String `tfsdk:"timeout"`
+	TimeoutValue         types.Int64  `tfsdk:"timeout_value"`
+	TosValue             types.String `tfsdk:"tos_value"`
+	TrackScKey           types.String `tfsdk:"track_sc_key"`
+	TrackScTable         types.String `tfsdk:"track_sc_table"`
+	UriFmt               types.String `tfsdk:"uri_fmt"`
+	UriMatch             types.String `tfsdk:"uri_match"`
+	VarName              types.String `tfsdk:"var_name"`
+	VarScope             types.String `tfsdk:"var_scope"`
+	WaitTime             types.Int64  `tfsdk:"wait_time"`
 }
 
 func (h backendHttpRequestRuleResourceModel) GetIndex() int64 {
@@ -188,31 +172,109 @@ func (h backendHttpRequestRuleResourceModel) GetIndex() int64 {
 
 func (h backendHttpRequestRuleResourceModel) attrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"index":         types.Int64Type,
-		"type":          types.StringType,
-		"cond":          types.StringType,
-		"cond_test":     types.StringType,
-		"hdr_name":      types.StringType,
-		"hdr_format":    types.StringType,
-		"redir_type":    types.StringType,
-		"redir_value":   types.StringType,
-		"status_code":   types.Int64Type,
-		"status_reason": types.StringType,
+		"index":                  types.Int64Type,
+		"type":                   types.StringType,
+		"acl_file":               types.StringType,
+		"acl_keyfmt":             types.StringType,
+		"bandwidth_limit_name":   types.StringType,
+		"bandwidth_limit_period": types.StringType,
+		"bandwidth_limit_limit":  types.StringType,
+		"cache_name":             types.StringType,
+		"cond":                   types.StringType,
+		"cond_test":              types.StringType,
+		"expr":                   types.StringType,
+		"hdr_format":             types.StringType,
+		"hdr_match":              types.StringType,
+		"hdr_method":             types.StringType,
+		"hdr_name":               types.StringType,
+		"log_level":              types.StringType,
+		"lua_action":             types.StringType,
+		"lua_params":             types.StringType,
+		"map_file":               types.StringType,
+		"map_keyfmt":             types.StringType,
+		"map_valuefmt":           types.StringType,
+		"mark_value":             types.StringType,
+		"method_fmt":             types.StringType,
+		"nice_value":             types.Int64Type,
+		"path_fmt":               types.StringType,
+		"path_match":             types.StringType,
+		"query_fmt":              types.StringType,
+		"redir_code":             types.Int64Type,
+		"redir_type":             types.StringType,
+		"redir_value":            types.StringType,
+		"sc_expr":                types.StringType,
+		"sc_id":                  types.Int64Type,
+		"sc_idx":                 types.Int64Type,
+		"sc_int":                 types.Int64Type,
+		"service":                types.StringType,
+		"spoe_engine":            types.StringType,
+		"spoe_group":             types.StringType,
+		"status_code":            types.Int64Type,
+		"status_reason":          types.StringType,
+		"timeout":                types.StringType,
+		"timeout_value":          types.Int64Type,
+		"tos_value":              types.StringType,
+		"track_sc_key":           types.StringType,
+		"track_sc_table":         types.StringType,
+		"uri_fmt":                types.StringType,
+		"uri_match":              types.StringType,
+		"var_name":               types.StringType,
+		"var_scope":              types.StringType,
+		"wait_time":              types.Int64Type,
 	}
 }
 
 // backendHttpResponseRuleResourceModel maps the resource schema data.
 type backendHttpResponseRuleResourceModel struct {
-	Index        types.Int64  `tfsdk:"index"`
-	Type         types.String `tfsdk:"type"`
-	Cond         types.String `tfsdk:"cond"`
-	CondTest     types.String `tfsdk:"cond_test"`
-	HdrName      types.String `tfsdk:"hdr_name"`
-	HdrFormat    types.String `tfsdk:"hdr_format"`
-	RedirType    types.String `tfsdk:"redir_type"`
-	RedirValue   types.String `tfsdk:"redir_value"`
-	StatusCode   types.Int64  `tfsdk:"status_code"`
-	StatusReason types.String `tfsdk:"status_reason"`
+	Index                types.Int64  `tfsdk:"index"`
+	Type                 types.String `tfsdk:"type"`
+	Cond                 types.String `tfsdk:"cond"`
+	CondTest             types.String `tfsdk:"cond_test"`
+	HdrName              types.String `tfsdk:"hdr_name"`
+	HdrFormat            types.String `tfsdk:"hdr_format"`
+	RedirType            types.String `tfsdk:"redir_type"`
+	RedirValue           types.String `tfsdk:"redir_value"`
+	StatusCode           types.Int64  `tfsdk:"status_code"`
+	StatusReason         types.String `tfsdk:"status_reason"`
+	RedirCode            types.Int64  `tfsdk:"redir_code"`
+	HdrMethod            types.String `tfsdk:"hdr_method"`
+	PathFmt              types.String `tfsdk:"path_fmt"`
+	ScExpr               types.String `tfsdk:"sc_expr"`
+	ScId                 types.Int64  `tfsdk:"sc_id"`
+	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
+	CacheName            types.String `tfsdk:"cache_name"`
+	MapKeyfmt            types.String `tfsdk:"map_keyfmt"`
+	ScIdx                types.Int64  `tfsdk:"sc_idx"`
+	TrackScKey           types.String `tfsdk:"track_sc_key"`
+	UriFmt               types.String `tfsdk:"uri_fmt"`
+	UriMatch             types.String `tfsdk:"uri_match"`
+	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
+	MethodFmt            types.String `tfsdk:"method_fmt"`
+	AclKeyfmt            types.String `tfsdk:"acl_keyfmt"`
+	PathMatch            types.String `tfsdk:"path_match"`
+	TosValue             types.String `tfsdk:"tos_value"`
+	AclFile              types.String `tfsdk:"acl_file"`
+	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
+	NiceValue            types.Int64  `tfsdk:"nice_value"`
+	QueryFmt             types.String `tfsdk:"query_fmt"`
+	MapFile              types.String `tfsdk:"map_file"`
+	MapValuefmt          types.String `tfsdk:"map_valuefmt"`
+	MarkValue            types.String `tfsdk:"mark_value"`
+	Service              types.String `tfsdk:"service"`
+	SpoeEngine           types.String `tfsdk:"spoe_engine"`
+	TrackScTable         types.String `tfsdk:"track_sc_table"`
+	LogLevel             types.String `tfsdk:"log_level"`
+	LuaAction            types.String `tfsdk:"lua_action"`
+	ScInt                types.Int64  `tfsdk:"sc_int"`
+	SpoeGroup            types.String `tfsdk:"spoe_group"`
+	Timeout              types.String `tfsdk:"timeout"`
+	Expr                 types.String `tfsdk:"expr"`
+	LuaParams            types.String `tfsdk:"lua_params"`
+	TimeoutValue         types.Int64  `tfsdk:"timeout_value"`
+	VarName              types.String `tfsdk:"var_name"`
+	VarScope             types.String `tfsdk:"var_scope"`
+	WaitTime             types.Int64  `tfsdk:"wait_time"`
+	HdrMatch             types.String `tfsdk:"hdr_match"`
 }
 
 func (h backendHttpResponseRuleResourceModel) GetIndex() int64 {
@@ -221,16 +283,55 @@ func (h backendHttpResponseRuleResourceModel) GetIndex() int64 {
 
 func (h backendHttpResponseRuleResourceModel) attrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"index":         types.Int64Type,
-		"type":          types.StringType,
-		"cond":          types.StringType,
-		"cond_test":     types.StringType,
-		"hdr_name":      types.StringType,
-		"hdr_format":    types.StringType,
-		"redir_type":    types.StringType,
-		"redir_value":   types.StringType,
-		"status_code":   types.Int64Type,
-		"status_reason": types.StringType,
+		"index":                  types.Int64Type,
+		"type":                   types.StringType,
+		"cond":                   types.StringType,
+		"cond_test":              types.StringType,
+		"hdr_name":               types.StringType,
+		"hdr_format":             types.StringType,
+		"redir_type":             types.StringType,
+		"redir_value":            types.StringType,
+		"status_code":            types.Int64Type,
+		"status_reason":          types.StringType,
+		"redir_code":             types.Int64Type,
+		"hdr_method":             types.StringType,
+		"path_fmt":               types.StringType,
+		"sc_expr":                types.StringType,
+		"sc_id":                  types.Int64Type,
+		"bandwidth_limit_period": types.StringType,
+		"cache_name":             types.StringType,
+		"map_keyfmt":             types.StringType,
+		"sc_idx":                 types.Int64Type,
+		"track_sc_key":           types.StringType,
+		"uri_fmt":                types.StringType,
+		"uri_match":              types.StringType,
+		"bandwidth_limit_limit":  types.StringType,
+		"method_fmt":             types.StringType,
+		"acl_keyfmt":             types.StringType,
+		"path_match":             types.StringType,
+		"tos_value":              types.StringType,
+		"acl_file":               types.StringType,
+		"bandwidth_limit_name":   types.StringType,
+		"nice_value":             types.Int64Type,
+		"query_fmt":              types.StringType,
+		"map_file":               types.StringType,
+		"map_valuefmt":           types.StringType,
+		"mark_value":             types.StringType,
+		"service":                types.StringType,
+		"spoe_engine":            types.StringType,
+		"track_sc_table":         types.StringType,
+		"log_level":              types.StringType,
+		"lua_action":             types.StringType,
+		"sc_int":                 types.Int64Type,
+		"spoe_group":             types.StringType,
+		"timeout":                types.StringType,
+		"expr":                   types.StringType,
+		"lua_params":             types.StringType,
+		"timeout_value":          types.Int64Type,
+		"var_name":               types.StringType,
+		"var_scope":              types.StringType,
+		"wait_time":              types.Int64Type,
+		"hdr_match":              types.StringType,
 	}
 }
 
@@ -292,6 +393,7 @@ func (t backendTcpRequestRuleResourceModel) attrTypes() map[string]attr.Type {
 // backendTcpResponseRuleResourceModel maps the resource schema data.
 type backendTcpResponseRuleResourceModel struct {
 	Index     types.Int64  `tfsdk:"index"`
+	Type      types.String `tfsdk:"type"`
 	Action    types.String `tfsdk:"action"`
 	Cond      types.String `tfsdk:"cond"`
 	CondTest  types.String `tfsdk:"cond_test"`
@@ -317,6 +419,7 @@ func (t backendTcpResponseRuleResourceModel) GetIndex() int64 {
 func (t backendTcpResponseRuleResourceModel) attrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"index":       types.Int64Type,
+		"type":        types.StringType,
 		"action":      types.StringType,
 		"cond":        types.StringType,
 		"cond_test":   types.StringType,
@@ -347,6 +450,7 @@ type backendHttpcheckResourceModel struct {
 	Port            types.Int64  `tfsdk:"port"`
 	Uri             types.String `tfsdk:"uri"`
 	Version         types.String `tfsdk:"version"`
+	Timeout         types.Int64  `tfsdk:"timeout"`
 	ExclamationMark types.String `tfsdk:"exclamation_mark"`
 	LogLevel        types.String `tfsdk:"log_level"`
 	SendProxy       types.String `tfsdk:"send_proxy"`
@@ -369,6 +473,7 @@ func (h backendHttpcheckResourceModel) attrTypes() map[string]attr.Type {
 		"port":             types.Int64Type,
 		"uri":              types.StringType,
 		"version":          types.StringType,
+		"timeout":          types.Int64Type,
 		"exclamation_mark": types.StringType,
 		"log_level":        types.StringType,
 		"send_proxy":       types.StringType,
@@ -382,6 +487,8 @@ type backendTcpCheckResourceModel struct {
 	Index      types.Int64  `tfsdk:"index"`
 	Action     types.String `tfsdk:"action"`
 	Comment    types.String `tfsdk:"comment"`
+	Cond       types.String `tfsdk:"cond"`
+	CondTest   types.String `tfsdk:"cond_test"`
 	Port       types.Int64  `tfsdk:"port"`
 	Address    types.String `tfsdk:"address"`
 	Data       types.String `tfsdk:"data"`
@@ -402,6 +509,8 @@ func (t backendTcpCheckResourceModel) attrTypes() map[string]attr.Type {
 		"index":       types.Int64Type,
 		"action":      types.StringType,
 		"comment":     types.StringType,
+		"cond":        types.StringType,
+		"cond_test":   types.StringType,
 		"port":        types.Int64Type,
 		"address":     types.StringType,
 		"data":        types.StringType,
@@ -431,7 +540,6 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 				Description: "The mode of the backend. Allowed: http|tcp",
 			},
-
 			"http_connection_mode": schema.StringAttribute{
 				Optional:    true,
 				Description: "The http connection mode of the backend. Allowed: httpclose|http-server-close|http-keep-alive",
@@ -472,9 +580,215 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 				Description: "The retries of the backend.",
 			},
-			"acl": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
+			"no_sslv3": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable SSLv3 (deprecated in API v2)",
+			},
+			"no_tlsv10": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable TLSv1.0 (deprecated in API v2)",
+			},
+			"no_tlsv11": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable TLSv1.1 (deprecated in API v2)",
+			},
+			"no_tlsv12": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable TLSv1.2 (deprecated in API v2)",
+			},
+			"no_tlsv13": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Disable TLSv1.3 (deprecated in API v2)",
+			},
+			"force_sslv3": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Force SSLv3 (deprecated in API v2)",
+			},
+			"force_tlsv10": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Force TLSv1.0 (deprecated in API v2)",
+			},
+			"force_tlsv11": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Force TLSv1.1 (deprecated in API v2)",
+			},
+			"force_tlsv12": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Force TLSv1.2 (deprecated in API v2)",
+			},
+			"force_tlsv13": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Force TLSv1.3 (deprecated in API v2)",
+			},
+			"force_strict_sni": schema.StringAttribute{
+				Optional:    true,
+				Description: "Force strict SNI (deprecated in API v2)",
+			},
+
+			// SSL/TLS Configuration (v3 fields)
+			"sslv3": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable SSLv3 (API v3, replaces no_sslv3)",
+			},
+			"tlsv10": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.0 (API v3, replaces no_tlsv10)",
+			},
+			"tlsv11": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.1 (API v3, replaces no_tlsv11)",
+			},
+			"tlsv12": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.2 (API v3, replaces no_tlsv12)",
+			},
+			"tlsv13": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable TLSv1.3 (API v3, replaces no_tlsv13)",
+			},
+
+			"ssl": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Enable SSL/TLS",
+			},
+			"ssl_cafile": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL CA file path",
+			},
+			"ssl_certificate": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL certificate file path",
+			},
+			"ssl_max_ver": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL maximum version",
+			},
+			"ssl_min_ver": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL minimum version",
+			},
+			"ssl_reuse": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL reuse setting",
+			},
+			"ciphers": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL ciphers to support",
+			},
+			"ciphersuites": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL ciphersuites to support",
+			},
+			"verify": schema.StringAttribute{
+				Optional:    true,
+				Description: "SSL certificate verification. Allowed: none|required",
+			},
+		},
+		Blocks: map[string]schema.Block{
+			"forwardfor": schema.SingleNestedBlock{
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.StringAttribute{
+						Required:    true,
+						Description: "The state of the forwardfor. Allowed: enabled|disabled",
+					},
+				},
+			},
+			"balance": schema.SingleNestedBlock{
+				Attributes: map[string]schema.Attribute{
+					"algorithm": schema.StringAttribute{
+						Required:    true,
+						Description: "The algorithm of the balance. Allowed: roundrobin|static-rr|leastconn|first|source|uri|url_param|hdr|rdp-cookie",
+					},
+					"url_param": schema.StringAttribute{
+						Optional:    true,
+						Description: "The url_param of the balance.",
+					},
+				},
+			},
+			"httpchk_params": schema.SingleNestedBlock{
+				Attributes: map[string]schema.Attribute{
+					"method": schema.StringAttribute{
+						Optional:    true,
+						Description: "The method of the httpchk_params. Allowed: HEAD|PUT|POST|GET|TRACE|OPTIONS",
+					},
+					"uri": schema.StringAttribute{
+						Optional:    true,
+						Description: "The uri of the httpchk_params.",
+					},
+					"version": schema.StringAttribute{
+						Optional:    true,
+						Description: "The version of the httpchk_params.",
+					},
+				},
+			},
+			"httpcheck": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"index": schema.Int64Attribute{
+							Required:    true,
+							Description: "The index of the httpcheck",
+						},
+						"type": schema.StringAttribute{
+							Required:    true,
+							Description: "The type of the httpcheck",
+						},
+						"method": schema.StringAttribute{
+				Optional:    true,
+							Description: "The HTTP method for the health check",
+			},
+						"uri": schema.StringAttribute{
+				Optional:    true,
+							Description: "The URI for the health check",
+			},
+						"version": schema.StringAttribute{
+				Optional:    true,
+							Description: "The HTTP version for the health check",
+			},
+						"timeout": schema.Int64Attribute{
+				Optional:    true,
+							Description: "The timeout for the health check in milliseconds",
+			},
+						"match": schema.StringAttribute{
+				Optional:    true,
+							Description: "The match condition for the health check",
+			},
+						"pattern": schema.StringAttribute{
+				Optional:    true,
+							Description: "The pattern to match for the health check",
+			},
+						"addr": schema.StringAttribute{
+				Optional:    true,
+							Description: "The address for the health check",
+			},
+						"port": schema.Int64Attribute{
+				Optional:    true,
+							Description: "The port for the health check",
+			},
+						"exclamation_mark": schema.StringAttribute{
+				Optional:    true,
+							Description: "The exclamation mark for the health check",
+			},
+						"log_level": schema.StringAttribute{
+				Optional:    true,
+							Description: "The log level for the health check",
+						},
+						"send_proxy": schema.StringAttribute{
+							Optional:    true,
+							Description: "The send proxy for the health check",
+						},
+						"via_socks4": schema.StringAttribute{
+							Optional:    true,
+							Description: "The via socks4 for the health check",
+						},
+						"check_comment": schema.StringAttribute{
+							Optional:    true,
+							Description: "The check comment for the health check",
+						},
+					},
+				},
+			},
+			"acl": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"acl_name": schema.StringAttribute{
 							Required:    true,
@@ -495,9 +809,8 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
-			"httprequestrule": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
+			"http_request_rule": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"index": schema.Int64Attribute{
 							Required:    true,
@@ -507,30 +820,6 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							Required:    true,
 							Description: "The type of the http-request rule",
 						},
-						"acl_file": schema.StringAttribute{
-							Optional:    true,
-							Description: "The acl file of the http-request rule",
-						},
-						"acl_keyfmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The acl keyfmt of the http-request rule",
-						},
-						"bandwidth_limit_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The bandwidth limit name of the http-request rule",
-						},
-						"bandwidth_limit_period": schema.StringAttribute{
-							Optional:    true,
-							Description: "The bandwidth limit period of the http-request rule",
-						},
-						"bandwidth_limit_limit": schema.StringAttribute{
-							Optional:    true,
-							Description: "The bandwidth limit limit of the http-request rule",
-						},
-						"cache_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The cache name of the http-request rule",
-						},
 						"cond": schema.StringAttribute{
 							Optional:    true,
 							Description: "The condition of the http-request rule",
@@ -539,77 +828,13 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							Optional:    true,
 							Description: "The condition test of the http-request rule",
 						},
-						"expr": schema.StringAttribute{
-							Optional:    true,
-							Description: "The expr of the http-request rule",
-						},
-						"hdr_format": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header format of the http-request rule",
-						},
-						"hdr_match": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header match of the http-request rule",
-						},
-						"hdr_method": schema.StringAttribute{
-							Optional:    true,
-							Description: "The header method of the http-request rule",
-						},
 						"hdr_name": schema.StringAttribute{
 							Optional:    true,
 							Description: "The header name of the http-request rule",
 						},
-						"log_level": schema.StringAttribute{
+						"hdr_format": schema.StringAttribute{
 							Optional:    true,
-							Description: "The log level of the http-request rule",
-						},
-						"lua_action": schema.StringAttribute{
-							Optional:    true,
-							Description: "The lua action of the http-request rule",
-						},
-						"lua_params": schema.StringAttribute{
-							Optional:    true,
-							Description: "The lua params of the http-request rule",
-						},
-						"map_file": schema.StringAttribute{
-							Optional:    true,
-							Description: "The map file of the http-request rule",
-						},
-						"map_keyfmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The map keyfmt of the http-request rule",
-						},
-						"map_valuefmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The map valuefmt of the http-request rule",
-						},
-						"mark_value": schema.StringAttribute{
-							Optional:    true,
-							Description: "The mark value of the http-request rule",
-						},
-						"method_fmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The method fmt of the http-request rule",
-						},
-						"nice_value": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The nice value of the http-request rule",
-						},
-						"path_fmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The path fmt of the http-request rule",
-						},
-						"path_match": schema.StringAttribute{
-							Optional:    true,
-							Description: "The path match of the http-request rule",
-						},
-						"query_fmt": schema.StringAttribute{
-							Optional:    true,
-							Description: "The query fmt of the http-request rule",
-						},
-						"redir_code": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The redir code of the http-request rule",
+							Description: "The header format of the http-request rule",
 						},
 						"redir_type": schema.StringAttribute{
 							Optional:    true,
@@ -619,33 +844,9 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							Optional:    true,
 							Description: "The redirection value of the http-request rule",
 						},
-						"sc_expr": schema.StringAttribute{
+						"redir_code": schema.Int64Attribute{
 							Optional:    true,
-							Description: "The sc expr of the http-request rule",
-						},
-						"sc_id": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The sc id of the http-request rule",
-						},
-						"sc_idx": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The sc idx of the http-request rule",
-						},
-						"sc_int": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The sc int of the http-request rule",
-						},
-						"service": schema.StringAttribute{
-							Optional:    true,
-							Description: "The service of the http-request rule",
-						},
-						"spoe_engine": schema.StringAttribute{
-							Optional:    true,
-							Description: "The spoe engine of the http-request rule",
-						},
-						"spoe_group": schema.StringAttribute{
-							Optional:    true,
-							Description: "The spoe group of the http-request rule",
+							Description: "The redirection code of the http-request rule",
 						},
 						"status_code": schema.Int64Attribute{
 							Optional:    true,
@@ -655,52 +856,163 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							Optional:    true,
 							Description: "The status reason of the http-request rule",
 						},
-						"timeout": schema.StringAttribute{
+						"hdr_method": schema.StringAttribute{
 							Optional:    true,
-							Description: "The timeout of the http-request rule",
+							Description: "The header method of the http-request rule",
 						},
-						"timeout_value": schema.Int64Attribute{
+						"path_fmt": schema.StringAttribute{
 							Optional:    true,
-							Description: "The timeout value of the http-request rule",
+							Description: "The path format of the http-request rule",
 						},
-						"tos_value": schema.StringAttribute{
+						"sc_expr": schema.StringAttribute{
 							Optional:    true,
-							Description: "The tos value of the http-request rule",
+							Description: "The sc expression of the http-request rule",
+						},
+						"sc_id": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc id of the http-request rule",
+						},
+						"bandwidth_limit_period": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit period of the http-request rule",
+						},
+						"cache_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The cache name of the http-request rule",
+						},
+						"map_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map key format of the http-request rule",
+						},
+						"sc_idx": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc index of the http-request rule",
 						},
 						"track_sc_key": schema.StringAttribute{
 							Optional:    true,
 							Description: "The track sc key of the http-request rule",
 						},
-						"track_sc_table": schema.StringAttribute{
-							Optional:    true,
-							Description: "The track sc table of the http-request rule",
-						},
 						"uri_fmt": schema.StringAttribute{
 							Optional:    true,
-							Description: "The uri fmt of the http-request rule",
+							Description: "The uri format of the http-request rule",
 						},
 						"uri_match": schema.StringAttribute{
 							Optional:    true,
 							Description: "The uri match of the http-request rule",
 						},
+						"bandwidth_limit_limit": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit limit of the http-request rule",
+						},
+						"method_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The method format of the http-request rule",
+						},
+						"acl_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The acl key format of the http-request rule",
+						},
+						"path_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The path match of the http-request rule",
+						},
+						"tos_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The tos value of the http-request rule",
+						},
+						"acl_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The acl file of the http-request rule",
+						},
+						"bandwidth_limit_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit name of the http-request rule",
+						},
+						"nice_value": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The nice value of the http-request rule",
+						},
+						"query_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The query format of the http-request rule",
+						},
+						"map_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map file of the http-request rule",
+						},
+						"map_valuefmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map value format of the http-request rule",
+						},
+						"mark_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The mark value of the http-request rule",
+						},
+						"service": schema.StringAttribute{
+							Optional:    true,
+							Description: "The service of the http-request rule",
+						},
+						"spoe_engine": schema.StringAttribute{
+							Optional:    true,
+							Description: "The spoe engine of the http-request rule",
+						},
+						"track_sc_table": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track sc table of the http-request rule",
+						},
+						"log_level": schema.StringAttribute{
+							Optional:    true,
+							Description: "The log level of the http-request rule",
+						},
+						"lua_action": schema.StringAttribute{
+							Optional:    true,
+							Description: "The lua action of the http-request rule",
+						},
+						"sc_int": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc int of the http-request rule",
+						},
+						"spoe_group": schema.StringAttribute{
+							Optional:    true,
+							Description: "The spoe group of the http-request rule",
+						},
+						"timeout": schema.StringAttribute{
+							Optional:    true,
+							Description: "The timeout of the http-request rule",
+						},
+						"expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The expression of the http-request rule",
+						},
+						"lua_params": schema.StringAttribute{
+							Optional:    true,
+							Description: "The lua params of the http-request rule",
+						},
+						"timeout_value": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The timeout value of the http-request rule",
+						},
 						"var_name": schema.StringAttribute{
 							Optional:    true,
-							Description: "The var name of the http-request rule",
+							Description: "The variable name of the http-request rule",
 						},
 						"var_scope": schema.StringAttribute{
 							Optional:    true,
-							Description: "The var scope of the http-request rule",
+							Description: "The variable scope of the http-request rule",
 						},
 						"wait_time": schema.Int64Attribute{
 							Optional:    true,
 							Description: "The wait time of the http-request rule",
 						},
+						"hdr_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header match of the http-request rule",
 					},
 				},
 			},
-			"httpresponserule": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
+			},
+			"http_response_rule": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"index": schema.Int64Attribute{
 							Required:    true,
@@ -726,14 +1038,6 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							Optional:    true,
 							Description: "The header format of the http-response rule",
 						},
-						"redir_type": schema.StringAttribute{
-							Optional:    true,
-							Description: "The redirection type of the http-response rule",
-						},
-						"redir_value": schema.StringAttribute{
-							Optional:    true,
-							Description: "The redirection value of the http-response rule",
-						},
 						"status_code": schema.Int64Attribute{
 							Optional:    true,
 							Description: "The status code of the http-response rule",
@@ -742,12 +1046,175 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							Optional:    true,
 							Description: "The status reason of the http-response rule",
 						},
+						"redir_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The redirection code of the http-response rule",
+						},
+						"redir_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection type of the http-response rule",
+						},
+						"redir_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection value of the http-response rule",
+						},
+						"hdr_method": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header method of the http-response rule",
+						},
+						"path_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The path format of the http-response rule",
+						},
+						"sc_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The sc expression of the http-response rule",
+						},
+						"sc_id": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc id of the http-response rule",
+						},
+						"bandwidth_limit_period": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit period of the http-response rule",
+						},
+						"cache_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The cache name of the http-response rule",
+						},
+						"map_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map key format of the http-response rule",
+						},
+						"sc_idx": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc index of the http-response rule",
+						},
+						"track_sc_key": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track sc key of the http-response rule",
+						},
+						"uri_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The uri format of the http-response rule",
+						},
+						"uri_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The uri match of the http-response rule",
+						},
+						"bandwidth_limit_limit": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit limit of the http-response rule",
+						},
+						"method_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The method format of the http-response rule",
+						},
+						"acl_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The acl key format of the http-response rule",
+						},
+						"path_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The path match of the http-response rule",
+						},
+						"tos_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The tos value of the http-response rule",
+						},
+						"acl_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The acl file of the http-response rule",
+						},
+						"bandwidth_limit_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit name of the http-response rule",
+						},
+						"nice_value": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The nice value of the http-response rule",
+						},
+						"query_fmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The query format of the http-response rule",
+						},
+						"map_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map file of the http-response rule",
+						},
+						"map_valuefmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map value format of the http-response rule",
+						},
+						"mark_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The mark value of the http-response rule",
+						},
+						"service": schema.StringAttribute{
+							Optional:    true,
+							Description: "The service of the http-response rule",
+						},
+						"spoe_engine": schema.StringAttribute{
+							Optional:    true,
+							Description: "The spoe engine of the http-response rule",
+						},
+						"track_sc_table": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track sc table of the http-response rule",
+						},
+						"log_level": schema.StringAttribute{
+							Optional:    true,
+							Description: "The log level of the http-response rule",
+						},
+						"lua_action": schema.StringAttribute{
+							Optional:    true,
+							Description: "The lua action of the http-response rule",
+						},
+						"sc_int": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The sc int of the http-response rule",
+						},
+						"spoe_group": schema.StringAttribute{
+							Optional:    true,
+							Description: "The spoe group of the http-response rule",
+						},
+						"timeout": schema.StringAttribute{
+							Optional:    true,
+							Description: "The timeout of the http-response rule",
+						},
+						"expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The expression of the http-response rule",
+						},
+						"lua_params": schema.StringAttribute{
+							Optional:    true,
+							Description: "The lua params of the http-response rule",
+						},
+						"timeout_value": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The timeout value of the http-response rule",
+						},
+						"var_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable name of the http-response rule",
+						},
+						"var_scope": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable scope of the http-response rule",
+						},
+						"wait_time": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The wait time of the http-response rule",
+						},
+						"hdr_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header match of the http-response rule",
+						},
 					},
 				},
 			},
-			"tcprequestrule": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
+			"tcp_request_rule": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"index": schema.Int64Attribute{
 							Required:    true,
@@ -836,16 +1303,19 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
-			"tcpresponserule": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
+			"tcp_response_rule": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"index": schema.Int64Attribute{
 							Required:    true,
 							Description: "The index of the tcp-response rule",
 						},
-						"action": schema.StringAttribute{
+						"type": schema.StringAttribute{
 							Required:    true,
+							Description: "The type of the tcp-response rule",
+						},
+						"action": schema.StringAttribute{
+							Optional:    true,
 							Description: "The action of the tcp-response rule",
 						},
 						"cond": schema.StringAttribute{
@@ -890,250 +1360,174 @@ func (r *backendResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						},
 						"var_name": schema.StringAttribute{
 							Optional:    true,
-							Description: "The var name of the tcp-response rule",
+							Description: "The variable name of the tcp-response rule",
 						},
 						"var_scope": schema.StringAttribute{
 							Optional:    true,
-							Description: "The var scope of the tcp-response rule",
+							Description: "The variable scope of the tcp-response rule",
 						},
 						"var_expr": schema.StringAttribute{
 							Optional:    true,
-							Description: "The var expr of the tcp-response rule",
+							Description: "The variable expression of the tcp-response rule",
 						},
 						"var_format": schema.StringAttribute{
 							Optional:    true,
-							Description: "The var format of the tcp-response rule",
+							Description: "The variable format of the tcp-response rule",
 						},
 						"var_type": schema.StringAttribute{
 							Optional:    true,
-							Description: "The var type of the tcp-response rule",
+							Description: "The variable type of the tcp-response rule",
 						},
 					},
 				},
 			},
-
-			"tcp_check": schema.ListNestedAttribute{
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
+			"tcp_check": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"index": schema.Int64Attribute{
 							Required:    true,
-							Description: "The index of the tcp_check",
+							Description: "The index of the tcp check",
 						},
 						"action": schema.StringAttribute{
-							Required:    true,
-							Description: "The action of the tcp_check",
+							Optional:    true,
+							Description: "The action of the tcp check",
+						},
+						"cond": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition of the tcp check",
+						},
+						"cond_test": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition test of the tcp check",
 						},
 						"comment": schema.StringAttribute{
 							Optional:    true,
-							Description: "The comment of the tcp_check",
+							Description: "The comment of the tcp check",
 						},
 						"port": schema.Int64Attribute{
 							Optional:    true,
-							Description: "The port of the tcp_check",
+							Description: "The port of the tcp check",
 						},
 						"address": schema.StringAttribute{
 							Optional:    true,
-							Description: "The address of the tcp_check",
+							Description: "The address of the tcp check",
 						},
 						"data": schema.StringAttribute{
 							Optional:    true,
-							Description: "The data of the tcp_check",
+							Description: "The data of the tcp check",
 						},
 						"min_recv": schema.Int64Attribute{
 							Optional:    true,
-							Description: "The min_recv of the tcp_check",
+							Description: "The minimum receive size of the tcp check",
 						},
 						"on_success": schema.StringAttribute{
 							Optional:    true,
-							Description: "The on_success of the tcp_check",
+							Description: "The action on success of the tcp check",
 						},
 						"on_error": schema.StringAttribute{
 							Optional:    true,
-							Description: "The on_error of the tcp_check",
+							Description: "The action on error of the tcp check",
 						},
 						"status_code": schema.StringAttribute{
 							Optional:    true,
-							Description: "The status_code of the tcp_check",
+							Description: "The status code of the tcp check",
 						},
 						"timeout": schema.Int64Attribute{
 							Optional:    true,
-							Description: "The timeout of the tcp_check",
+							Description: "The timeout of the tcp check in milliseconds",
 						},
 						"log_level": schema.StringAttribute{
 							Optional:    true,
-							Description: "The log_level of the tcp_check",
+							Description: "The log level of the tcp check",
 						},
 					},
 				},
 			},
-
-			// SSL/TLS Configuration Fields
-			"no_sslv3": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Disable SSLv3 protocol support. DEPRECATED: Use 'sslv3' field instead in Data Plane API v3",
-			},
-			"no_tlsv10": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Disable TLSv1.0 protocol support. DEPRECATED: Use 'tlsv10' field instead in Data Plane API v3",
-			},
-			"no_tlsv11": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Disable TLSv1.1 protocol support. DEPRECATED: Use 'tlsv11' field instead in Data Plane API v3",
-			},
-			"no_tlsv12": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Disable TLSv1.2 protocol support. DEPRECATED: Use 'tlsv12' field instead in Data Plane API v3",
-			},
-			"no_tlsv13": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Disable TLSv1.3 protocol support. DEPRECATED: Use 'tlsv13' field instead in Data Plane API v3",
-			},
-			"force_sslv3": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Force SSLv3 protocol support. DEPRECATED: Use 'sslv3' field instead in Data Plane API v3",
-			},
-			"force_tlsv10": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Force TLSv1.0 protocol support. DEPRECATED: Use 'tlsv10' field instead in Data Plane API v3",
-			},
-			"force_tlsv11": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Force TLSv1.1 protocol support. DEPRECATED: Use 'tlsv11' field instead in Data Plane API v3",
-			},
-			"force_tlsv12": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Force TLSv1.2 protocol support. DEPRECATED: Use 'tlsv12' field instead in Data Plane API v3",
-			},
-			"force_tlsv13": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Force TLSv1.3 protocol support. DEPRECATED: Use 'tlsv13' field instead in Data Plane API v3",
-			},
-			"force_strict_sni": schema.StringAttribute{
-				Optional:    true,
-				Description: "Force strict SNI. DEPRECATED: Use 'strict_sni' field instead in Data Plane API v3. Allowed: enabled|disabled",
-			},
-
-			// New v3 fields (non-deprecated)
-			"sslv3": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Enable SSLv3 protocol support (v3 API, replaces no_sslv3)",
-			},
-			"tlsv10": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Enable TLSv1.0 protocol support (v3 API, replaces no_tlsv10)",
-			},
-			"tlsv11": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Enable TLSv1.1 protocol support (v3 API, replaces no_tlsv11)",
-			},
-			"tlsv12": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Enable TLSv1.2 protocol support (v3 API, replaces no_tlsv12)",
-			},
-			"tlsv13": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Enable TLSv1.3 protocol support (v3 API, replaces no_tlsv13)",
-			},
-
-			// SSL/TLS Configuration
-			"ssl": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Enable SSL for backend connections",
-			},
-			"ssl_cafile": schema.StringAttribute{
-				Optional:    true,
-				Description: "SSL CA file path. Pattern: ^[^\\s]+$",
-			},
-			"ssl_certificate": schema.StringAttribute{
-				Optional:    true,
-				Description: "SSL certificate path. Pattern: ^[^\\s]+$",
-			},
-			"ssl_max_ver": schema.StringAttribute{
-				Optional:    true,
-				Description: "SSL maximum version. Allowed: SSLv3|TLSv1.0|TLSv1.1|TLSv1.2|TLSv1.3",
-			},
-			"ssl_min_ver": schema.StringAttribute{
-				Optional:    true,
-				Description: "SSL minimum version. Allowed: SSLv3|TLSv1.0|TLSv1.1|TLSv1.2|TLSv1.3",
-			},
-			"ssl_reuse": schema.StringAttribute{
-				Optional:    true,
-				Description: "SSL session reuse. Allowed: enabled|disabled",
-			},
-			"ciphers": schema.StringAttribute{
-				Optional:    true,
-				Description: "SSL ciphers to support",
-			},
-			"ciphersuites": schema.StringAttribute{
-				Optional:    true,
-				Description: "SSL ciphersuites to support",
-			},
-			"verify": schema.StringAttribute{
-				Optional:    true,
-				Description: "SSL certificate verification. Allowed: none|required",
-			},
-		},
-		Blocks: map[string]schema.Block{
-			"forwardfor": schema.ListNestedBlock{
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"enabled": schema.StringAttribute{
-							Required:    true,
-							Description: "The state of the forwardfor. Allowed: enabled|disabled",
-						},
-					},
-				},
-			},
-			"balance": schema.SingleNestedBlock{
+			"stick_table": schema.SingleNestedBlock{
 				Attributes: map[string]schema.Attribute{
-					"algorithm": schema.StringAttribute{
+					"type": schema.StringAttribute{
 						Required:    true,
-						Description: "The algorithm of the balance. Allowed: roundrobin|static-rr|leastconn|first|source|uri|url_param|hdr|rdp-cookie",
+						Description: "The type of the stick table. Allowed: ip|ipv6|string|integer",
 					},
-					"url_param": schema.StringAttribute{
-						Optional:    true,
-						Description: "The url_param of the balance.",
+					"size": schema.Int64Attribute{
+						Required:    true,
+						Description: "The size of the stick table",
+					},
+					"expire": schema.StringAttribute{
+				Optional:    true,
+						Description: "The expire time of the stick table",
+			},
+					"store": schema.StringAttribute{
+				Optional:    true,
+						Description: "The store configuration of the stick table",
 					},
 				},
 			},
-			"httpchk_params": schema.SingleNestedBlock{
-				Attributes: map[string]schema.Attribute{
-					"method": schema.StringAttribute{
-						Optional:    true,
-						Description: "The method of the httpchk_params. Allowed: HEAD|PUT|POST|GET|TRACE|OPTIONS",
-					},
-					"uri": schema.StringAttribute{
-						Optional:    true,
-						Description: "The uri of the httpchk_params.",
-					},
-					"version": schema.StringAttribute{
-						Optional:    true,
-						Description: "The version of the httpchk_params.",
-					},
-				},
-			},
-			"httpcheck": schema.ListNestedBlock{
+			"stick_rule": schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"index": schema.Int64Attribute{
 							Required:    true,
-							Description: "The index of the httpcheck",
-						},
-						"match": schema.StringAttribute{
-							Optional:    true,
-							Description: "The match of the httpcheck",
-						},
-						"pattern": schema.StringAttribute{
-							Optional:    true,
-							Description: "The pattern of the httpcheck",
+							Description: "The index of the stick rule",
 						},
 						"type": schema.StringAttribute{
-							Optional:    true,
-							Description: "The type of the httpcheck",
+							Required:    true,
+							Description: "The type of the stick rule. Allowed: match|on|if|unless",
 						},
-					},
-				},
+						"table": schema.StringAttribute{
+				Optional:    true,
+							Description: "The table name for the stick rule",
+			},
+						"pattern": schema.StringAttribute{
+				Optional:    true,
+							Description: "The pattern for the stick rule",
+			},
+						"cond": schema.StringAttribute{
+				Optional:    true,
+							Description: "The condition for the stick rule",
+			},
+						"cond_test": schema.StringAttribute{
+				Optional:    true,
+							Description: "The condition test for the stick rule",
+			},
+			},
+			},
+			},
+			"stats_options": schema.SingleNestedBlock{
+				Attributes: map[string]schema.Attribute{
+					"stats_enable": schema.BoolAttribute{
+				Optional:    true,
+						Description: "Enable statistics",
+			},
+					"stats_hide_version": schema.BoolAttribute{
+				Optional:    true,
+						Description: "Hide version in statistics",
+			},
+					"stats_show_legends": schema.BoolAttribute{
+				Optional:    true,
+						Description: "Show legends in statistics",
+			},
+					"stats_show_node": schema.BoolAttribute{
+				Optional:    true,
+						Description: "Show node in statistics",
+			},
+					"stats_uri": schema.StringAttribute{
+				Optional:    true,
+						Description: "Statistics URI",
+			},
+					"stats_realm": schema.StringAttribute{
+				Optional:    true,
+						Description: "Statistics realm",
+			},
+					"stats_auth": schema.StringAttribute{
+				Optional:    true,
+						Description: "Statistics authentication",
+			},
+					"stats_refresh": schema.StringAttribute{
+				Optional:    true,
+						Description: "Statistics refresh rate",
+			},
+			},
 			},
 		},
 	}
@@ -1188,56 +1582,55 @@ func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest
 		CheckCache:         plan.CheckCache.ValueString(),
 		Retries:            plan.Retries.ValueInt64(),
 
-		// SSL/TLS Configuration Fields
-		// Deprecated fields (API v2)
-		NoSslv3:        plan.NoSslv3.ValueBool(),
-		NoTlsv10:       plan.NoTlsv10.ValueBool(),
-		NoTlsv11:       plan.NoTlsv11.ValueBool(),
-		NoTlsv12:       plan.NoTlsv12.ValueBool(),
-		NoTlsv13:       plan.NoTlsv13.ValueBool(),
-		ForceSslv3:     plan.ForceSslv3.ValueBool(),
-		ForceTlsv10:    plan.ForceTlsv10.ValueBool(),
-		ForceTlsv11:    plan.ForceTlsv11.ValueBool(),
-		ForceTlsv12:    plan.ForceTlsv12.ValueBool(),
-		ForceTlsv13:    plan.ForceTlsv13.ValueBool(),
-		ForceStrictSni: plan.ForceStrictSni.ValueString(),
+		// Default Server Configuration (for SSL/TLS settings)
+		DefaultServer: &DefaultServerPayload{
+			// SSL/TLS Configuration
+			Ssl:            "enabled", // Default value
+			SslCafile:      "",
+			SslCertificate: "",
+			SslMaxVer:      "",
+			SslMinVer:      "",
+			SslReuse:       "",
+			Ciphers:        "",
+			Ciphersuites:   "",
+			Verify:         "",
 
-		// New v3 fields (non-deprecated)
-		Sslv3:  plan.Sslv3.ValueBool(),
-		Tlsv10: plan.Tlsv10.ValueBool(),
-		Tlsv11: plan.Tlsv11.ValueBool(),
-		Tlsv12: plan.Tlsv12.ValueBool(),
-		Tlsv13: plan.Tlsv13.ValueBool(),
+			// SSL/TLS Protocol Control (v3 fields)
+			Sslv3:  "disabled",
+			Tlsv10: "disabled",
+			Tlsv11: "disabled",
+			Tlsv12: "enabled",
+			Tlsv13: "enabled",
 
-		// SSL/TLS Configuration
-		Ssl:            plan.Ssl.ValueBool(),
-		SslCafile:      plan.SslCafile.ValueString(),
-		SslCertificate: plan.SslCertificate.ValueString(),
-		SslMaxVer:      plan.SslMaxVer.ValueString(),
-		SslMinVer:      plan.SslMinVer.ValueString(),
-		SslReuse:       plan.SslReuse.ValueString(),
-		Ciphers:        plan.Ciphers.ValueString(),
-		Ciphersuites:   plan.Ciphersuites.ValueString(),
-		Verify:         plan.Verify.ValueString(),
+			// SSL/TLS Protocol Control (deprecated v2 fields)
+			NoSslv3:        "enabled",
+			NoTlsv10:       "enabled",
+			NoTlsv11:       "enabled",
+			NoTlsv12:       "disabled",
+			NoTlsv13:       "disabled",
+			ForceSslv3:     "disabled",
+			ForceTlsv10:    "disabled",
+			ForceTlsv11:    "disabled",
+			ForceTlsv12:    "disabled",
+			ForceTlsv13:    "disabled",
+			ForceStrictSni: "",
+		},
 	}
 
-	if !plan.Forwardfor.IsNull() && len(plan.Forwardfor.Elements()) > 0 {
-		var forwardforModels []struct {
+	if !plan.Forwardfor.IsNull() {
+		var forwardforModel struct {
 			Enabled types.String `tfsdk:"enabled"`
 		}
-		diags := plan.Forwardfor.ElementsAs(ctx, &forwardforModels, false)
+		diags := plan.Forwardfor.As(ctx, &forwardforModel, basetypes.ObjectAsOptions{})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		if len(forwardforModels) > 0 {
-			payload.Forwardfor = &ForwardFor{
-				Enabled: forwardforModels[0].Enabled.ValueString(),
-			}
+		payload.Forwardfor = &ForwardFor{
+			Enabled: forwardforModel.Enabled.ValueString(),
 		}
 	}
 
-	// Handle balance block
 	if !plan.Balance.IsNull() {
 		var balanceModel struct {
 			Algorithm types.String `tfsdk:"algorithm"`
@@ -1248,64 +1641,63 @@ func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest
 		if resp.Diagnostics.HasError() {
 			return
 		}
-
 		payload.Balance = &Balance{
 			Algorithm: balanceModel.Algorithm.ValueString(),
-		}
-		if !balanceModel.UrlParam.IsNull() {
-			payload.Balance.UrlParam = balanceModel.UrlParam.ValueString()
+			UrlParam:  balanceModel.UrlParam.ValueString(),
 		}
 	}
 
-	// Handle httpchk_params block
 	if !plan.HttpchkParams.IsNull() {
-		var httpchkModel struct {
+		var httpchkParamsModel struct {
 			Method  types.String `tfsdk:"method"`
 			Uri     types.String `tfsdk:"uri"`
 			Version types.String `tfsdk:"version"`
 		}
-		diags := plan.HttpchkParams.As(ctx, &httpchkModel, basetypes.ObjectAsOptions{})
+		diags := plan.HttpchkParams.As(ctx, &httpchkParamsModel, basetypes.ObjectAsOptions{})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-
 		payload.HttpchkParams = &HttpchkParams{
-			Method: httpchkModel.Method.ValueString(),
-			Uri:    httpchkModel.Uri.ValueString(),
-		}
-		if !httpchkModel.Version.IsNull() {
-			payload.HttpchkParams.Version = httpchkModel.Version.ValueString()
+			Method:  httpchkParamsModel.Method.ValueString(),
+			Uri:     httpchkParamsModel.Uri.ValueString(),
+			Version: httpchkParamsModel.Version.ValueString(),
 		}
 	}
 
-	// Use the new transaction handling to avoid timeout issues
-	transactionID, err := r.client.BeginTransaction()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating backend",
-			"Could not begin transaction: "+err.Error(),
-		)
-		return
+	if !plan.StatsOptions.IsNull() {
+		var statsOptionsModel struct {
+			StatsEnable      types.Bool   `tfsdk:"stats_enable"`
+			StatsHideVersion types.Bool   `tfsdk:"stats_hide_version"`
+			StatsShowLegends types.Bool   `tfsdk:"stats_show_legends"`
+			StatsShowNode    types.Bool   `tfsdk:"stats_show_node"`
+			StatsUri         types.String `tfsdk:"stats_uri"`
+			StatsRealm       types.String `tfsdk:"stats_realm"`
+			StatsAuth        types.String `tfsdk:"stats_auth"`
+			StatsRefresh     types.String `tfsdk:"stats_refresh"`
+		}
+		diags := plan.StatsOptions.As(ctx, &statsOptionsModel, basetypes.ObjectAsOptions{})
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		payload.StatsOptions = &StatsOptionsPayload{
+			StatsEnable:      statsOptionsModel.StatsEnable.ValueBool(),
+			StatsHideVersion: statsOptionsModel.StatsHideVersion.ValueBool(),
+			StatsShowLegends: statsOptionsModel.StatsShowLegends.ValueBool(),
+			StatsShowNode:    statsOptionsModel.StatsShowNode.ValueBool(),
+			StatsUri:         statsOptionsModel.StatsUri.ValueString(),
+			StatsRealm:       statsOptionsModel.StatsRealm.ValueString(),
+			StatsAuth:        statsOptionsModel.StatsAuth.ValueString(),
+			StatsRefresh:     statsOptionsModel.StatsRefresh.ValueString(),
+		}
 	}
 
-	err = r.client.CreateBackendInTransaction(ctx, transactionID, payload)
+	err := r.client.CreateBackend(ctx, payload)
 	if err != nil {
-		// Try to rollback the transaction
-		_ = r.client.CommitTransaction(transactionID) // This will fail but that's okay
 		resp.Diagnostics.AddError(
 			"Error creating backend",
 			"Could not create backend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// Commit the transaction
-	err = r.client.CommitTransaction(transactionID)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating backend",
-			"Could not commit transaction: "+err.Error(),
 		)
 		return
 	}
@@ -1474,6 +1866,7 @@ func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest
 		for _, tcpResponseRuleModel := range tcpResponseRuleModels {
 			tcpResponseRulePayload := &TcpResponseRulePayload{
 				Index:     tcpResponseRuleModel.Index.ValueInt64(),
+				Type:      tcpResponseRuleModel.Type.ValueString(),
 				Action:    tcpResponseRuleModel.Action.ValueString(),
 				Cond:      tcpResponseRuleModel.Cond.ValueString(),
 				CondTest:  tcpResponseRuleModel.CondTest.ValueString(),
@@ -1502,8 +1895,45 @@ func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
-	// TODO: Handle httpcheck from blocks instead of attributes
-	// This is now defined as a block in the schema
+	if !plan.Httpchecks.IsNull() {
+		var httpcheckModels []backendHttpcheckResourceModel
+		diags := plan.Httpchecks.ElementsAs(ctx, &httpcheckModels, false)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		sort.Slice(httpcheckModels, func(i, j int) bool {
+			return httpcheckModels[i].GetIndex() < httpcheckModels[j].GetIndex()
+		})
+
+		for _, httpcheckModel := range httpcheckModels {
+			httpcheckPayload := &HttpcheckPayload{
+				Index:           httpcheckModel.Index.ValueInt64(),
+				Addr:            httpcheckModel.Addr.ValueString(),
+				Match:           httpcheckModel.Match.ValueString(),
+				Pattern:         httpcheckModel.Pattern.ValueString(),
+				Type:            httpcheckModel.Type.ValueString(),
+				Method:          httpcheckModel.Method.ValueString(),
+				Port:            httpcheckModel.Port.ValueInt64(),
+				Uri:             httpcheckModel.Uri.ValueString(),
+				Version:         httpcheckModel.Version.ValueString(),
+				ExclamationMark: httpcheckModel.ExclamationMark.ValueString(),
+				LogLevel:        httpcheckModel.LogLevel.ValueString(),
+				SendProxy:       httpcheckModel.SendProxy.ValueString(),
+				ViaSocks4:       httpcheckModel.ViaSocks4.ValueString(),
+				CheckComment:    httpcheckModel.CheckComment.ValueString(),
+			}
+			err := r.client.CreateHttpcheck(ctx, "backend", plan.Name.ValueString(), httpcheckPayload)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error creating httpcheck",
+					fmt.Sprintf("Could not create httpcheck, unexpected error: %s", err.Error()),
+				)
+				return
+			}
+		}
+	}
 
 	if !plan.TcpChecks.IsNull() {
 		var tcpCheckModels []backendTcpCheckResourceModel
@@ -1580,190 +2010,36 @@ func (r *backendResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	state.Name = types.StringValue(backend.Name)
 	state.Mode = types.StringValue(backend.Mode)
-	// Only set string fields if they have meaningful values (not empty)
-	if backend.HttpConnectionMode != "" {
-		state.HttpConnectionMode = types.StringValue(backend.HttpConnectionMode)
-	} else {
-		state.HttpConnectionMode = types.StringNull()
-	}
-	if backend.AdvCheck != "" {
-		state.AdvCheck = types.StringValue(backend.AdvCheck)
-	} else {
-		state.AdvCheck = types.StringNull()
-	}
-	// Only set timeout fields if they have meaningful values (not zero/empty)
-	if backend.ServerTimeout > 0 {
-		state.ServerTimeout = types.Int64Value(backend.ServerTimeout)
-	} else {
-		state.ServerTimeout = types.Int64Null()
-	}
-	if backend.CheckTimeout > 0 {
-		state.CheckTimeout = types.Int64Value(backend.CheckTimeout)
-	} else {
-		state.CheckTimeout = types.Int64Null()
-	}
-	if backend.ConnectTimeout > 0 {
-		state.ConnectTimeout = types.Int64Value(backend.ConnectTimeout)
-	} else {
-		state.ConnectTimeout = types.Int64Null()
-	}
-	if backend.QueueTimeout > 0 {
-		state.QueueTimeout = types.Int64Value(backend.QueueTimeout)
-	} else {
-		state.QueueTimeout = types.Int64Null()
-	}
-	if backend.TunnelTimeout > 0 {
-		state.TunnelTimeout = types.Int64Value(backend.TunnelTimeout)
-	} else {
-		state.TunnelTimeout = types.Int64Null()
-	}
-	if backend.TarpitTimeout > 0 {
-		state.TarpitTimeout = types.Int64Value(backend.TarpitTimeout)
-	} else {
-		state.TarpitTimeout = types.Int64Null()
-	}
-	if backend.CheckCache != "" {
-		state.CheckCache = types.StringValue(backend.CheckCache)
-	} else {
-		state.CheckCache = types.StringNull()
-	}
-	if backend.Retries > 0 {
-		state.Retries = types.Int64Value(backend.Retries)
-	} else {
-		state.Retries = types.Int64Null()
-	}
+	state.HttpConnectionMode = types.StringValue(backend.HttpConnectionMode)
+	state.AdvCheck = types.StringValue(backend.AdvCheck)
+	state.ServerTimeout = types.Int64Value(backend.ServerTimeout)
+	state.CheckTimeout = types.Int64Value(backend.CheckTimeout)
+	state.ConnectTimeout = types.Int64Value(backend.ConnectTimeout)
+	state.QueueTimeout = types.Int64Value(backend.QueueTimeout)
+	state.TunnelTimeout = types.Int64Value(backend.TunnelTimeout)
+	state.TarpitTimeout = types.Int64Value(backend.TarpitTimeout)
+	state.CheckCache = types.StringValue(backend.CheckCache)
+	state.Retries = types.Int64Value(backend.Retries)
 
-	// SSL/TLS Configuration Fields
-	// Deprecated fields (API v2) - only set if true
-	if backend.NoSslv3 {
-		state.NoSslv3 = types.BoolValue(true)
-	} else {
-		state.NoSslv3 = types.BoolNull()
-	}
-	if backend.NoTlsv10 {
-		state.NoTlsv10 = types.BoolValue(true)
-	} else {
-		state.NoTlsv10 = types.BoolNull()
-	}
-	if backend.NoTlsv11 {
-		state.NoTlsv11 = types.BoolValue(true)
-	} else {
-		state.NoTlsv11 = types.BoolNull()
-	}
-	if backend.NoTlsv12 {
-		state.NoTlsv12 = types.BoolValue(true)
-	} else {
-		state.NoTlsv12 = types.BoolNull()
-	}
-	if backend.NoTlsv13 {
-		state.NoTlsv13 = types.BoolValue(true)
-	} else {
-		state.NoTlsv13 = types.BoolNull()
-	}
-	if backend.ForceSslv3 {
-		state.ForceSslv3 = types.BoolValue(true)
-	} else {
-		state.ForceSslv3 = types.BoolNull()
-	}
-	if backend.ForceTlsv10 {
-		state.ForceTlsv10 = types.BoolValue(true)
-	} else {
-		state.ForceTlsv10 = types.BoolNull()
-	}
-	if backend.ForceTlsv11 {
-		state.ForceTlsv11 = types.BoolValue(true)
-	} else {
-		state.ForceTlsv11 = types.BoolNull()
-	}
-	if backend.ForceTlsv12 {
-		state.ForceTlsv12 = types.BoolValue(true)
-	} else {
-		state.ForceTlsv12 = types.BoolNull()
-	}
-	if backend.ForceTlsv13 {
-		state.ForceTlsv13 = types.BoolValue(true)
-	} else {
-		state.ForceTlsv13 = types.BoolNull()
-	}
-	if backend.ForceStrictSni != "" {
-		state.ForceStrictSni = types.StringValue(backend.ForceStrictSni)
-	} else {
-		state.ForceStrictSni = types.StringNull()
-	}
-
-	// New v3 fields (non-deprecated) - only set if true
-	if backend.Sslv3 {
-		state.Sslv3 = types.BoolValue(true)
-	} else {
-		state.Sslv3 = types.BoolNull()
-	}
-	if backend.Tlsv10 {
-		state.Tlsv10 = types.BoolValue(true)
-	} else {
-		state.Tlsv10 = types.BoolNull()
-	}
-	if backend.Tlsv11 {
-		state.Tlsv11 = types.BoolValue(true)
-	} else {
-		state.Tlsv11 = types.BoolNull()
-	}
-	if backend.Tlsv12 {
-		state.Tlsv12 = types.BoolValue(true)
-	} else {
-		state.Tlsv12 = types.BoolNull()
-	}
-	if backend.Tlsv13 {
-		state.Tlsv13 = types.BoolValue(true)
-	} else {
-		state.Tlsv13 = types.BoolNull()
-	}
-
-	// SSL/TLS Configuration - only set if true
-	if backend.Ssl {
-		state.Ssl = types.BoolValue(true)
-	} else {
-		state.Ssl = types.BoolNull()
-	}
-	// Only set SSL string fields if they have meaningful values (not empty)
-	if backend.SslCafile != "" {
-		state.SslCafile = types.StringValue(backend.SslCafile)
-	} else {
-		state.SslCafile = types.StringNull()
-	}
-	if backend.SslCertificate != "" {
-		state.SslCertificate = types.StringValue(backend.SslCertificate)
-	} else {
-		state.SslCertificate = types.StringNull()
-	}
-	if backend.SslMaxVer != "" {
-		state.SslMaxVer = types.StringValue(backend.SslMaxVer)
-	} else {
-		state.SslMaxVer = types.StringNull()
-	}
-	if backend.SslMinVer != "" {
-		state.SslMinVer = types.StringValue(backend.SslMinVer)
-	} else {
-		state.SslMinVer = types.StringNull()
-	}
-	if backend.SslReuse != "" {
-		state.SslReuse = types.StringValue(backend.SslReuse)
-	} else {
-		state.SslReuse = types.StringNull()
-	}
-	if backend.Ciphers != "" {
-		state.Ciphers = types.StringValue(backend.Ciphers)
-	} else {
-		state.Ciphers = types.StringNull()
-	}
-	if backend.Ciphersuites != "" {
-		state.Ciphersuites = types.StringValue(backend.Ciphersuites)
-	} else {
-		state.Ciphersuites = types.StringNull()
-	}
-	if backend.Verify != "" {
-		state.Verify = types.StringValue(backend.Verify)
-	} else {
-		state.Verify = types.StringNull()
+	// Default Server Configuration (for SSL/TLS settings)
+	if backend.DefaultServer != nil {
+		state.DefaultServer, diags = types.ObjectValueFrom(ctx, map[string]attr.Type{
+			"addr":            types.StringType,
+			"port":            types.Int64Type,
+			"ssl":             types.StringType,
+			"ssl_cafile":      types.StringType,
+			"ssl_certificate": types.StringType,
+			"ssl_max_ver":     types.StringType,
+			"ssl_min_ver":     types.StringType,
+			"ssl_reuse":       types.StringType,
+			"ciphers":         types.StringType,
+			"ciphersuites":    types.StringType,
+			"verify":          types.StringType,
+		}, backend.DefaultServer)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
 	if backend.Forwardfor != nil {
@@ -1771,30 +2047,23 @@ func (r *backendResource) Read(ctx context.Context, req resource.ReadRequest, re
 			Enabled types.String `tfsdk:"enabled"`
 		}
 		forwardforModel.Enabled = types.StringValue(backend.Forwardfor.Enabled)
-		forwardforList, diags := types.ListValueFrom(ctx, types.ObjectType{
-			AttrTypes: map[string]attr.Type{
-				"enabled": types.StringType,
-			},
-		}, []interface{}{forwardforModel})
+		state.Forwardfor, diags = types.ObjectValueFrom(ctx, map[string]attr.Type{
+			"enabled": types.StringType,
+		}, forwardforModel)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		state.Forwardfor = forwardforList
 	}
 
-	// Handle balance block
 	if backend.Balance != nil {
 		var balanceModel struct {
 			Algorithm types.String `tfsdk:"algorithm"`
 			UrlParam  types.String `tfsdk:"url_param"`
 		}
 		balanceModel.Algorithm = types.StringValue(backend.Balance.Algorithm)
-		if backend.Balance.UrlParam != "" {
-			balanceModel.UrlParam = types.StringValue(backend.Balance.UrlParam)
-		}
-
-		balanceObj, diags := types.ObjectValueFrom(ctx, map[string]attr.Type{
+		balanceModel.UrlParam = types.StringValue(backend.Balance.UrlParam)
+		state.Balance, diags = types.ObjectValueFrom(ctx, map[string]attr.Type{
 			"algorithm": types.StringType,
 			"url_param": types.StringType,
 		}, balanceModel)
@@ -1802,36 +2071,27 @@ func (r *backendResource) Read(ctx context.Context, req resource.ReadRequest, re
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		state.Balance = balanceObj
 	}
 
-	// Handle httpchk_params block
 	if backend.HttpchkParams != nil {
-		var httpchkModel struct {
+		var httpchkParamsModel struct {
 			Method  types.String `tfsdk:"method"`
 			Uri     types.String `tfsdk:"uri"`
 			Version types.String `tfsdk:"version"`
 		}
-		httpchkModel.Method = types.StringValue(backend.HttpchkParams.Method)
-		httpchkModel.Uri = types.StringValue(backend.HttpchkParams.Uri)
-		if backend.HttpchkParams.Version != "" {
-			httpchkModel.Version = types.StringValue(backend.HttpchkParams.Version)
-		}
-
-		httpchkObj, diags := types.ObjectValueFrom(ctx, map[string]attr.Type{
+		httpchkParamsModel.Method = types.StringValue(backend.HttpchkParams.Method)
+		httpchkParamsModel.Uri = types.StringValue(backend.HttpchkParams.Uri)
+		httpchkParamsModel.Version = types.StringValue(backend.HttpchkParams.Version)
+		state.HttpchkParams, diags = types.ObjectValueFrom(ctx, map[string]attr.Type{
 			"method":  types.StringType,
 			"uri":     types.StringType,
 			"version": types.StringType,
-		}, httpchkModel)
+		}, httpchkParamsModel)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		state.HttpchkParams = httpchkObj
 	}
-
-	// TODO: Handle balance and httpchk_params from blocks instead of attributes
-	// These are now defined as blocks in the schema
 
 	acls, err := r.client.ReadAcls(ctx, "backend", state.Name.ValueString())
 	if err != nil {
@@ -1986,6 +2246,7 @@ func (r *backendResource) Read(ctx context.Context, req resource.ReadRequest, re
 		for _, tcpResponseRule := range tcpResponseRules {
 			tcpResponseRuleModels = append(tcpResponseRuleModels, backendTcpResponseRuleResourceModel{
 				Index:     types.Int64Value(tcpResponseRule.Index),
+				Type:      types.StringValue(tcpResponseRule.Type),
 				Action:    types.StringValue(tcpResponseRule.Action),
 				Cond:      types.StringValue(tcpResponseRule.Cond),
 				CondTest:  types.StringValue(tcpResponseRule.CondTest),
@@ -2013,8 +2274,43 @@ func (r *backendResource) Read(ctx context.Context, req resource.ReadRequest, re
 		}
 	}
 
-	// TODO: Handle httpcheck from blocks instead of attributes
-	// This is now defined as a block in the schema
+	httpchecks, err := r.client.ReadHttpchecks(ctx, "backend", state.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading httpchecks",
+			"Could not read httpchecks, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	if len(httpchecks) > 0 {
+		var httpcheckModels []backendHttpcheckResourceModel
+		for _, httpcheck := range httpchecks {
+			httpcheckModels = append(httpcheckModels, backendHttpcheckResourceModel{
+				Index:           types.Int64Value(httpcheck.Index),
+				Addr:            types.StringValue(httpcheck.Addr),
+				Match:           types.StringValue(httpcheck.Match),
+				Pattern:         types.StringValue(httpcheck.Pattern),
+				Type:            types.StringValue(httpcheck.Type),
+				Method:          types.StringValue(httpcheck.Method),
+				Port:            types.Int64Value(httpcheck.Port),
+				Uri:             types.StringValue(httpcheck.Uri),
+				Version:         types.StringValue(httpcheck.Version),
+				ExclamationMark: types.StringValue(httpcheck.ExclamationMark),
+				LogLevel:        types.StringValue(httpcheck.LogLevel),
+				SendProxy:       types.StringValue(httpcheck.SendProxy),
+				ViaSocks4:       types.StringValue(httpcheck.ViaSocks4),
+				CheckComment:    types.StringValue(httpcheck.CheckComment),
+			})
+		}
+		state.Httpchecks, diags = types.ListValueFrom(ctx, types.ObjectType{
+			AttrTypes: backendHttpcheckResourceModel{}.attrTypes(),
+		}, httpcheckModels)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
 
 	tcpChecks, err := r.client.ReadTcpChecks(ctx, "backend", state.Name.ValueString())
 	if err != nil {
@@ -2087,55 +2383,55 @@ func (r *backendResource) Update(ctx context.Context, req resource.UpdateRequest
 		CheckCache:         plan.CheckCache.ValueString(),
 		Retries:            plan.Retries.ValueInt64(),
 
-		// SSL/TLS Configuration Fields
-		// Deprecated fields (API v2)
-		NoSslv3:        plan.NoSslv3.ValueBool(),
-		NoTlsv10:       plan.NoTlsv10.ValueBool(),
-		NoTlsv11:       plan.NoTlsv11.ValueBool(),
-		NoTlsv12:       plan.NoTlsv12.ValueBool(),
-		NoTlsv13:       plan.NoTlsv13.ValueBool(),
-		ForceSslv3:     plan.ForceSslv3.ValueBool(),
-		ForceTlsv10:    plan.ForceTlsv10.ValueBool(),
-		ForceTlsv11:    plan.ForceTlsv11.ValueBool(),
-		ForceTlsv12:    plan.ForceTlsv12.ValueBool(),
-		ForceTlsv13:    plan.ForceTlsv13.ValueBool(),
-		ForceStrictSni: plan.ForceStrictSni.ValueString(),
+		// Default Server Configuration (for SSL/TLS settings)
+		DefaultServer: &DefaultServerPayload{
+			// SSL/TLS Configuration
+			Ssl:            "enabled", // Default value
+			SslCafile:      "",
+			SslCertificate: "",
+			SslMaxVer:      "",
+			SslMinVer:      "",
+			SslReuse:       "",
+			Ciphers:        "",
+			Ciphersuites:   "",
+			Verify:         "",
 
-		// New v3 fields (non-deprecated)
-		Sslv3:  plan.Sslv3.ValueBool(),
-		Tlsv10: plan.Tlsv10.ValueBool(),
-		Tlsv11: plan.Tlsv11.ValueBool(),
-		Tlsv12: plan.Tlsv11.ValueBool(),
-		Tlsv13: plan.Tlsv13.ValueBool(),
+			// SSL/TLS Protocol Control (v3 fields)
+			Sslv3:  "disabled",
+			Tlsv10: "disabled",
+			Tlsv11: "disabled",
+			Tlsv12: "enabled",
+			Tlsv13: "enabled",
 
-		// SSL/TLS Configuration
-		Ssl:          plan.Ssl.ValueBool(),
-		SslCafile:    plan.SslCafile.ValueString(),
-		SslMinVer:    plan.SslMinVer.ValueString(),
-		SslMaxVer:    plan.SslMaxVer.ValueString(),
-		SslReuse:     plan.SslReuse.ValueString(),
-		Ciphers:      plan.Ciphers.ValueString(),
-		Ciphersuites: plan.Ciphersuites.ValueString(),
-		Verify:       plan.Verify.ValueString(),
+			// SSL/TLS Protocol Control (deprecated v2 fields)
+			NoSslv3:        "enabled",
+			NoTlsv10:       "enabled",
+			NoTlsv11:       "enabled",
+			NoTlsv12:       "disabled",
+			NoTlsv13:       "disabled",
+			ForceSslv3:     "disabled",
+			ForceTlsv10:    "disabled",
+			ForceTlsv11:    "disabled",
+			ForceTlsv12:    "disabled",
+			ForceTlsv13:    "disabled",
+			ForceStrictSni: "",
+		},
 	}
 
-	if !plan.Forwardfor.IsNull() && len(plan.Forwardfor.Elements()) > 0 {
-		var forwardforModels []struct {
+	if !plan.Forwardfor.IsNull() {
+		var forwardforModel struct {
 			Enabled types.String `tfsdk:"enabled"`
 		}
-		diags := plan.Forwardfor.ElementsAs(ctx, &forwardforModels, false)
+		diags := plan.Forwardfor.As(ctx, &forwardforModel, basetypes.ObjectAsOptions{})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		if len(forwardforModels) > 0 {
-			payload.Forwardfor = &ForwardFor{
-				Enabled: forwardforModels[0].Enabled.ValueString(),
-			}
+		payload.Forwardfor = &ForwardFor{
+			Enabled: forwardforModel.Enabled.ValueString(),
 		}
 	}
 
-	// Handle balance block
 	if !plan.Balance.IsNull() {
 		var balanceModel struct {
 			Algorithm types.String `tfsdk:"algorithm"`
@@ -2146,39 +2442,29 @@ func (r *backendResource) Update(ctx context.Context, req resource.UpdateRequest
 		if resp.Diagnostics.HasError() {
 			return
 		}
-
 		payload.Balance = &Balance{
 			Algorithm: balanceModel.Algorithm.ValueString(),
-		}
-		if !balanceModel.UrlParam.IsNull() {
-			payload.Balance.UrlParam = balanceModel.UrlParam.ValueString()
+			UrlParam:  balanceModel.UrlParam.ValueString(),
 		}
 	}
 
-	// Handle httpchk_params block
 	if !plan.HttpchkParams.IsNull() {
-		var httpchkModel struct {
+		var httpchkParamsModel struct {
 			Method  types.String `tfsdk:"method"`
 			Uri     types.String `tfsdk:"uri"`
 			Version types.String `tfsdk:"version"`
 		}
-		diags := plan.HttpchkParams.As(ctx, &httpchkModel, basetypes.ObjectAsOptions{})
+		diags := plan.HttpchkParams.As(ctx, &httpchkParamsModel, basetypes.ObjectAsOptions{})
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-
 		payload.HttpchkParams = &HttpchkParams{
-			Method: httpchkModel.Method.ValueString(),
-			Uri:    httpchkModel.Uri.ValueString(),
-		}
-		if !httpchkModel.Version.IsNull() {
-			payload.HttpchkParams.Version = httpchkModel.Version.ValueString()
+			Method:  httpchkParamsModel.Method.ValueString(),
+			Uri:     httpchkParamsModel.Uri.ValueString(),
+			Version: httpchkParamsModel.Version.ValueString(),
 		}
 	}
-
-	// TODO: Handle balance and httpchk_params from blocks instead of attributes
-	// These are now defined as blocks in the schema
 
 	err := r.client.UpdateBackend(ctx, plan.Name.ValueString(), payload)
 	if err != nil {
@@ -2632,6 +2918,7 @@ func (r *backendResource) Update(ctx context.Context, req resource.UpdateRequest
 				// Create new tcp-response rule
 				rulePayload := &TcpResponseRulePayload{
 					Index:     planRule.Index.ValueInt64(),
+					Type:      planRule.Type.ValueString(),
 					Action:    planRule.Action.ValueString(),
 					Cond:      planRule.Cond.ValueString(),
 					CondTest:  planRule.CondTest.ValueString(),
@@ -2657,10 +2944,11 @@ func (r *backendResource) Update(ctx context.Context, req resource.UpdateRequest
 					)
 					return
 				}
-			} else if !planRule.Action.Equal(stateRule.Action) || !planRule.Cond.Equal(stateRule.Cond) || !planRule.CondTest.Equal(stateRule.CondTest) {
+			} else if !planRule.Type.Equal(stateRule.Type) || !planRule.Action.Equal(stateRule.Action) || !planRule.Cond.Equal(stateRule.Cond) || !planRule.CondTest.Equal(stateRule.CondTest) {
 				// Update existing tcp-response rule
 				rulePayload := &TcpResponseRulePayload{
 					Index:     planRule.Index.ValueInt64(),
+					Type:      planRule.Type.ValueString(),
 					Action:    planRule.Action.ValueString(),
 					Cond:      planRule.Cond.ValueString(),
 					CondTest:  planRule.CondTest.ValueString(),
@@ -2704,8 +2992,112 @@ func (r *backendResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	// TODO: Handle httpcheck from blocks instead of attributes
-	// This is now defined as a block in the schema
+	if !plan.Httpchecks.IsNull() {
+		var planHttpchecks []backendHttpcheckResourceModel
+		diags := plan.Httpchecks.ElementsAs(ctx, &planHttpchecks, false)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		var stateHttpchecks []backendHttpcheckResourceModel
+		if !req.State.Raw.IsNull() {
+			var state backendResourceModel
+			diags := req.State.Get(ctx, &state)
+			resp.Diagnostics.Append(diags...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			if !state.Httpchecks.IsNull() {
+				diags := state.Httpchecks.ElementsAs(ctx, &stateHttpchecks, false)
+				resp.Diagnostics.Append(diags...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+			}
+		}
+
+		planHttpchecksMap := make(map[int64]backendHttpcheckResourceModel)
+		for _, httpcheck := range planHttpchecks {
+			planHttpchecksMap[httpcheck.Index.ValueInt64()] = httpcheck
+		}
+
+		stateHttpchecksMap := make(map[int64]backendHttpcheckResourceModel)
+		for _, httpcheck := range stateHttpchecks {
+			stateHttpchecksMap[httpcheck.Index.ValueInt64()] = httpcheck
+		}
+
+		for index, planHttpcheck := range planHttpchecksMap {
+			stateHttpcheck, ok := stateHttpchecksMap[index]
+			if !ok {
+				// Create new httpcheck
+				httpcheckPayload := &HttpcheckPayload{
+					Index:           planHttpcheck.Index.ValueInt64(),
+					Addr:            planHttpcheck.Addr.ValueString(),
+					Match:           planHttpcheck.Match.ValueString(),
+					Pattern:         planHttpcheck.Pattern.ValueString(),
+					Type:            planHttpcheck.Type.ValueString(),
+					Method:          planHttpcheck.Method.ValueString(),
+					Port:            planHttpcheck.Port.ValueInt64(),
+					Uri:             planHttpcheck.Uri.ValueString(),
+					Version:         planHttpcheck.Version.ValueString(),
+					ExclamationMark: planHttpcheck.ExclamationMark.ValueString(),
+					LogLevel:        planHttpcheck.LogLevel.ValueString(),
+					SendProxy:       planHttpcheck.SendProxy.ValueString(),
+					ViaSocks4:       planHttpcheck.ViaSocks4.ValueString(),
+					CheckComment:    planHttpcheck.CheckComment.ValueString(),
+				}
+				err := r.client.CreateHttpcheck(ctx, "backend", plan.Name.ValueString(), httpcheckPayload)
+				if err != nil {
+					resp.Diagnostics.AddError(
+						"Error creating httpcheck",
+						fmt.Sprintf("Could not create httpcheck, unexpected error: %s", err.Error()),
+					)
+					return
+				}
+			} else if !planHttpcheck.Type.Equal(stateHttpcheck.Type) {
+				// Update existing httpcheck
+				httpcheckPayload := &HttpcheckPayload{
+					Index:           planHttpcheck.Index.ValueInt64(),
+					Addr:            planHttpcheck.Addr.ValueString(),
+					Match:           planHttpcheck.Match.ValueString(),
+					Pattern:         planHttpcheck.Pattern.ValueString(),
+					Type:            planHttpcheck.Type.ValueString(),
+					Method:          planHttpcheck.Method.ValueString(),
+					Port:            planHttpcheck.Port.ValueInt64(),
+					Uri:             planHttpcheck.Uri.ValueString(),
+					Version:         planHttpcheck.Version.ValueString(),
+					ExclamationMark: planHttpcheck.ExclamationMark.ValueString(),
+					LogLevel:        planHttpcheck.LogLevel.ValueString(),
+					SendProxy:       planHttpcheck.SendProxy.ValueString(),
+					ViaSocks4:       planHttpcheck.ViaSocks4.ValueString(),
+					CheckComment:    planHttpcheck.CheckComment.ValueString(),
+				}
+				err := r.client.UpdateHttpcheck(ctx, index, "backend", plan.Name.ValueString(), httpcheckPayload)
+				if err != nil {
+					resp.Diagnostics.AddError(
+						"Error updating httpcheck",
+						fmt.Sprintf("Could not update httpcheck %d, unexpected error: %s", index, err.Error()),
+					)
+					return
+				}
+			}
+		}
+
+		for index := range stateHttpchecksMap {
+			if _, ok := planHttpchecksMap[index]; !ok {
+				// Delete httpcheck
+				err := r.client.DeleteHttpcheck(ctx, index, "backend", plan.Name.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddError(
+						"Error deleting httpcheck",
+						fmt.Sprintf("Could not delete httpcheck %d, unexpected error: %s", index, err.Error()),
+					)
+					return
+				}
+			}
+		}
+	}
 
 	if !plan.TcpChecks.IsNull() {
 		var planTcpChecks []backendTcpCheckResourceModel
