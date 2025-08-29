@@ -2113,26 +2113,13 @@ func (r *haproxyStackResource) processAclsBlock(acls []haproxyAclModel) []haprox
 	sortedAcls := make([]haproxyAclModel, len(acls))
 	copy(sortedAcls, acls)
 
-	// Sort by index, with unset indices (0) going to the end
+	// Sort ACLs by index to ensure proper order
 	sort.Slice(sortedAcls, func(i, j int) bool {
 		indexI := sortedAcls[i].Index.ValueInt64()
 		indexJ := sortedAcls[j].Index.ValueInt64()
 
-		// If both have explicit indices, sort numerically
-		if indexI > 0 && indexJ > 0 {
-			return indexI < indexJ
-		}
-
-		// If only one has an explicit index, prioritize it
-		if indexI > 0 {
-			return true
-		}
-		if indexJ > 0 {
-			return false
-		}
-
-		// If neither has an explicit index, maintain original order
-		return i < j
+		// Sort numerically by index (0, 1, 2, 3...)
+		return indexI < indexJ
 	})
 
 	return sortedAcls
