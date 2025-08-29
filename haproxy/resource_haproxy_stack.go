@@ -1120,22 +1120,31 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 			CheckCache:         plan.Backend.Checkcache.ValueString(),
 			Retries:            plan.Backend.Retries.ValueInt64(),
 			DefaultServer: &DefaultServerPayload{
-				Ssl:         plan.Backend.DefaultServer.Ssl.ValueString(),
-				Sslv3:       plan.Backend.DefaultServer.Sslv3.ValueString(),
-				Tlsv10:      plan.Backend.DefaultServer.Tlsv10.ValueString(),
-				Tlsv11:      plan.Backend.DefaultServer.Tlsv11.ValueString(),
-				Tlsv12:      plan.Backend.DefaultServer.Tlsv12.ValueString(),
-				Tlsv13:      plan.Backend.DefaultServer.Tlsv13.ValueString(),
-				NoSslv3:     plan.Backend.DefaultServer.NoSslv3.ValueString(),
-				NoTlsv10:    plan.Backend.DefaultServer.NoTlsv10.ValueString(),
-				NoTlsv11:    plan.Backend.DefaultServer.NoTlsv11.ValueString(),
-				NoTlsv12:    plan.Backend.DefaultServer.NoTlsv12.ValueString(),
-				NoTlsv13:    plan.Backend.DefaultServer.NoTlsv13.ValueString(),
-				ForceSslv3:  plan.Backend.DefaultServer.ForceSslv3.ValueString(),
-				ForceTlsv10: plan.Backend.DefaultServer.ForceTlsv10.ValueString(),
-				ForceTlsv11: plan.Backend.DefaultServer.ForceTlsv11.ValueString(),
-				ForceTlsv12: plan.Backend.DefaultServer.ForceTlsv12.ValueString(),
-				ForceTlsv13: plan.Backend.DefaultServer.ForceTlsv13.ValueString(),
+				Ssl:            plan.Backend.DefaultServer.Ssl.ValueString(),
+				SslCafile:      plan.Backend.DefaultServer.SslCafile.ValueString(),
+				SslCertificate: plan.Backend.DefaultServer.SslCertificate.ValueString(),
+				SslMaxVer:      plan.Backend.DefaultServer.SslMaxVer.ValueString(),
+				SslMinVer:      plan.Backend.DefaultServer.SslMinVer.ValueString(),
+				SslReuse:       plan.Backend.DefaultServer.SslReuse.ValueString(),
+				Ciphers:        plan.Backend.DefaultServer.Ciphers.ValueString(),
+				Ciphersuites:   plan.Backend.DefaultServer.Ciphersuites.ValueString(),
+				Verify:         plan.Backend.DefaultServer.Verify.ValueString(),
+				Sslv3:          plan.Backend.DefaultServer.Sslv3.ValueString(),
+				Tlsv10:         plan.Backend.DefaultServer.Tlsv10.ValueString(),
+				Tlsv11:         plan.Backend.DefaultServer.Tlsv11.ValueString(),
+				Tlsv12:         plan.Backend.DefaultServer.Tlsv12.ValueString(),
+				Tlsv13:         plan.Backend.DefaultServer.Tlsv13.ValueString(),
+				NoSslv3:        plan.Backend.DefaultServer.NoSslv3.ValueString(),
+				NoTlsv10:       plan.Backend.DefaultServer.NoTlsv10.ValueString(),
+				NoTlsv11:       plan.Backend.DefaultServer.NoTlsv11.ValueString(),
+				NoTlsv12:       plan.Backend.DefaultServer.NoTlsv12.ValueString(),
+				NoTlsv13:       plan.Backend.DefaultServer.NoTlsv13.ValueString(),
+				ForceSslv3:     plan.Backend.DefaultServer.ForceSslv3.ValueString(),
+				ForceTlsv10:    plan.Backend.DefaultServer.ForceTlsv10.ValueString(),
+				ForceTlsv11:    plan.Backend.DefaultServer.ForceTlsv11.ValueString(),
+				ForceTlsv12:    plan.Backend.DefaultServer.ForceTlsv12.ValueString(),
+				ForceTlsv13:    plan.Backend.DefaultServer.ForceTlsv13.ValueString(),
+				ForceStrictSni: plan.Backend.DefaultServer.ForceStrictSni.ValueString(),
 			},
 		},
 		Servers: []ServerResource{
@@ -1247,31 +1256,82 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 
 		// Handle default_server configuration
 		if backend.DefaultServer != nil {
-			state.Backend.DefaultServer.Ssl = types.StringValue(backend.DefaultServer.Ssl)
-			state.Backend.DefaultServer.SslCafile = types.StringValue(backend.DefaultServer.SslCafile)
-			state.Backend.DefaultServer.SslCertificate = types.StringValue(backend.DefaultServer.SslCertificate)
-			state.Backend.DefaultServer.SslMaxVer = types.StringValue(backend.DefaultServer.SslMaxVer)
-			state.Backend.DefaultServer.SslMinVer = types.StringValue(backend.DefaultServer.SslMinVer)
-			state.Backend.DefaultServer.SslReuse = types.StringValue(backend.DefaultServer.SslReuse)
-			state.Backend.DefaultServer.Ciphers = types.StringValue(backend.DefaultServer.Ciphers)
-			state.Backend.DefaultServer.Ciphersuites = types.StringValue(backend.DefaultServer.Ciphersuites)
-			state.Backend.DefaultServer.Verify = types.StringValue(backend.DefaultServer.Verify)
-			state.Backend.DefaultServer.Sslv3 = types.StringValue(backend.DefaultServer.Sslv3)
-			state.Backend.DefaultServer.Tlsv10 = types.StringValue(backend.DefaultServer.Tlsv10)
-			state.Backend.DefaultServer.Tlsv11 = types.StringValue(backend.DefaultServer.Tlsv11)
-			state.Backend.DefaultServer.Tlsv12 = types.StringValue(backend.DefaultServer.Tlsv12)
-			state.Backend.DefaultServer.Tlsv13 = types.StringValue(backend.DefaultServer.Tlsv13)
-			state.Backend.DefaultServer.NoSslv3 = types.StringValue(backend.DefaultServer.NoSslv3)
-			state.Backend.DefaultServer.NoTlsv10 = types.StringValue(backend.DefaultServer.NoTlsv10)
-			state.Backend.DefaultServer.NoTlsv11 = types.StringValue(backend.DefaultServer.NoTlsv11)
-			state.Backend.DefaultServer.NoTlsv12 = types.StringValue(backend.DefaultServer.NoTlsv12)
-			state.Backend.DefaultServer.NoTlsv13 = types.StringValue(backend.DefaultServer.NoTlsv13)
-			state.Backend.DefaultServer.ForceSslv3 = types.StringValue(backend.DefaultServer.ForceSslv3)
-			state.Backend.DefaultServer.ForceTlsv10 = types.StringValue(backend.DefaultServer.ForceTlsv10)
-			state.Backend.DefaultServer.ForceTlsv11 = types.StringValue(backend.DefaultServer.ForceTlsv11)
-			state.Backend.DefaultServer.ForceTlsv12 = types.StringValue(backend.DefaultServer.ForceTlsv12)
-			state.Backend.DefaultServer.ForceTlsv13 = types.StringValue(backend.DefaultServer.ForceTlsv13)
-			state.Backend.DefaultServer.ForceStrictSni = types.StringValue(backend.DefaultServer.ForceStrictSni)
+			// Only set fields that HAProxy actually returned (non-empty)
+			if backend.DefaultServer.Ssl != "" {
+				state.Backend.DefaultServer.Ssl = types.StringValue(backend.DefaultServer.Ssl)
+			}
+			if backend.DefaultServer.SslCafile != "" {
+				state.Backend.DefaultServer.SslCafile = types.StringValue(backend.DefaultServer.SslCafile)
+			}
+			if backend.DefaultServer.SslCertificate != "" {
+				state.Backend.DefaultServer.SslCertificate = types.StringValue(backend.DefaultServer.SslCertificate)
+			}
+			if backend.DefaultServer.SslMaxVer != "" {
+				state.Backend.DefaultServer.SslMaxVer = types.StringValue(backend.DefaultServer.SslMaxVer)
+			}
+			if backend.DefaultServer.SslMinVer != "" {
+				state.Backend.DefaultServer.SslMinVer = types.StringValue(backend.DefaultServer.SslMinVer)
+			}
+			if backend.DefaultServer.SslReuse != "" {
+				state.Backend.DefaultServer.SslReuse = types.StringValue(backend.DefaultServer.SslReuse)
+			}
+			if backend.DefaultServer.Ciphers != "" {
+				state.Backend.DefaultServer.Ciphers = types.StringValue(backend.DefaultServer.Ciphers)
+			}
+			if backend.DefaultServer.Ciphersuites != "" {
+				state.Backend.DefaultServer.Ciphersuites = types.StringValue(backend.DefaultServer.Ciphersuites)
+			}
+			if backend.DefaultServer.Verify != "" {
+				state.Backend.DefaultServer.Verify = types.StringValue(backend.DefaultServer.Verify)
+			}
+			if backend.DefaultServer.Sslv3 != "" {
+				state.Backend.DefaultServer.Sslv3 = types.StringValue(backend.DefaultServer.Sslv3)
+			}
+			if backend.DefaultServer.Tlsv10 != "" {
+				state.Backend.DefaultServer.Tlsv10 = types.StringValue(backend.DefaultServer.Tlsv10)
+			}
+			if backend.DefaultServer.Tlsv11 != "" {
+				state.Backend.DefaultServer.Tlsv11 = types.StringValue(backend.DefaultServer.Tlsv11)
+			}
+			if backend.DefaultServer.Tlsv12 != "" {
+				state.Backend.DefaultServer.Tlsv12 = types.StringValue(backend.DefaultServer.Tlsv12)
+			}
+			if backend.DefaultServer.Tlsv13 != "" {
+				state.Backend.DefaultServer.Tlsv13 = types.StringValue(backend.DefaultServer.Tlsv13)
+			}
+			if backend.DefaultServer.NoSslv3 != "" {
+				state.Backend.DefaultServer.NoSslv3 = types.StringValue(backend.DefaultServer.NoSslv3)
+			}
+			if backend.DefaultServer.NoTlsv10 != "" {
+				state.Backend.DefaultServer.NoTlsv10 = types.StringValue(backend.DefaultServer.NoTlsv10)
+			}
+			if backend.DefaultServer.NoTlsv11 != "" {
+				state.Backend.DefaultServer.NoTlsv11 = types.StringValue(backend.DefaultServer.NoTlsv11)
+			}
+			if backend.DefaultServer.NoTlsv12 != "" {
+				state.Backend.DefaultServer.NoTlsv12 = types.StringValue(backend.DefaultServer.NoTlsv12)
+			}
+			if backend.DefaultServer.NoTlsv13 != "" {
+				state.Backend.DefaultServer.NoTlsv13 = types.StringValue(backend.DefaultServer.NoTlsv13)
+			}
+			if backend.DefaultServer.ForceSslv3 != "" {
+				state.Backend.DefaultServer.ForceSslv3 = types.StringValue(backend.DefaultServer.ForceSslv3)
+			}
+			if backend.DefaultServer.ForceTlsv10 != "" {
+				state.Backend.DefaultServer.ForceTlsv10 = types.StringValue(backend.DefaultServer.ForceTlsv10)
+			}
+			if backend.DefaultServer.ForceTlsv11 != "" {
+				state.Backend.DefaultServer.ForceTlsv11 = types.StringValue(backend.DefaultServer.ForceTlsv11)
+			}
+			if backend.DefaultServer.ForceTlsv12 != "" {
+				state.Backend.DefaultServer.ForceTlsv12 = types.StringValue(backend.DefaultServer.ForceTlsv12)
+			}
+			if backend.DefaultServer.ForceTlsv13 != "" {
+				state.Backend.DefaultServer.ForceTlsv13 = types.StringValue(backend.DefaultServer.ForceTlsv13)
+			}
+			if backend.DefaultServer.ForceStrictSni != "" {
+				state.Backend.DefaultServer.ForceStrictSni = types.StringValue(backend.DefaultServer.ForceStrictSni)
+			}
 		}
 	}
 
