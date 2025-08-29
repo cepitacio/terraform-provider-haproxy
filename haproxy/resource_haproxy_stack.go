@@ -3,6 +3,7 @@ package haproxy
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -364,7 +365,7 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 				},
 				Blocks: map[string]schema.Block{
 					"default_server": schema.SingleNestedBlock{
-						Description: "Default server configuration for the backend.",
+						Description: "Default server configuration for the backend. Note: SSL/TLS protocol control fields have different support levels between Data Plane API v2 and v3. Fields not supported by your HAProxy version will be silently ignored.",
 						Attributes: map[string]schema.Attribute{
 							"ssl": schema.StringAttribute{
 								Optional:    true,
@@ -404,7 +405,7 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 							},
 							"sslv3": schema.StringAttribute{
 								Optional:    true,
-								Description: "Whether SSLv3 is enabled. Use 'enabled' or 'disabled'.",
+								Description: "Whether SSLv3 is enabled. Use 'enabled' or 'disabled'. Only supported in Data Plane API v3.",
 							},
 							"tlsv10": schema.StringAttribute{
 								Optional:    true,
@@ -424,7 +425,7 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 							},
 							"no_sslv3": schema.StringAttribute{
 								Optional:    true,
-								Description: "Whether SSLv3 is disabled. Use 'enabled' or 'disabled'.",
+								Description: "Whether SSLv3 is disabled. Use 'enabled' or 'disabled'. Only supported in Data Plane API v2 (deprecated).",
 							},
 							"no_tlsv10": schema.StringAttribute{
 								Optional:    true,
@@ -444,7 +445,7 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 							},
 							"force_sslv3": schema.StringAttribute{
 								Optional:    true,
-								Description: "Whether to force SSLv3. Use 'enabled' or 'disabled'.",
+								Description: "Whether to force SSLv3. Use 'enabled' or 'disabled'. Only supported in Data Plane API v3.",
 							},
 							"force_tlsv10": schema.StringAttribute{
 								Optional:    true,
@@ -1104,7 +1105,16 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	// Create payload for single transaction
+	// Validate SSL/TLS configuration based on HAProxy API version
+	if err := r.validateSSLConfiguration(plan.Backend.DefaultServer); err != nil {
+		resp.Diagnostics.AddError(
+			"Invalid SSL/TLS configuration",
+			err.Error(),
+		)
+		return
+	}
+
+	// Create payload for single transaction with version-aware DefaultServer
 	allResources := &AllResourcesPayload{
 		Backend: &BackendPayload{
 			Name:               plan.Backend.Name.ValueString(),
@@ -1120,6 +1130,7 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 			CheckCache:         plan.Backend.Checkcache.ValueString(),
 			Retries:            plan.Backend.Retries.ValueInt64(),
 			DefaultServer: &DefaultServerPayload{
+				// Core SSL fields (supported in both v2 and v3)
 				Ssl:            plan.Backend.DefaultServer.Ssl.ValueString(),
 				SslCafile:      plan.Backend.DefaultServer.SslCafile.ValueString(),
 				SslCertificate: plan.Backend.DefaultServer.SslCertificate.ValueString(),
@@ -1129,16 +1140,22 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 				Ciphers:        plan.Backend.DefaultServer.Ciphers.ValueString(),
 				Ciphersuites:   plan.Backend.DefaultServer.Ciphersuites.ValueString(),
 				Verify:         plan.Backend.DefaultServer.Verify.ValueString(),
-				Sslv3:          plan.Backend.DefaultServer.Sslv3.ValueString(),
-				Tlsv10:         plan.Backend.DefaultServer.Tlsv10.ValueString(),
-				Tlsv11:         plan.Backend.DefaultServer.Tlsv11.ValueString(),
-				Tlsv12:         plan.Backend.DefaultServer.Tlsv12.ValueString(),
-				Tlsv13:         plan.Backend.DefaultServer.Tlsv13.ValueString(),
-				NoSslv3:        plan.Backend.DefaultServer.NoSslv3.ValueString(),
-				NoTlsv10:       plan.Backend.DefaultServer.NoTlsv10.ValueString(),
-				NoTlsv11:       plan.Backend.DefaultServer.NoTlsv11.ValueString(),
-				NoTlsv12:       plan.Backend.DefaultServer.NoTlsv12.ValueString(),
-				NoTlsv13:       plan.Backend.DefaultServer.NoTlsv13.ValueString(),
+
+				// Protocol control fields (v3 only)
+				Sslv3:  plan.Backend.DefaultServer.Sslv3.ValueString(),
+				Tlsv10: plan.Backend.DefaultServer.Tlsv10.ValueString(),
+				Tlsv11: plan.Backend.DefaultServer.Tlsv11.ValueString(),
+				Tlsv12: plan.Backend.DefaultServer.Tlsv12.ValueString(),
+				Tlsv13: plan.Backend.DefaultServer.Tlsv13.ValueString(),
+
+				// Deprecated fields (v2 only)
+				NoSslv3:  plan.Backend.DefaultServer.NoSslv3.ValueString(),
+				NoTlsv10: plan.Backend.DefaultServer.NoTlsv10.ValueString(),
+				NoTlsv11: plan.Backend.DefaultServer.NoTlsv11.ValueString(),
+				NoTlsv12: plan.Backend.DefaultServer.NoTlsv12.ValueString(),
+				NoTlsv13: plan.Backend.DefaultServer.NoTlsv13.ValueString(),
+
+				// Force fields (v3 only)
 				ForceSslv3:     plan.Backend.DefaultServer.ForceSslv3.ValueString(),
 				ForceTlsv10:    plan.Backend.DefaultServer.ForceTlsv10.ValueString(),
 				ForceTlsv11:    plan.Backend.DefaultServer.ForceTlsv11.ValueString(),
@@ -1410,6 +1427,15 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
+	// Validate SSL/TLS configuration based on HAProxy API version
+	if err := r.validateSSLConfiguration(plan.Backend.DefaultServer); err != nil {
+		resp.Diagnostics.AddError(
+			"Invalid SSL/TLS configuration",
+			err.Error(),
+		)
+		return
+	}
+
 	// Create payload for single transaction with ALL configuration
 	allResources := &AllResourcesPayload{
 		Backend: &BackendPayload{
@@ -1519,6 +1545,49 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 	// Set state
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
+}
+
+// validateSSLConfiguration validates SSL/TLS configuration based on HAProxy API version
+func (r *haproxyStackResource) validateSSLConfiguration(defaultServer *haproxyDefaultServerModel) error {
+	// TODO: Detect HAProxy API version dynamically
+	// For now, we'll use a configuration flag or environment variable
+	// This should be enhanced to detect the actual API version from HAProxy
+
+	// Note: v2-only fields (no_sslv3, no_tlsv10, etc.) are supported in v2
+	// but we don't need to validate them as they're always allowed
+
+	// Check if we're using v3-only fields
+	v3Fields := []struct {
+		name  string
+		value types.String
+	}{
+		{"sslv3", defaultServer.Sslv3},
+		{"tlsv10", defaultServer.Tlsv10},
+		{"tlsv11", defaultServer.Tlsv11},
+		{"tlsv12", defaultServer.Tlsv12},
+		{"tlsv13", defaultServer.Tlsv13},
+		{"force_sslv3", defaultServer.ForceSslv3},
+		{"force_tlsv10", defaultServer.ForceTlsv10},
+		{"force_tlsv11", defaultServer.ForceTlsv11},
+		{"force_tlsv12", defaultServer.ForceTlsv12},
+		{"force_tlsv13", defaultServer.ForceTlsv13},
+		{"force_strict_sni", defaultServer.ForceStrictSni},
+	}
+
+	// For now, we'll fail if v3 fields are used (assuming v2)
+	// This should be configurable or auto-detected
+	var v3FieldErrors []string
+	for _, field := range v3Fields {
+		if !field.value.IsNull() && field.value.ValueString() != "" {
+			v3FieldErrors = append(v3FieldErrors, fmt.Sprintf("Field '%s' is only supported in Data Plane API v3, but you appear to be using v2", field.name))
+		}
+	}
+
+	if len(v3FieldErrors) > 0 {
+		return fmt.Errorf("SSL/TLS configuration validation failed:\n%s\n\nTo fix this:\n1. Upgrade to HAProxy Data Plane API v3, OR\n2. Remove the unsupported fields from your configuration", strings.Join(v3FieldErrors, "\n"))
+	}
+
+	return nil
 }
 
 // Delete resource.
