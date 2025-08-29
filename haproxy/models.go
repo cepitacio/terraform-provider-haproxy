@@ -63,6 +63,14 @@ type MonitorFailPayload struct {
 	CondTest string `json:"cond_test"`
 }
 
+// ACLPayload is the payload for ACL resources.
+type ACLPayload struct {
+	AclName   string `json:"acl_name"`
+	Criterion string `json:"criterion"`
+	Value     string `json:"value"`
+	Index     int64  `json:"index"`
+}
+
 // AllResourcesPayload contains all resources to be created in a single transaction.
 type AllResourcesPayload struct {
 	Backend  *BackendPayload  `json:"backend,omitempty"`

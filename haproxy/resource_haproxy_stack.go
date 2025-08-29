@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -137,6 +138,7 @@ type haproxyFrontendModel struct {
 	V6only         types.Bool                 `tfsdk:"v6only"`
 	Bind           []haproxyBindModel         `tfsdk:"bind"`
 	StatsOptions   []haproxyStatsOptionsModel `tfsdk:"stats_options"`
+	Acls           []haproxyAclModel          `tfsdk:"acls"`
 }
 
 // haproxyBalanceModel maps the balance block schema data.
@@ -1038,6 +1040,29 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 							},
 						},
 					},
+					"acls": schema.ListNestedBlock{
+						Description: "Access Control List (ACL) configuration blocks for content switching and decision making.",
+						NestedObject: schema.NestedBlockObject{
+							Attributes: map[string]schema.Attribute{
+								"acl_name": schema.StringAttribute{
+									Required:    true,
+									Description: "The name of the ACL rule.",
+								},
+								"criterion": schema.StringAttribute{
+									Required:    true,
+									Description: "The criterion for the ACL rule (e.g., 'path', 'hdr', 'src').",
+								},
+								"value": schema.StringAttribute{
+									Required:    true,
+									Description: "The value for the ACL rule.",
+								},
+								"index": schema.Int64Attribute{
+									Optional:    true,
+									Description: "The index/order of the ACL rule. If not specified, will be auto-assigned.",
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -1255,6 +1280,34 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	// Create ACLs separately after frontend is created
+	if plan.Frontend.Acls != nil && len(plan.Frontend.Acls) > 0 {
+		// Sort ACLs by index to ensure proper order
+		sortedAcls := r.processAclsBlock(plan.Frontend.Acls)
+
+		// Create ACLs with sequential indices starting from 0
+		nextIndex := int64(0) // Start from 0 as required by HAProxy
+
+		for _, acl := range sortedAcls {
+			aclPayload := ACLPayload{
+				AclName:   acl.AclName.ValueString(),
+				Criterion: acl.Criterion.ValueString(),
+				Value:     acl.Value.ValueString(),
+				Index:     nextIndex, // Use sequential index starting from 0
+			}
+
+			err := r.client.CreateACL(ctx, "frontend", plan.Frontend.Name.ValueString(), &aclPayload)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error creating ACL",
+					fmt.Sprintf("Could not create ACL '%s': %s", aclPayload.AclName, err.Error()),
+				)
+				return
+			}
+			nextIndex++ // Increment for next ACL
+		}
+	}
+
 	// Set state
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -1327,6 +1380,16 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 			"Could not read frontend, unexpected error: "+err.Error(),
 		)
 		return
+	}
+
+	// Read ACLs for the frontend
+	var acls []ACLPayload
+	if frontend != nil {
+		acls, err = r.client.ReadACLs(ctx, "frontend", frontendName)
+		if err != nil {
+			log.Printf("Warning: Failed to read ACLs for frontend %s: %v", frontendName, err)
+			// Continue without ACLs if reading fails
+		}
 	}
 
 	// Update state with actual HAProxy configuration
@@ -1621,6 +1684,48 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 		if frontend.Backlog != 0 {
 			state.Frontend.Backlog = types.Int64Value(frontend.Backlog)
 		}
+
+		// Handle ACLs - read them from HAProxy and map back to user's intended order
+		if len(acls) > 0 {
+			var aclModels []haproxyAclModel
+
+			// Create a map of existing ACLs by name to preserve user's intended order
+			existingAclMap := make(map[string]haproxyAclModel)
+			if existingFrontend.Acls != nil {
+				for _, existingAcl := range existingFrontend.Acls {
+					existingAclMap[existingAcl.AclName.ValueString()] = existingAcl
+				}
+			}
+
+			// Map HAProxy ACLs back to user's intended order
+			for _, acl := range acls {
+				aclName := acl.AclName
+				if existingAcl, exists := existingAclMap[aclName]; exists {
+					// Use the user's intended index and preserve their configuration
+					aclModels = append(aclModels, existingAcl)
+				} else {
+					// This is a new ACL, create it with HAProxy's index
+					aclModels = append(aclModels, haproxyAclModel{
+						AclName:   types.StringValue(acl.AclName),
+						Criterion: types.StringValue(acl.Criterion),
+						Value:     types.StringValue(acl.Value),
+						Index:     types.Int64Value(acl.Index),
+					})
+				}
+			}
+
+			// Sort by user's intended index to maintain order
+			if len(aclModels) > 0 {
+				sort.Slice(aclModels, func(i, j int) bool {
+					return aclModels[i].Index.ValueInt64() < aclModels[j].Index.ValueInt64()
+				})
+			}
+
+			state.Frontend.Acls = aclModels
+		} else if existingFrontend.Acls != nil && len(existingFrontend.Acls) > 0 {
+			// Preserve existing ACLs if HAProxy didn't return them
+			state.Frontend.Acls = existingFrontend.Acls
+		}
 	} else if existingFrontend != nil {
 		// Preserve existing frontend configuration if HAProxy didn't return it
 		state.Frontend = existingFrontend
@@ -1801,6 +1906,15 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
+	// Update ACLs - this requires careful handling of order and changes
+	if err := r.updateACLs(ctx, plan.Frontend.Name.ValueString(), plan.Frontend.Acls); err != nil {
+		resp.Diagnostics.AddError(
+			"Error updating ACLs",
+			fmt.Sprintf("Could not update ACLs: %s", err.Error()),
+		)
+		return
+	}
+
 	// Set state
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -1885,6 +1999,143 @@ func (r *haproxyStackResource) processForwardforBlock(forwardfor []haproxyForwar
 	return &ForwardFor{
 		Enabled: ff.Enabled.ValueString(),
 	}
+}
+
+// updateACLs handles the complex logic of updating ACLs while maintaining order
+func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName string, newAcls []haproxyAclModel) error {
+	// Read existing ACLs from HAProxy
+	existingAcls, err := r.client.ReadACLs(ctx, "frontend", frontendName)
+	if err != nil {
+		return fmt.Errorf("failed to read existing ACLs: %w", err)
+	}
+
+	// Process new ACLs with proper indexing
+	sortedNewAcls := r.processAclsBlock(newAcls)
+
+	// Create maps for efficient lookup
+	existingAclMap := make(map[string]*ACLPayload)
+	for i := range existingAcls {
+		existingAclMap[existingAcls[i].AclName] = &existingAcls[i]
+	}
+
+	// Track which ACLs we've processed to avoid duplicates
+	processedAcls := make(map[string]bool)
+
+	// First, update existing ACLs that match by name
+	for _, newAcl := range sortedNewAcls {
+		newAclName := newAcl.AclName.ValueString()
+		if existingAcl, exists := existingAclMap[newAclName]; exists {
+			// Update existing ACL in place
+			aclPayload := ACLPayload{
+				AclName:   newAcl.AclName.ValueString(),
+				Criterion: newAcl.Criterion.ValueString(),
+				Value:     newAcl.Value.ValueString(),
+				Index:     existingAcl.Index, // Keep the existing index
+			}
+
+			log.Printf("Updating existing ACL '%s' at index %d", aclPayload.AclName, aclPayload.Index)
+			err := r.client.UpdateACL(ctx, "frontend", frontendName, existingAcl.Index, &aclPayload)
+			if err != nil {
+				return fmt.Errorf("failed to update ACL '%s': %w", aclPayload.AclName, err)
+			}
+
+			// Mark this ACL as processed
+			processedAcls[newAclName] = true
+		}
+	}
+
+	// Delete ACLs that are no longer needed (not in the new configuration)
+	// Delete in reverse order (highest index first) to avoid shifting issues
+	var aclsToDelete []ACLPayload
+	for _, existingAcl := range existingAcls {
+		if !processedAcls[existingAcl.AclName] {
+			aclsToDelete = append(aclsToDelete, existingAcl)
+		}
+	}
+
+	// Sort by index in descending order (highest first)
+	sort.Slice(aclsToDelete, func(i, j int) bool {
+		return aclsToDelete[i].Index > aclsToDelete[j].Index
+	})
+
+	// Delete ACLs in reverse order
+	for _, aclToDelete := range aclsToDelete {
+		log.Printf("Deleting ACL '%s' at index %d (no longer needed)", aclToDelete.AclName, aclToDelete.Index)
+		err := r.client.DeleteACL(ctx, "frontend", frontendName, aclToDelete.Index)
+		if err != nil {
+			return fmt.Errorf("failed to delete ACL '%s': %w", aclToDelete.AclName, err)
+		}
+	}
+
+	// Create new ACLs that don't exist yet
+	// Find the next available index
+	nextIndex := int64(0)
+	if len(existingAcls) > 0 {
+		maxIndex := int64(0)
+		for _, existingAcl := range existingAcls {
+			if existingAcl.Index > maxIndex {
+				maxIndex = existingAcl.Index
+			}
+		}
+		nextIndex = maxIndex + 1
+	}
+
+	for _, newAcl := range sortedNewAcls {
+		newAclName := newAcl.AclName.ValueString()
+		if !processedAcls[newAclName] {
+			// This is a new ACL, create it with the next available index
+			aclPayload := ACLPayload{
+				AclName:   newAcl.AclName.ValueString(),
+				Criterion: newAcl.Criterion.ValueString(),
+				Value:     newAcl.Value.ValueString(),
+				Index:     nextIndex, // Use the next available index
+			}
+
+			log.Printf("Creating new ACL '%s' at index %d", aclPayload.AclName, aclPayload.Index)
+			err := r.client.CreateACL(ctx, "frontend", frontendName, &aclPayload)
+			if err != nil {
+				return fmt.Errorf("failed to create ACL '%s': %w", aclPayload.AclName, err)
+			}
+			nextIndex++ // Increment for next ACL
+		}
+	}
+
+	return nil
+}
+
+// processAclsBlock processes the ACLs block configuration with proper index sorting
+func (r *haproxyStackResource) processAclsBlock(acls []haproxyAclModel) []haproxyAclModel {
+	if len(acls) == 0 {
+		return nil
+	}
+
+	// Sort ACLs by index to ensure proper order
+	sortedAcls := make([]haproxyAclModel, len(acls))
+	copy(sortedAcls, acls)
+
+	// Sort by index, with unset indices (0) going to the end
+	sort.Slice(sortedAcls, func(i, j int) bool {
+		indexI := sortedAcls[i].Index.ValueInt64()
+		indexJ := sortedAcls[j].Index.ValueInt64()
+
+		// If both have explicit indices, sort numerically
+		if indexI > 0 && indexJ > 0 {
+			return indexI < indexJ
+		}
+
+		// If only one has an explicit index, prioritize it
+		if indexI > 0 {
+			return true
+		}
+		if indexJ > 0 {
+			return false
+		}
+
+		// If neither has an explicit index, maintain original order
+		return i < j
+	})
+
+	return sortedAcls
 }
 
 // translateNoTlsToForceTls translates no_tlsv* fields to force_tlsv* fields
@@ -1972,8 +2223,25 @@ func (r *haproxyStackResource) Delete(ctx context.Context, req resource.DeleteRe
 		return
 	}
 
-	// Delete all resources in proper order (frontend → backend → server)
-	// Delete frontend first
+	// Delete all resources in proper order (ACLs → frontend → backend → server)
+	// Delete ACLs first (they depend on frontend)
+	if state.Frontend.Acls != nil && len(state.Frontend.Acls) > 0 {
+		// Read existing ACLs to get their indices
+		existingAcls, err := r.client.ReadACLs(ctx, "frontend", state.Frontend.Name.ValueString())
+		if err == nil {
+			// Delete ACLs in reverse order to avoid index shifting issues
+			for i := len(existingAcls) - 1; i >= 0; i-- {
+				acl := existingAcls[i]
+				err := r.client.DeleteACL(ctx, "frontend", state.Frontend.Name.ValueString(), acl.Index)
+				if err != nil {
+					log.Printf("Warning: Failed to delete ACL '%s' at index %d: %v", acl.AclName, acl.Index, err)
+					// Continue with deletion even if ACL deletion fails
+				}
+			}
+		}
+	}
+
+	// Delete frontend
 	err := r.client.DeleteFrontend(ctx, state.Frontend.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(

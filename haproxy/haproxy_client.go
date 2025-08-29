@@ -77,6 +77,79 @@ func (c *HAProxyClient) CreateFrontendInTransaction(ctx context.Context, transac
 	return nil
 }
 
+// CreateACL creates a new ACL rule for a frontend.
+func (c *HAProxyClient) CreateACL(ctx context.Context, parentType, parentName string, payload *ACLPayload) error {
+	// Debug: Log the ACL payload being sent
+	payloadJSON, _ := json.Marshal(payload)
+	log.Printf("DEBUG: Creating ACL with payload: %s", string(payloadJSON))
+
+	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+		url := fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s&transaction_id=%s",
+			parentType, parentName, transactionID)
+		req, err := c.newRequest(ctx, "POST", url, payload)
+		if err != nil {
+			return nil, err
+		}
+		return c.httpClient.Do(req)
+	})
+	return err
+}
+
+// ReadACLs reads all ACL rules for a parent (frontend, backend, etc.).
+func (c *HAProxyClient) ReadACLs(ctx context.Context, parentType, parentName string) ([]ACLPayload, error) {
+	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var response struct {
+		Data []ACLPayload `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+
+	return response.Data, nil
+}
+
+// UpdateACL updates an existing ACL rule by index.
+func (c *HAProxyClient) UpdateACL(ctx context.Context, parentType, parentName string, index int64, payload *ACLPayload) error {
+	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+		url := fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+			index, parentType, parentName, transactionID)
+		req, err := c.newRequest(ctx, "PUT", url, payload)
+		if err != nil {
+			return nil, err
+		}
+		return c.httpClient.Do(req)
+	})
+	return err
+}
+
+// DeleteACL deletes an ACL rule by index.
+func (c *HAProxyClient) DeleteACL(ctx context.Context, parentType, parentName string, index int64) error {
+	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+		url := fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+			index, parentType, parentName, transactionID)
+		req, err := c.newRequest(ctx, "DELETE", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		return c.httpClient.Do(req)
+	})
+	return err
+}
+
 // CreateAllResourcesInSingleTransaction creates all resources in a single transaction.
 // This ensures atomic operations - all resources succeed or all fail together.
 // Includes retry mechanism for concurrency issues when multiple workspaces run in parallel.
