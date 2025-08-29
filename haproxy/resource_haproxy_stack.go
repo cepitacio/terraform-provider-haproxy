@@ -3,6 +3,7 @@ package haproxy
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -1043,6 +1044,32 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 	}
 }
 
+// ValidateConfig validates the configuration during plan time
+func (r *haproxyStackResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config haproxyStackResourceModel
+	diags := req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Validate SSL/TLS configuration if default_server is configured
+	if config.Backend != nil && config.Backend.DefaultServer != nil {
+		// Create a temporary client to get API version for validation
+		// We'll use the provider's default API version for validation
+		tempClient := &HAProxyClient{
+			apiVersion: "v2", // Default to v2 for validation
+		}
+
+		if err := r.validateSSLConfiguration(config.Backend.DefaultServer, tempClient); err != nil {
+			resp.Diagnostics.AddError(
+				"Invalid SSL/TLS Configuration",
+				err.Error(),
+			)
+		}
+	}
+}
+
 // Configure adds the provider configured client to the resource.
 func (r *haproxyStackResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
@@ -1106,7 +1133,7 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	// Validate SSL/TLS configuration based on HAProxy API version
-	if err := r.validateSSLConfiguration(plan.Backend.DefaultServer); err != nil {
+	if err := r.validateSSLConfiguration(plan.Backend.DefaultServer, r.client); err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid SSL/TLS configuration",
 			err.Error(),
@@ -1119,7 +1146,7 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 		Backend: &BackendPayload{
 			Name:               plan.Backend.Name.ValueString(),
 			Mode:               plan.Backend.Mode.ValueString(),
-			AdvCheck:           r.determineAdvCheck(plan.Backend.AdvCheck.ValueString(), plan.Backend.HttpchkParams),
+			AdvCheck:           r.determineAdvCheckForAPI(plan.Backend.AdvCheck, plan.Backend.HttpchkParams),
 			HttpConnectionMode: plan.Backend.HttpConnectionMode.ValueString(),
 			ServerTimeout:      plan.Backend.ServerTimeout.ValueInt64(),
 			CheckTimeout:       plan.Backend.CheckTimeout.ValueInt64(),
@@ -1133,7 +1160,8 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 			// Process nested blocks
 			Balance:       r.processBalanceBlock(plan.Backend.Balance),
 			HttpchkParams: r.processHttpchkParamsBlock(plan.Backend.HttpchkParams),
-			Forwardfor:    r.processForwardforBlock(plan.Backend.Forwardfor),
+
+			Forwardfor: r.processForwardforBlock(plan.Backend.Forwardfor),
 
 			DefaultServer: func() *DefaultServerPayload {
 				if plan.Backend.DefaultServer == nil {
@@ -1207,6 +1235,15 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 			Backlog:        plan.Frontend.Backlog.ValueInt64(),
 		},
 	}
+
+	// Debug: Log the payload being sent to HAProxy
+	log.Printf("DEBUG: Backend payload being sent to HAProxy:")
+	log.Printf("  AdvCheck: %+v", allResources.Backend.AdvCheck)
+	log.Printf("  HttpchkParams: %+v", allResources.Backend.HttpchkParams)
+	log.Printf("  Balance: %+v", allResources.Backend.Balance)
+	log.Printf("  Forwardfor: %+v", allResources.Backend.Forwardfor)
+	log.Printf("  Original AdvCheck from plan: %+v", plan.Backend.AdvCheck.ValueString())
+	log.Printf("  HttpchkParams from plan: %+v", len(plan.Backend.HttpchkParams))
 
 	// Create all resources in single transaction
 	err := r.client.CreateAllResourcesInSingleTransaction(ctx, allResources)
@@ -1296,9 +1333,19 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 	if backend != nil {
 		state.Backend.Mode = types.StringValue(backend.Mode)
 
-		// Only set adv_check if HAProxy actually returned it
-		if backend.AdvCheck != "" {
+		// Handle adv_check based on whether httpchk_params is present
+		if len(existingBackend.HttpchkParams) > 0 && existingBackend.AdvCheck.IsNull() {
+			// If httpchk_params is configured and adv_check was not explicitly set,
+			// adv_check should be "httpchk" but we don't store it in state since it's auto-managed
+			state.Backend.AdvCheck = types.StringNull()
+		} else if !existingBackend.AdvCheck.IsNull() && !existingBackend.AdvCheck.IsUnknown() {
+			// Preserve the explicitly configured adv_check value
+			state.Backend.AdvCheck = existingBackend.AdvCheck
+		} else if backend.AdvCheck != "" {
+			// Only set adv_check if HAProxy returned it and no explicit configuration
 			state.Backend.AdvCheck = types.StringValue(backend.AdvCheck)
+		} else {
+			state.Backend.AdvCheck = types.StringNull()
 		}
 
 		// Only set fields if HAProxy actually returned them
@@ -1378,21 +1425,41 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 			if backend.DefaultServer.Tlsv13 != "" {
 				state.Backend.DefaultServer.Tlsv13 = types.StringValue(backend.DefaultServer.Tlsv13)
 			}
+
+			// Handle no_tlsv* fields - preserve existing state if HAProxy doesn't return them
+			// These fields get translated to force_tlsv* internally by HAProxy
 			if backend.DefaultServer.NoSslv3 != "" {
 				state.Backend.DefaultServer.NoSslv3 = types.StringValue(backend.DefaultServer.NoSslv3)
+			} else if existingBackend.DefaultServer != nil && !existingBackend.DefaultServer.NoSslv3.IsNull() && !existingBackend.DefaultServer.NoSslv3.IsUnknown() {
+				// Preserve existing state to avoid unnecessary updates
+				state.Backend.DefaultServer.NoSslv3 = existingBackend.DefaultServer.NoSslv3
 			}
 			if backend.DefaultServer.NoTlsv10 != "" {
 				state.Backend.DefaultServer.NoTlsv10 = types.StringValue(backend.DefaultServer.NoTlsv10)
+			} else if existingBackend.DefaultServer != nil && !existingBackend.DefaultServer.NoTlsv10.IsNull() && !existingBackend.DefaultServer.NoTlsv10.IsUnknown() {
+				// Preserve existing state to avoid unnecessary updates
+				state.Backend.DefaultServer.NoTlsv10 = existingBackend.DefaultServer.NoTlsv10
 			}
 			if backend.DefaultServer.NoTlsv11 != "" {
 				state.Backend.DefaultServer.NoTlsv11 = types.StringValue(backend.DefaultServer.NoTlsv11)
+			} else if existingBackend.DefaultServer != nil && !existingBackend.DefaultServer.NoTlsv11.IsNull() && !existingBackend.DefaultServer.NoTlsv11.IsUnknown() {
+				// Preserve existing state to avoid unnecessary updates
+				state.Backend.DefaultServer.NoTlsv11 = existingBackend.DefaultServer.NoTlsv11
 			}
 			if backend.DefaultServer.NoTlsv12 != "" {
 				state.Backend.DefaultServer.NoTlsv12 = types.StringValue(backend.DefaultServer.NoTlsv12)
+			} else if existingBackend.DefaultServer != nil && !existingBackend.DefaultServer.NoTlsv12.IsNull() && !existingBackend.DefaultServer.NoTlsv12.IsUnknown() {
+				// Preserve existing state to avoid unnecessary updates
+				state.Backend.DefaultServer.NoTlsv12 = existingBackend.DefaultServer.NoTlsv12
 			}
 			if backend.DefaultServer.NoTlsv13 != "" {
 				state.Backend.DefaultServer.NoTlsv13 = types.StringValue(backend.DefaultServer.NoTlsv13)
+			} else if existingBackend.DefaultServer != nil && !existingBackend.DefaultServer.NoTlsv13.IsNull() && !existingBackend.DefaultServer.NoTlsv13.IsUnknown() {
+				// Preserve existing state to avoid unnecessary updates
+				state.Backend.DefaultServer.NoTlsv13 = existingBackend.DefaultServer.NoTlsv13
 			}
+
+			// Handle force_tlsv* fields
 			if backend.DefaultServer.ForceSslv3 != "" {
 				state.Backend.DefaultServer.ForceSslv3 = types.StringValue(backend.DefaultServer.ForceSslv3)
 			}
@@ -1413,53 +1480,20 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 			}
 		}
 
-		// Preserve fields that HAProxy doesn't return but exist in state
-		if existingBackend.DefaultServer != nil {
-			if state.Backend.DefaultServer == nil {
-				state.Backend.DefaultServer = &haproxyDefaultServerModel{}
-			}
-
-			// Preserve fields that HAProxy didn't return
-			if !state.Backend.DefaultServer.NoSslv3.IsNull() && !state.Backend.DefaultServer.NoSslv3.IsUnknown() {
-				// Field is already set, keep it
-			} else if !existingBackend.DefaultServer.NoSslv3.IsNull() && !existingBackend.DefaultServer.NoSslv3.IsUnknown() {
-				state.Backend.DefaultServer.NoSslv3 = existingBackend.DefaultServer.NoSslv3
-			}
-			if !state.Backend.DefaultServer.NoTlsv10.IsNull() && !state.Backend.DefaultServer.NoTlsv10.IsUnknown() {
-				// Field is already set, keep it
-			} else if !existingBackend.DefaultServer.NoTlsv10.IsNull() && !existingBackend.DefaultServer.NoTlsv10.IsUnknown() {
-				state.Backend.DefaultServer.NoTlsv10 = existingBackend.DefaultServer.NoTlsv10
-			}
-			if !state.Backend.DefaultServer.NoTlsv11.IsNull() && !state.Backend.DefaultServer.NoTlsv11.IsUnknown() {
-				// Field is already set, keep it
-			} else if !existingBackend.DefaultServer.NoTlsv11.IsNull() && !existingBackend.DefaultServer.NoTlsv11.IsUnknown() {
-				state.Backend.DefaultServer.NoTlsv11 = existingBackend.DefaultServer.NoTlsv11
-			}
-			if !state.Backend.DefaultServer.NoTlsv12.IsNull() && !state.Backend.DefaultServer.NoTlsv12.IsUnknown() {
-				// Field is already set, keep it
-			} else if !existingBackend.DefaultServer.NoTlsv12.IsNull() && !existingBackend.DefaultServer.NoTlsv12.IsUnknown() {
-				state.Backend.DefaultServer.NoTlsv12 = existingBackend.DefaultServer.NoTlsv12
-			}
-			if !state.Backend.DefaultServer.NoTlsv13.IsNull() && !state.Backend.DefaultServer.NoTlsv13.IsUnknown() {
-				// Field is already set, keep it
-			} else if !existingBackend.DefaultServer.NoTlsv13.IsNull() && !existingBackend.DefaultServer.NoTlsv13.IsUnknown() {
-				state.Backend.DefaultServer.NoTlsv13 = existingBackend.DefaultServer.NoTlsv13
-			}
-		}
-
 		// Translate force_tlsv* fields back to no_tlsv* fields for state consistency
+		// Only translate if we don't already have preserved values
 		if backend.DefaultServer != nil && state.Backend.DefaultServer != nil {
-			// Translate force_tlsv* back to no_tlsv*
-			if backend.DefaultServer.ForceTlsv10 != "" {
+			// Translate force_tlsv* back to no_tlsv* only if we don't have preserved values
+			if backend.DefaultServer.ForceTlsv10 != "" && (state.Backend.DefaultServer.NoTlsv10.IsNull() || state.Backend.DefaultServer.NoTlsv10.IsUnknown()) {
 				state.Backend.DefaultServer.NoTlsv10 = types.StringValue(r.translateForceTlsToNoTls(backend.DefaultServer.ForceTlsv10))
 			}
-			if backend.DefaultServer.ForceTlsv11 != "" {
+			if backend.DefaultServer.ForceTlsv11 != "" && (state.Backend.DefaultServer.NoTlsv11.IsNull() || state.Backend.DefaultServer.NoTlsv11.IsUnknown()) {
 				state.Backend.DefaultServer.NoTlsv11 = types.StringValue(r.translateForceTlsToNoTls(backend.DefaultServer.ForceTlsv11))
 			}
-			if backend.DefaultServer.ForceTlsv12 != "" {
+			if backend.DefaultServer.ForceTlsv12 != "" && (state.Backend.DefaultServer.NoTlsv12.IsNull() || state.Backend.DefaultServer.NoTlsv12.IsUnknown()) {
 				state.Backend.DefaultServer.NoTlsv12 = types.StringValue(r.translateForceTlsToNoTls(backend.DefaultServer.ForceTlsv12))
 			}
-			if backend.DefaultServer.ForceTlsv13 != "" {
+			if backend.DefaultServer.ForceTlsv13 != "" && (state.Backend.DefaultServer.NoTlsv13.IsNull() || state.Backend.DefaultServer.NoTlsv13.IsUnknown()) {
 				state.Backend.DefaultServer.NoTlsv13 = types.StringValue(r.translateForceTlsToNoTls(backend.DefaultServer.ForceTlsv13))
 			}
 		}
@@ -1641,7 +1675,7 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	// Validate SSL/TLS configuration based on HAProxy API version
-	if err := r.validateSSLConfiguration(plan.Backend.DefaultServer); err != nil {
+	if err := r.validateSSLConfiguration(plan.Backend.DefaultServer, r.client); err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid SSL/TLS configuration",
 			err.Error(),
@@ -1654,7 +1688,7 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 		Backend: &BackendPayload{
 			Name:               plan.Backend.Name.ValueString(),
 			Mode:               plan.Backend.Mode.ValueString(),
-			AdvCheck:           r.determineAdvCheck(plan.Backend.AdvCheck.ValueString(), plan.Backend.HttpchkParams),
+			AdvCheck:           r.determineAdvCheckForAPI(plan.Backend.AdvCheck, plan.Backend.HttpchkParams),
 			HttpConnectionMode: plan.Backend.HttpConnectionMode.ValueString(),
 			ServerTimeout:      plan.Backend.ServerTimeout.ValueInt64(),
 			CheckTimeout:       plan.Backend.CheckTimeout.ValueInt64(),
@@ -1668,7 +1702,8 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 			// Process nested blocks
 			Balance:       r.processBalanceBlock(plan.Backend.Balance),
 			HttpchkParams: r.processHttpchkParamsBlock(plan.Backend.HttpchkParams),
-			Forwardfor:    r.processForwardforBlock(plan.Backend.Forwardfor),
+
+			Forwardfor: r.processForwardforBlock(plan.Backend.Forwardfor),
 
 			DefaultServer: func() *DefaultServerPayload {
 				if plan.Backend.DefaultServer == nil {
@@ -1771,14 +1806,43 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 	resp.Diagnostics.Append(diags...)
 }
 
-// determineAdvCheck determines the correct adv_check value based on configuration
-func (r *haproxyStackResource) determineAdvCheck(advCheck string, httpchkParams []haproxyHttpchkParamsModel) string {
-	// If httpchk_params is provided, force adv_check to "httpchk"
+// getAdvCheckValue safely extracts the adv_check value from the plan
+func (r *haproxyStackResource) getAdvCheckValue(advCheck types.String) string {
+	if advCheck.IsNull() || advCheck.IsUnknown() {
+		return ""
+	}
+	return advCheck.ValueString()
+}
+
+// determineAdvCheckForAPI determines the correct adv_check value for the HAProxy API
+// When httpchk_params is present, we need adv_check = "httpchk" for the API to accept it
+// But we preserve the user's original intent by sending both configurations
+func (r *haproxyStackResource) determineAdvCheckForAPI(advCheck types.String, httpchkParams []haproxyHttpchkParamsModel) string {
+	// If httpchk_params is present, the API requires adv_check = "httpchk"
+	// This is the only way to make both configurations work together
 	if len(httpchkParams) > 0 {
 		return "httpchk"
 	}
-	// Otherwise use the configured value
-	return advCheck
+
+	// Otherwise, use the user's configured adv_check value
+	return r.getAdvCheckValue(advCheck)
+}
+
+// determineAdvCheck determines the correct adv_check value based on configuration
+func (r *haproxyStackResource) determineAdvCheck(advCheck string, httpchkParams []haproxyHttpchkParamsModel) string {
+	// If adv_check is explicitly configured, use it
+	if advCheck != "" {
+		return advCheck
+	}
+
+	// If httpchk_params is present, we need to set adv_check = "httpchk"
+	// for HAProxy to apply the HTTP health check parameters
+	if len(httpchkParams) > 0 {
+		return "httpchk"
+	}
+
+	// Return empty string (no adv_check) if neither is configured
+	return ""
 }
 
 // processBalanceBlock processes the balance block configuration
@@ -1850,21 +1914,20 @@ func (r *haproxyStackResource) translateForceTlsToNoTls(forceTlsValue string) st
 }
 
 // validateSSLConfiguration validates SSL/TLS configuration based on HAProxy API version
-func (r *haproxyStackResource) validateSSLConfiguration(defaultServer *haproxyDefaultServerModel) error {
+func (r *haproxyStackResource) validateSSLConfiguration(defaultServer *haproxyDefaultServerModel, client *HAProxyClient) error {
 	// If no DefaultServer configuration, nothing to validate
 	if defaultServer == nil {
 		return nil
 	}
 
-	// TODO: Detect HAProxy API version dynamically
-	// For now, we'll use a configuration flag or environment variable
-	// This should be enhanced to detect the actual API version from HAProxy
+	// Get the API version from the client
+	apiVersion := client.GetAPIVersion()
+	if apiVersion == "" {
+		apiVersion = "v2" // Default to v2 if not specified
+	}
 
-	// Note: v2-only fields (no_sslv3, no_tlsv10, etc.) are supported in v2
-	// but we don't need to validate them as they're always allowed
-
-	// Check if we're using v3-only fields
-	v3Fields := []struct {
+	// v3-only fields that are not supported in v2
+	v3OnlyFields := []struct {
 		name  string
 		value types.String
 	}{
@@ -1873,25 +1936,20 @@ func (r *haproxyStackResource) validateSSLConfiguration(defaultServer *haproxyDe
 		{"tlsv11", defaultServer.Tlsv11},
 		{"tlsv12", defaultServer.Tlsv12},
 		{"tlsv13", defaultServer.Tlsv13},
-		{"force_sslv3", defaultServer.ForceSslv3},
-		{"force_tlsv10", defaultServer.ForceTlsv10},
-		{"force_tlsv11", defaultServer.ForceTlsv11},
-		{"force_tlsv12", defaultServer.ForceTlsv12},
-		{"force_tlsv13", defaultServer.ForceTlsv13},
-		{"force_strict_sni", defaultServer.ForceStrictSni},
 	}
 
-	// For now, we'll fail if v3 fields are used (assuming v2)
-	// This should be configurable or auto-detected
-	var v3FieldErrors []string
-	for _, field := range v3Fields {
-		if !field.value.IsNull() && field.value.ValueString() != "" {
-			v3FieldErrors = append(v3FieldErrors, fmt.Sprintf("Field '%s' is only supported in Data Plane API v3, but you appear to be using v2", field.name))
+	// Check if we're using v3-only fields with v2 API
+	if apiVersion == "v2" {
+		var v3FieldErrors []string
+		for _, field := range v3OnlyFields {
+			if !field.value.IsNull() && field.value.ValueString() != "" {
+				v3FieldErrors = append(v3FieldErrors, fmt.Sprintf("Field '%s' is only supported in Data Plane API v3, but you are using v2", field.name))
+			}
 		}
-	}
 
-	if len(v3FieldErrors) > 0 {
-		return fmt.Errorf("SSL/TLS configuration validation failed:\n%s\n\nTo fix this:\n1. Upgrade to HAProxy Data Plane API v3, OR\n2. Remove the unsupported fields from your configuration", strings.Join(v3FieldErrors, "\n"))
+		if len(v3FieldErrors) > 0 {
+			return fmt.Errorf("SSL/TLS configuration validation failed:\n%s\n\nTo fix this:\n1. Upgrade to HAProxy Data Plane API v3, OR\n2. Remove the unsupported fields from your configuration", strings.Join(v3FieldErrors, "\n"))
+		}
 	}
 
 	return nil
