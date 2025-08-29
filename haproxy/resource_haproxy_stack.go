@@ -1119,7 +1119,7 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 		Backend: &BackendPayload{
 			Name:               plan.Backend.Name.ValueString(),
 			Mode:               plan.Backend.Mode.ValueString(),
-			AdvCheck:           plan.Backend.AdvCheck.ValueString(),
+			AdvCheck:           r.determineAdvCheck(plan.Backend.AdvCheck.ValueString(), plan.Backend.HttpchkParams),
 			HttpConnectionMode: plan.Backend.HttpConnectionMode.ValueString(),
 			ServerTimeout:      plan.Backend.ServerTimeout.ValueInt64(),
 			CheckTimeout:       plan.Backend.CheckTimeout.ValueInt64(),
@@ -1129,40 +1129,51 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 			TarpitTimeout:      plan.Backend.TarpitTimeout.ValueInt64(),
 			CheckCache:         plan.Backend.Checkcache.ValueString(),
 			Retries:            plan.Backend.Retries.ValueInt64(),
-			DefaultServer: &DefaultServerPayload{
-				// Core SSL fields (supported in both v2 and v3)
-				Ssl:            plan.Backend.DefaultServer.Ssl.ValueString(),
-				SslCafile:      plan.Backend.DefaultServer.SslCafile.ValueString(),
-				SslCertificate: plan.Backend.DefaultServer.SslCertificate.ValueString(),
-				SslMaxVer:      plan.Backend.DefaultServer.SslMaxVer.ValueString(),
-				SslMinVer:      plan.Backend.DefaultServer.SslMinVer.ValueString(),
-				SslReuse:       plan.Backend.DefaultServer.SslReuse.ValueString(),
-				Ciphers:        plan.Backend.DefaultServer.Ciphers.ValueString(),
-				Ciphersuites:   plan.Backend.DefaultServer.Ciphersuites.ValueString(),
-				Verify:         plan.Backend.DefaultServer.Verify.ValueString(),
 
-				// Protocol control fields (v3 only)
-				Sslv3:  plan.Backend.DefaultServer.Sslv3.ValueString(),
-				Tlsv10: plan.Backend.DefaultServer.Tlsv10.ValueString(),
-				Tlsv11: plan.Backend.DefaultServer.Tlsv11.ValueString(),
-				Tlsv12: plan.Backend.DefaultServer.Tlsv12.ValueString(),
-				Tlsv13: plan.Backend.DefaultServer.Tlsv13.ValueString(),
+			// Process nested blocks
+			Balance:       r.processBalanceBlock(plan.Backend.Balance),
+			HttpchkParams: r.processHttpchkParamsBlock(plan.Backend.HttpchkParams),
+			Forwardfor:    r.processForwardforBlock(plan.Backend.Forwardfor),
 
-				// Deprecated fields (v2 only)
-				NoSslv3:  plan.Backend.DefaultServer.NoSslv3.ValueString(),
-				NoTlsv10: plan.Backend.DefaultServer.NoTlsv10.ValueString(),
-				NoTlsv11: plan.Backend.DefaultServer.NoTlsv11.ValueString(),
-				NoTlsv12: plan.Backend.DefaultServer.NoTlsv12.ValueString(),
-				NoTlsv13: plan.Backend.DefaultServer.NoTlsv13.ValueString(),
+			DefaultServer: func() *DefaultServerPayload {
+				if plan.Backend.DefaultServer == nil {
+					return nil
+				}
+				return &DefaultServerPayload{
+					// Core SSL fields (supported in both v2 and v3)
+					Ssl:            plan.Backend.DefaultServer.Ssl.ValueString(),
+					SslCafile:      plan.Backend.DefaultServer.SslCafile.ValueString(),
+					SslCertificate: plan.Backend.DefaultServer.SslCertificate.ValueString(),
+					SslMaxVer:      plan.Backend.DefaultServer.SslMaxVer.ValueString(),
+					SslMinVer:      plan.Backend.DefaultServer.SslMinVer.ValueString(),
+					SslReuse:       plan.Backend.DefaultServer.SslReuse.ValueString(),
+					Ciphers:        plan.Backend.DefaultServer.Ciphers.ValueString(),
+					Ciphersuites:   plan.Backend.DefaultServer.Ciphersuites.ValueString(),
+					Verify:         plan.Backend.DefaultServer.Verify.ValueString(),
 
-				// Force fields (v3 only)
-				ForceSslv3:     plan.Backend.DefaultServer.ForceSslv3.ValueString(),
-				ForceTlsv10:    plan.Backend.DefaultServer.ForceTlsv10.ValueString(),
-				ForceTlsv11:    plan.Backend.DefaultServer.ForceTlsv11.ValueString(),
-				ForceTlsv12:    plan.Backend.DefaultServer.ForceTlsv12.ValueString(),
-				ForceTlsv13:    plan.Backend.DefaultServer.ForceTlsv13.ValueString(),
-				ForceStrictSni: plan.Backend.DefaultServer.ForceStrictSni.ValueString(),
-			},
+					// Protocol control fields (v3 only)
+					Sslv3:  plan.Backend.DefaultServer.Sslv3.ValueString(),
+					Tlsv10: plan.Backend.DefaultServer.Tlsv10.ValueString(),
+					Tlsv11: plan.Backend.DefaultServer.Tlsv11.ValueString(),
+					Tlsv12: plan.Backend.DefaultServer.Tlsv12.ValueString(),
+					Tlsv13: plan.Backend.DefaultServer.Tlsv13.ValueString(),
+
+					// Deprecated fields (v2 only) - translate to force fields
+					NoSslv3:  plan.Backend.DefaultServer.NoSslv3.ValueString(),
+					NoTlsv10: r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv10.ValueString()),
+					NoTlsv11: r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv11.ValueString()),
+					NoTlsv12: r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv12.ValueString()),
+					NoTlsv13: r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv13.ValueString()),
+
+					// Force fields (v3 only)
+					ForceSslv3:     plan.Backend.DefaultServer.ForceSslv3.ValueString(),
+					ForceTlsv10:    plan.Backend.DefaultServer.ForceTlsv10.ValueString(),
+					ForceTlsv11:    plan.Backend.DefaultServer.ForceTlsv11.ValueString(),
+					ForceTlsv12:    plan.Backend.DefaultServer.ForceTlsv12.ValueString(),
+					ForceTlsv13:    plan.Backend.DefaultServer.ForceTlsv13.ValueString(),
+					ForceStrictSni: plan.Backend.DefaultServer.ForceStrictSni.ValueString(),
+				}
+			}(),
 		},
 		Servers: []ServerResource{
 			{
@@ -1221,6 +1232,30 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
+	// Store the names we need to read
+	backendName := state.Backend.Name.ValueString()
+	serverName := state.Server.Name.ValueString()
+	frontendName := state.Frontend.Name.ValueString()
+
+	// Store existing values to preserve them
+	existingBackend := state.Backend
+	existingServer := state.Server
+	existingFrontend := state.Frontend
+
+	// Reset the state completely to avoid drift
+	state = haproxyStackResourceModel{
+		Name: types.StringValue(state.Name.ValueString()),
+		Backend: &haproxyBackendModel{
+			Name: types.StringValue(backendName),
+		},
+		Server: &haproxyServerModel{
+			Name: types.StringValue(serverName),
+		},
+		Frontend: &haproxyFrontendModel{
+			Name: types.StringValue(frontendName),
+		},
+	}
+
 	if r.client == nil {
 		resp.Diagnostics.AddError(
 			"Unconfigured Client",
@@ -1230,7 +1265,7 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Read all resources from HAProxy
-	backend, err := r.client.ReadBackend(ctx, state.Backend.Name.ValueString())
+	backend, err := r.client.ReadBackend(ctx, backendName)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading backend",
@@ -1239,7 +1274,7 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	servers, err := r.client.ReadServers(ctx, "backend", state.Backend.Name.ValueString())
+	servers, err := r.client.ReadServers(ctx, "backend", backendName)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading servers",
@@ -1248,7 +1283,7 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	frontend, err := r.client.ReadFrontend(ctx, state.Frontend.Name.ValueString())
+	frontend, err := r.client.ReadFrontend(ctx, frontendName)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading frontend",
@@ -1260,19 +1295,46 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 	// Update state with actual HAProxy configuration
 	if backend != nil {
 		state.Backend.Mode = types.StringValue(backend.Mode)
-		state.Backend.AdvCheck = types.StringValue(backend.AdvCheck)
-		state.Backend.HttpConnectionMode = types.StringValue(backend.HttpConnectionMode)
-		state.Backend.ServerTimeout = types.Int64Value(backend.ServerTimeout)
-		state.Backend.CheckTimeout = types.Int64Value(backend.CheckTimeout)
-		state.Backend.ConnectTimeout = types.Int64Value(backend.ConnectTimeout)
-		state.Backend.QueueTimeout = types.Int64Value(backend.QueueTimeout)
-		state.Backend.TunnelTimeout = types.Int64Value(backend.TunnelTimeout)
-		state.Backend.TarpitTimeout = types.Int64Value(backend.TarpitTimeout)
-		state.Backend.Checkcache = types.StringValue(backend.CheckCache)
-		state.Backend.Retries = types.Int64Value(backend.Retries)
+
+		// Only set adv_check if HAProxy actually returned it
+		if backend.AdvCheck != "" {
+			state.Backend.AdvCheck = types.StringValue(backend.AdvCheck)
+		}
+
+		// Only set fields if HAProxy actually returned them
+		if backend.HttpConnectionMode != "" {
+			state.Backend.HttpConnectionMode = types.StringValue(backend.HttpConnectionMode)
+		}
+		if backend.ServerTimeout != 0 {
+			state.Backend.ServerTimeout = types.Int64Value(backend.ServerTimeout)
+		}
+		if backend.CheckTimeout != 0 {
+			state.Backend.CheckTimeout = types.Int64Value(backend.CheckTimeout)
+		}
+		if backend.ConnectTimeout != 0 {
+			state.Backend.ConnectTimeout = types.Int64Value(backend.ConnectTimeout)
+		}
+		if backend.QueueTimeout != 0 {
+			state.Backend.QueueTimeout = types.Int64Value(backend.QueueTimeout)
+		}
+		if backend.TunnelTimeout != 0 {
+			state.Backend.TunnelTimeout = types.Int64Value(backend.TunnelTimeout)
+		}
+		if backend.TarpitTimeout != 0 {
+			state.Backend.TarpitTimeout = types.Int64Value(backend.TarpitTimeout)
+		}
+		if backend.CheckCache != "" {
+			state.Backend.Checkcache = types.StringValue(backend.CheckCache)
+		}
+		if backend.Retries != 0 {
+			state.Backend.Retries = types.Int64Value(backend.Retries)
+		}
 
 		// Handle default_server configuration
 		if backend.DefaultServer != nil {
+			// Initialize DefaultServer only if we have data to set
+			state.Backend.DefaultServer = &haproxyDefaultServerModel{}
+
 			// Only set fields that HAProxy actually returned (non-empty)
 			if backend.DefaultServer.Ssl != "" {
 				state.Backend.DefaultServer.Ssl = types.StringValue(backend.DefaultServer.Ssl)
@@ -1350,33 +1412,184 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 				state.Backend.DefaultServer.ForceStrictSni = types.StringValue(backend.DefaultServer.ForceStrictSni)
 			}
 		}
+
+		// Preserve fields that HAProxy doesn't return but exist in state
+		if existingBackend.DefaultServer != nil {
+			if state.Backend.DefaultServer == nil {
+				state.Backend.DefaultServer = &haproxyDefaultServerModel{}
+			}
+
+			// Preserve fields that HAProxy didn't return
+			if !state.Backend.DefaultServer.NoSslv3.IsNull() && !state.Backend.DefaultServer.NoSslv3.IsUnknown() {
+				// Field is already set, keep it
+			} else if !existingBackend.DefaultServer.NoSslv3.IsNull() && !existingBackend.DefaultServer.NoSslv3.IsUnknown() {
+				state.Backend.DefaultServer.NoSslv3 = existingBackend.DefaultServer.NoSslv3
+			}
+			if !state.Backend.DefaultServer.NoTlsv10.IsNull() && !state.Backend.DefaultServer.NoTlsv10.IsUnknown() {
+				// Field is already set, keep it
+			} else if !existingBackend.DefaultServer.NoTlsv10.IsNull() && !existingBackend.DefaultServer.NoTlsv10.IsUnknown() {
+				state.Backend.DefaultServer.NoTlsv10 = existingBackend.DefaultServer.NoTlsv10
+			}
+			if !state.Backend.DefaultServer.NoTlsv11.IsNull() && !state.Backend.DefaultServer.NoTlsv11.IsUnknown() {
+				// Field is already set, keep it
+			} else if !existingBackend.DefaultServer.NoTlsv11.IsNull() && !existingBackend.DefaultServer.NoTlsv11.IsUnknown() {
+				state.Backend.DefaultServer.NoTlsv11 = existingBackend.DefaultServer.NoTlsv11
+			}
+			if !state.Backend.DefaultServer.NoTlsv12.IsNull() && !state.Backend.DefaultServer.NoTlsv12.IsUnknown() {
+				// Field is already set, keep it
+			} else if !existingBackend.DefaultServer.NoTlsv12.IsNull() && !existingBackend.DefaultServer.NoTlsv12.IsUnknown() {
+				state.Backend.DefaultServer.NoTlsv12 = existingBackend.DefaultServer.NoTlsv12
+			}
+			if !state.Backend.DefaultServer.NoTlsv13.IsNull() && !state.Backend.DefaultServer.NoTlsv13.IsUnknown() {
+				// Field is already set, keep it
+			} else if !existingBackend.DefaultServer.NoTlsv13.IsNull() && !existingBackend.DefaultServer.NoTlsv13.IsUnknown() {
+				state.Backend.DefaultServer.NoTlsv13 = existingBackend.DefaultServer.NoTlsv13
+			}
+		}
+
+		// Translate force_tlsv* fields back to no_tlsv* fields for state consistency
+		if backend.DefaultServer != nil && state.Backend.DefaultServer != nil {
+			// Translate force_tlsv* back to no_tlsv*
+			if backend.DefaultServer.ForceTlsv10 != "" {
+				state.Backend.DefaultServer.NoTlsv10 = types.StringValue(r.translateForceTlsToNoTls(backend.DefaultServer.ForceTlsv10))
+			}
+			if backend.DefaultServer.ForceTlsv11 != "" {
+				state.Backend.DefaultServer.NoTlsv11 = types.StringValue(r.translateForceTlsToNoTls(backend.DefaultServer.ForceTlsv11))
+			}
+			if backend.DefaultServer.ForceTlsv12 != "" {
+				state.Backend.DefaultServer.NoTlsv12 = types.StringValue(r.translateForceTlsToNoTls(backend.DefaultServer.ForceTlsv12))
+			}
+			if backend.DefaultServer.ForceTlsv13 != "" {
+				state.Backend.DefaultServer.NoTlsv13 = types.StringValue(r.translateForceTlsToNoTls(backend.DefaultServer.ForceTlsv13))
+			}
+		}
+
+		// Handle nested blocks
+		if backend.Balance != nil {
+			balanceModel := haproxyBalanceModel{
+				Algorithm: types.StringValue(backend.Balance.Algorithm),
+			}
+
+			// Only set UrlParam if it has a value
+			if backend.Balance.UrlParam != "" {
+				balanceModel.UrlParam = types.StringValue(backend.Balance.UrlParam)
+			}
+
+			state.Backend.Balance = []haproxyBalanceModel{balanceModel}
+		} else if existingBackend.Balance != nil && len(existingBackend.Balance) > 0 {
+			// Preserve existing balance configuration if HAProxy didn't return it
+			state.Backend.Balance = existingBackend.Balance
+		}
+
+		if backend.HttpchkParams != nil {
+			httpchkModel := haproxyHttpchkParamsModel{}
+
+			// Only set fields if they have values
+			if backend.HttpchkParams.Method != "" {
+				httpchkModel.Method = types.StringValue(backend.HttpchkParams.Method)
+			}
+			if backend.HttpchkParams.Uri != "" {
+				httpchkModel.Uri = types.StringValue(backend.HttpchkParams.Uri)
+			}
+			if backend.HttpchkParams.Version != "" {
+				httpchkModel.Version = types.StringValue(backend.HttpchkParams.Version)
+			}
+
+			state.Backend.HttpchkParams = []haproxyHttpchkParamsModel{httpchkModel}
+		} else if existingBackend.HttpchkParams != nil && len(existingBackend.HttpchkParams) > 0 {
+			// Preserve existing httpchk_params configuration if HAProxy didn't return it
+			state.Backend.HttpchkParams = existingBackend.HttpchkParams
+		}
+
+		if backend.Forwardfor != nil {
+			forwardforModel := haproxyForwardforModel{}
+
+			// Only set Enabled if it has a value
+			if backend.Forwardfor.Enabled != "" {
+				forwardforModel.Enabled = types.StringValue(backend.Forwardfor.Enabled)
+			}
+
+			state.Backend.Forwardfor = []haproxyForwardforModel{forwardforModel}
+		} else if existingBackend.Forwardfor != nil && len(existingBackend.Forwardfor) > 0 {
+			// Preserve existing forwardfor configuration if HAProxy didn't return it
+			state.Backend.Forwardfor = existingBackend.Forwardfor
+		}
 	}
 
-	if len(servers) > 0 && len(servers) > 0 {
+	if len(servers) > 0 {
 		server := servers[0] // Take first server
-		state.Server.Name = types.StringValue(server.Name)
-		state.Server.Address = types.StringValue(server.Address)
-		state.Server.Port = types.Int64Value(server.Port)
-		state.Server.Check = types.StringValue(server.Check)
-		state.Server.Backup = types.StringValue(server.Backup)
-		state.Server.Maxconn = types.Int64Value(server.Maxconn)
-		state.Server.Weight = types.Int64Value(server.Weight)
-		state.Server.Rise = types.Int64Value(server.Rise)
-		state.Server.Fall = types.Int64Value(server.Fall)
-		state.Server.Inter = types.Int64Value(server.Inter)
-		state.Server.Fastinter = types.Int64Value(server.Fastinter)
-		state.Server.Downinter = types.Int64Value(server.Downinter)
-		state.Server.Ssl = types.StringValue(server.Ssl)
-		state.Server.Verify = types.StringValue(server.Verify)
-		state.Server.Cookie = types.StringValue(server.Cookie)
+
+		// Only set fields if HAProxy actually returned them
+		if server.Name != "" {
+			state.Server.Name = types.StringValue(server.Name)
+		}
+		if server.Address != "" {
+			state.Server.Address = types.StringValue(server.Address)
+		}
+		if server.Port != 0 {
+			state.Server.Port = types.Int64Value(server.Port)
+		}
+		if server.Check != "" {
+			state.Server.Check = types.StringValue(server.Check)
+		}
+		if server.Backup != "" {
+			state.Server.Backup = types.StringValue(server.Backup)
+		}
+		if server.Maxconn != 0 {
+			state.Server.Maxconn = types.Int64Value(server.Maxconn)
+		}
+		if server.Weight != 0 {
+			state.Server.Weight = types.Int64Value(server.Weight)
+		}
+		if server.Rise != 0 {
+			state.Server.Rise = types.Int64Value(server.Rise)
+		}
+		if server.Fall != 0 {
+			state.Server.Fall = types.Int64Value(server.Fall)
+		}
+		if server.Inter != 0 {
+			state.Server.Inter = types.Int64Value(server.Inter)
+		}
+		if server.Fastinter != 0 {
+			state.Server.Fastinter = types.Int64Value(server.Fastinter)
+		}
+		if server.Downinter != 0 {
+			state.Server.Downinter = types.Int64Value(server.Downinter)
+		}
+		if server.Ssl != "" {
+			state.Server.Ssl = types.StringValue(server.Ssl)
+		}
+		if server.Verify != "" {
+			state.Server.Verify = types.StringValue(server.Verify)
+		}
+		if server.Cookie != "" {
+			state.Server.Cookie = types.StringValue(server.Cookie)
+		}
+		// For boolean fields, we need to check if they're not the zero value
+		// Since HAProxy might not return these fields if they're false
 		state.Server.Disabled = types.BoolValue(server.Disabled)
+	} else if existingServer != nil {
+		// Preserve existing server configuration if HAProxy didn't return it
+		state.Server = existingServer
 	}
 
 	if frontend != nil {
-		state.Frontend.Mode = types.StringValue(frontend.Mode)
-		state.Frontend.DefaultBackend = types.StringValue(frontend.DefaultBackend)
-		state.Frontend.Maxconn = types.Int64Value(frontend.MaxConn)
-		state.Frontend.Backlog = types.Int64Value(frontend.Backlog)
+		// Only set fields if HAProxy actually returned them
+		if frontend.Mode != "" {
+			state.Frontend.Mode = types.StringValue(frontend.Mode)
+		}
+		if frontend.DefaultBackend != "" {
+			state.Frontend.DefaultBackend = types.StringValue(frontend.DefaultBackend)
+		}
+		if frontend.MaxConn != 0 {
+			state.Frontend.Maxconn = types.Int64Value(frontend.MaxConn)
+		}
+		if frontend.Backlog != 0 {
+			state.Frontend.Backlog = types.Int64Value(frontend.Backlog)
+		}
+	} else if existingFrontend != nil {
+		// Preserve existing frontend configuration if HAProxy didn't return it
+		state.Frontend = existingFrontend
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -1441,7 +1654,7 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 		Backend: &BackendPayload{
 			Name:               plan.Backend.Name.ValueString(),
 			Mode:               plan.Backend.Mode.ValueString(),
-			AdvCheck:           plan.Backend.AdvCheck.ValueString(),
+			AdvCheck:           r.determineAdvCheck(plan.Backend.AdvCheck.ValueString(), plan.Backend.HttpchkParams),
 			HttpConnectionMode: plan.Backend.HttpConnectionMode.ValueString(),
 			ServerTimeout:      plan.Backend.ServerTimeout.ValueInt64(),
 			CheckTimeout:       plan.Backend.CheckTimeout.ValueInt64(),
@@ -1451,33 +1664,44 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 			TarpitTimeout:      plan.Backend.TarpitTimeout.ValueInt64(),
 			CheckCache:         plan.Backend.Checkcache.ValueString(),
 			Retries:            plan.Backend.Retries.ValueInt64(),
-			DefaultServer: &DefaultServerPayload{
-				Ssl:            plan.Backend.DefaultServer.Ssl.ValueString(),
-				SslCafile:      plan.Backend.DefaultServer.SslCafile.ValueString(),
-				SslCertificate: plan.Backend.DefaultServer.SslCertificate.ValueString(),
-				SslMaxVer:      plan.Backend.DefaultServer.SslMaxVer.ValueString(),
-				SslMinVer:      plan.Backend.DefaultServer.SslMinVer.ValueString(),
-				SslReuse:       plan.Backend.DefaultServer.SslReuse.ValueString(),
-				Ciphers:        plan.Backend.DefaultServer.Ciphers.ValueString(),
-				Ciphersuites:   plan.Backend.DefaultServer.Ciphersuites.ValueString(),
-				Verify:         plan.Backend.DefaultServer.Verify.ValueString(),
-				Sslv3:          plan.Backend.DefaultServer.Sslv3.ValueString(),
-				Tlsv10:         plan.Backend.DefaultServer.Tlsv10.ValueString(),
-				Tlsv11:         plan.Backend.DefaultServer.Tlsv11.ValueString(),
-				Tlsv12:         plan.Backend.DefaultServer.Tlsv12.ValueString(),
-				Tlsv13:         plan.Backend.DefaultServer.Tlsv13.ValueString(),
-				NoSslv3:        plan.Backend.DefaultServer.NoSslv3.ValueString(),
-				NoTlsv10:       plan.Backend.DefaultServer.NoTlsv10.ValueString(),
-				NoTlsv11:       plan.Backend.DefaultServer.NoTlsv11.ValueString(),
-				NoTlsv12:       plan.Backend.DefaultServer.NoTlsv12.ValueString(),
-				NoTlsv13:       plan.Backend.DefaultServer.NoTlsv13.ValueString(),
-				ForceSslv3:     plan.Backend.DefaultServer.ForceSslv3.ValueString(),
-				ForceTlsv10:    plan.Backend.DefaultServer.ForceTlsv10.ValueString(),
-				ForceTlsv11:    plan.Backend.DefaultServer.ForceTlsv11.ValueString(),
-				ForceTlsv12:    plan.Backend.DefaultServer.ForceTlsv12.ValueString(),
-				ForceTlsv13:    plan.Backend.DefaultServer.ForceTlsv13.ValueString(),
-				ForceStrictSni: plan.Backend.DefaultServer.ForceStrictSni.ValueString(),
-			},
+
+			// Process nested blocks
+			Balance:       r.processBalanceBlock(plan.Backend.Balance),
+			HttpchkParams: r.processHttpchkParamsBlock(plan.Backend.HttpchkParams),
+			Forwardfor:    r.processForwardforBlock(plan.Backend.Forwardfor),
+
+			DefaultServer: func() *DefaultServerPayload {
+				if plan.Backend.DefaultServer == nil {
+					return nil
+				}
+				return &DefaultServerPayload{
+					Ssl:            plan.Backend.DefaultServer.Ssl.ValueString(),
+					SslCafile:      plan.Backend.DefaultServer.SslCafile.ValueString(),
+					SslCertificate: plan.Backend.DefaultServer.SslCertificate.ValueString(),
+					SslMaxVer:      plan.Backend.DefaultServer.SslMaxVer.ValueString(),
+					SslMinVer:      plan.Backend.DefaultServer.SslMinVer.ValueString(),
+					SslReuse:       plan.Backend.DefaultServer.SslReuse.ValueString(),
+					Ciphers:        plan.Backend.DefaultServer.Ciphers.ValueString(),
+					Ciphersuites:   plan.Backend.DefaultServer.Ciphersuites.ValueString(),
+					Verify:         plan.Backend.DefaultServer.Verify.ValueString(),
+					Sslv3:          plan.Backend.DefaultServer.Sslv3.ValueString(),
+					Tlsv10:         plan.Backend.DefaultServer.Tlsv10.ValueString(),
+					Tlsv11:         plan.Backend.DefaultServer.Tlsv11.ValueString(),
+					Tlsv12:         plan.Backend.DefaultServer.Tlsv12.ValueString(),
+					Tlsv13:         plan.Backend.DefaultServer.Tlsv13.ValueString(),
+					NoSslv3:        plan.Backend.DefaultServer.NoSslv3.ValueString(),
+					NoTlsv10:       r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv10.ValueString()),
+					NoTlsv11:       r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv11.ValueString()),
+					NoTlsv12:       r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv12.ValueString()),
+					NoTlsv13:       r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv13.ValueString()),
+					ForceSslv3:     plan.Backend.DefaultServer.ForceSslv3.ValueString(),
+					ForceTlsv10:    plan.Backend.DefaultServer.ForceTlsv10.ValueString(),
+					ForceTlsv11:    plan.Backend.DefaultServer.ForceTlsv11.ValueString(),
+					ForceTlsv12:    plan.Backend.DefaultServer.ForceTlsv12.ValueString(),
+					ForceTlsv13:    plan.Backend.DefaultServer.ForceTlsv13.ValueString(),
+					ForceStrictSni: plan.Backend.DefaultServer.ForceStrictSni.ValueString(),
+				}
+			}(),
 		},
 		Servers: []ServerResource{
 			{
@@ -1547,8 +1771,91 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 	resp.Diagnostics.Append(diags...)
 }
 
+// determineAdvCheck determines the correct adv_check value based on configuration
+func (r *haproxyStackResource) determineAdvCheck(advCheck string, httpchkParams []haproxyHttpchkParamsModel) string {
+	// If httpchk_params is provided, force adv_check to "httpchk"
+	if len(httpchkParams) > 0 {
+		return "httpchk"
+	}
+	// Otherwise use the configured value
+	return advCheck
+}
+
+// processBalanceBlock processes the balance block configuration
+func (r *haproxyStackResource) processBalanceBlock(balance []haproxyBalanceModel) *Balance {
+	if len(balance) == 0 {
+		return nil
+	}
+
+	// Take the first balance configuration
+	bal := balance[0]
+	return &Balance{
+		Algorithm: bal.Algorithm.ValueString(),
+		UrlParam:  bal.UrlParam.ValueString(),
+	}
+}
+
+// processHttpchkParamsBlock processes the httpchk_params block configuration
+func (r *haproxyStackResource) processHttpchkParamsBlock(httpchkParams []haproxyHttpchkParamsModel) *HttpchkParams {
+	if len(httpchkParams) == 0 {
+		return nil
+	}
+
+	// Take the first httpchk_params configuration
+	params := httpchkParams[0]
+	return &HttpchkParams{
+		Method:  params.Method.ValueString(),
+		Uri:     params.Uri.ValueString(),
+		Version: params.Version.ValueString(),
+	}
+}
+
+// processForwardforBlock processes the forwardfor block configuration
+func (r *haproxyStackResource) processForwardforBlock(forwardfor []haproxyForwardforModel) *ForwardFor {
+	if len(forwardfor) == 0 {
+		return nil
+	}
+
+	// Take the first forwardfor configuration
+	ff := forwardfor[0]
+	return &ForwardFor{
+		Enabled: ff.Enabled.ValueString(),
+	}
+}
+
+// translateNoTlsToForceTls translates no_tlsv* fields to force_tlsv* fields
+// Based on your example:
+// no_tlsv10 = "enabled" → HAProxy creates force_tlsv10: "disabled"
+// no_tlsv13 = "enabled" → HAProxy creates force_tlsv13: "disabled"
+func (r *haproxyStackResource) translateNoTlsToForceTls(noTlsValue string) string {
+	if noTlsValue == "enabled" {
+		return "disabled" // "Don't allow TLSv1.x" → "Force disabled"
+	} else if noTlsValue == "disabled" {
+		return "enabled" // "Allow TLSv1.x" → "Force enabled"
+	}
+	return noTlsValue // Return as-is for other values
+}
+
+// translateForceTlsToNoTls translates force_tlsv* fields back to no_tlsv* fields
+// This is the reverse of translateNoTlsToForceTls
+// force_tlsv10: "disabled" → no_tlsv10 = "enabled"
+// force_tlsv13: "disabled" → no_tlsv13 = "enabled"
+func (r *haproxyStackResource) translateForceTlsToNoTls(forceTlsValue string) string {
+	if forceTlsValue == "disabled" {
+		return "enabled" // "Force disabled" → "Don't allow TLSv1.x"
+	} else if forceTlsValue == "enabled" {
+		return "disabled" // "Force enabled" → "Allow TLSv1.x"
+	}
+	return forceTlsValue // Return as-is for other values
+}
+
 // validateSSLConfiguration validates SSL/TLS configuration based on HAProxy API version
 func (r *haproxyStackResource) validateSSLConfiguration(defaultServer *haproxyDefaultServerModel) error {
+	// If no DefaultServer configuration, nothing to validate
+	if defaultServer == nil {
+		return nil
+	}
+
 	// TODO: Detect HAProxy API version dynamically
 	// For now, we'll use a configuration flag or environment variable
 	// This should be enhanced to detect the actual API version from HAProxy
