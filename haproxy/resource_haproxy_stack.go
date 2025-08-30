@@ -1270,17 +1270,7 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 	log.Printf("  Original AdvCheck from plan: %+v", plan.Backend.AdvCheck.ValueString())
 	log.Printf("  HttpchkParams from plan: %+v", len(plan.Backend.HttpchkParams))
 
-	// Create all resources in single transaction
-	err := r.client.CreateAllResourcesInSingleTransaction(ctx, allResources)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating HAProxy stack",
-			"Could not create HAProxy stack, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// Create ACLs separately after frontend is created
+	// Prepare ACLs for the transaction
 	if plan.Frontend.Acls != nil && len(plan.Frontend.Acls) > 0 {
 		// Sort ACLs by index to ensure proper order
 		sortedAcls := r.processAclsBlock(plan.Frontend.Acls)
@@ -1289,23 +1279,29 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 		nextIndex := int64(0) // Start from 0 as required by HAProxy
 
 		for _, acl := range sortedAcls {
-			aclPayload := ACLPayload{
-				AclName:   acl.AclName.ValueString(),
-				Criterion: acl.Criterion.ValueString(),
-				Value:     acl.Value.ValueString(),
-				Index:     nextIndex, // Use sequential index starting from 0
+			aclResource := ACLResource{
+				ParentType: "frontend",
+				ParentName: plan.Frontend.Name.ValueString(),
+				Payload: &ACLPayload{
+					AclName:   acl.AclName.ValueString(),
+					Criterion: acl.Criterion.ValueString(),
+					Value:     acl.Value.ValueString(),
+					Index:     nextIndex, // Use sequential index starting from 0
+				},
 			}
-
-			err := r.client.CreateACL(ctx, "frontend", plan.Frontend.Name.ValueString(), &aclPayload)
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Error creating ACL",
-					fmt.Sprintf("Could not create ACL '%s': %s", aclPayload.AclName, err.Error()),
-				)
-				return
-			}
+			allResources.Acls = append(allResources.Acls, aclResource)
 			nextIndex++ // Increment for next ACL
 		}
+	}
+
+	// Create all resources in single transaction (including ACLs)
+	err := r.client.CreateAllResourcesInSingleTransaction(ctx, allResources)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating HAProxy stack",
+			"Could not create HAProxy stack, unexpected error: "+err.Error(),
+		)
+		return
 	}
 
 	// Set state
@@ -1383,9 +1379,9 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Read ACLs for the frontend
-	var acls []ACLPayload
+	var acls []AclPayload
 	if frontend != nil {
-		acls, err = r.client.ReadACLs(ctx, "frontend", frontendName)
+		acls, err = r.client.ReadAcls(ctx, "frontend", frontendName)
 		if err != nil {
 			log.Printf("Warning: Failed to read ACLs for frontend %s: %v", frontendName, err)
 			// Continue without ACLs if reading fails
@@ -2021,26 +2017,74 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName stri
 	// Track which ACLs we've processed to avoid duplicates
 	processedAcls := make(map[string]bool)
 
-	// First, update existing ACLs that match by name
+	// Track ACLs that need to be recreated due to index changes
+	var aclsToRecreate []haproxyAclModel
+
+	// First pass: identify ACLs that need index changes and mark them for recreation
 	for _, newAcl := range sortedNewAcls {
 		newAclName := newAcl.AclName.ValueString()
-		if existingAcl, exists := existingAclMap[newAclName]; exists {
-			// Update existing ACL in place
-			aclPayload := ACLPayload{
-				AclName:   newAcl.AclName.ValueString(),
-				Criterion: newAcl.Criterion.ValueString(),
-				Value:     newAcl.Value.ValueString(),
-				Index:     existingAcl.Index, // Keep the existing index
-			}
+		newAclIndex := newAcl.Index.ValueInt64()
 
-			log.Printf("Updating existing ACL '%s' at index %d", aclPayload.AclName, aclPayload.Index)
-			err := r.client.UpdateACL(ctx, "frontend", frontendName, existingAcl.Index, &aclPayload)
-			if err != nil {
-				return fmt.Errorf("failed to update ACL '%s': %w", aclPayload.AclName, err)
+		if existingAcl, exists := existingAclMap[newAclName]; exists {
+			// Check if the index has changed
+			if existingAcl.Index != newAclIndex {
+				// Index has changed, mark for recreation
+				log.Printf("ACL '%s' index changed from %d to %d, will recreate",
+					newAclName, existingAcl.Index, newAclIndex)
+				aclsToRecreate = append(aclsToRecreate, newAcl)
+			} else if existingAcl.Criterion != newAcl.Criterion.ValueString() || existingAcl.Value != newAcl.Value.ValueString() {
+				// Index is the same but content has changed, update in place
+				aclPayload := ACLPayload{
+					AclName:   newAcl.AclName.ValueString(),
+					Criterion: newAcl.Criterion.ValueString(),
+					Value:     newAcl.Value.ValueString(),
+					Index:     existingAcl.Index, // Keep the existing index
+				}
+
+				log.Printf("Updating existing ACL '%s' at index %d", aclPayload.AclName, aclPayload.Index)
+				err := r.client.UpdateAcl(ctx, existingAcl.Index, "frontend", frontendName, &aclPayload)
+				if err != nil {
+					return fmt.Errorf("failed to update ACL '%s': %w", aclPayload.AclName, err)
+				}
+			} else {
+				// ACL is identical, no changes needed
+				log.Printf("ACL '%s' at index %d is unchanged", newAclName, existingAcl.Index)
 			}
 
 			// Mark this ACL as processed
 			processedAcls[newAclName] = true
+		}
+	}
+
+	// Second pass: delete all ACLs that need to be recreated (due to index changes)
+	// Delete in reverse order (highest index first) to avoid shifting issues
+	for _, newAcl := range aclsToRecreate {
+		newAclName := newAcl.AclName.ValueString()
+		if existingAcl, exists := existingAclMap[newAclName]; exists {
+			log.Printf("Deleting ACL '%s' at old index %d for recreation", newAclName, existingAcl.Index)
+			err := r.client.DeleteAcl(ctx, existingAcl.Index, "frontend", frontendName)
+			if err != nil {
+				return fmt.Errorf("failed to delete ACL '%s' at old index %d: %w", newAclName, existingAcl.Index, err)
+			}
+		}
+	}
+
+	// Third pass: create all ACLs that need to be recreated at their new positions
+	for _, newAcl := range aclsToRecreate {
+		newAclName := newAcl.AclName.ValueString()
+		newAclIndex := newAcl.Index.ValueInt64()
+
+		log.Printf("Creating ACL '%s' at new index %d", newAclName, newAclIndex)
+		aclPayload := ACLPayload{
+			AclName:   newAcl.AclName.ValueString(),
+			Criterion: newAcl.Criterion.ValueString(),
+			Value:     newAcl.Value.ValueString(),
+			Index:     newAclIndex,
+		}
+
+		err = r.client.CreateAcl(ctx, "frontend", frontendName, &aclPayload)
+		if err != nil {
+			return fmt.Errorf("failed to create ACL '%s' at new index %d: %w", newAclName, newAclIndex, err)
 		}
 	}
 
@@ -2061,7 +2105,7 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName stri
 	// Delete ACLs in reverse order
 	for _, aclToDelete := range aclsToDelete {
 		log.Printf("Deleting ACL '%s' at index %d (no longer needed)", aclToDelete.AclName, aclToDelete.Index)
-		err := r.client.DeleteACL(ctx, "frontend", frontendName, aclToDelete.Index)
+		err := r.client.DeleteAcl(ctx, aclToDelete.Index, "frontend", frontendName)
 		if err != nil {
 			return fmt.Errorf("failed to delete ACL '%s': %w", aclToDelete.AclName, err)
 		}
@@ -2092,7 +2136,7 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName stri
 			}
 
 			log.Printf("Creating new ACL '%s' at index %d", aclPayload.AclName, aclPayload.Index)
-			err := r.client.CreateACL(ctx, "frontend", frontendName, &aclPayload)
+			err := r.client.CreateAcl(ctx, "frontend", frontendName, &aclPayload)
 			if err != nil {
 				return fmt.Errorf("failed to create ACL '%s': %w", aclPayload.AclName, err)
 			}
@@ -2210,43 +2254,56 @@ func (r *haproxyStackResource) Delete(ctx context.Context, req resource.DeleteRe
 		return
 	}
 
-	// Delete all resources in proper order (ACLs → frontend → backend → server)
-	// Delete ACLs first (they depend on frontend)
+	// Delete ALL resources in a single transaction with robust error handling
+	// This ensures atomic deletion: ACLs → Frontend → Servers → Backend
+	// The transaction will handle missing ACLs gracefully and retry on concurrency issues
+
+	log.Printf("Starting deletion of all resources in single transaction")
+
+	// Prepare the complete resources payload for deletion
+	resources := &AllResourcesPayload{
+		Frontend: &FrontendPayload{
+			Name: state.Frontend.Name.ValueString(),
+		},
+		Backend: &BackendPayload{
+			Name: state.Backend.Name.ValueString(),
+		},
+	}
+
+	// Add ACLs if they exist in the state
 	if state.Frontend.Acls != nil && len(state.Frontend.Acls) > 0 {
-		// Read existing ACLs to get their indices
+		log.Printf("Including %d ACLs in deletion transaction", len(state.Frontend.Acls))
+
+		// Read existing ACLs to get their current indices
 		existingAcls, err := r.client.ReadACLs(ctx, "frontend", state.Frontend.Name.ValueString())
-		if err == nil {
-			// Delete ACLs in reverse order to avoid index shifting issues
-			for i := len(existingAcls) - 1; i >= 0; i-- {
-				acl := existingAcls[i]
-				err := r.client.DeleteACL(ctx, "frontend", state.Frontend.Name.ValueString(), acl.Index)
-				if err != nil {
-					log.Printf("Warning: Failed to delete ACL '%s' at index %d: %v", acl.AclName, acl.Index, err)
-					// Continue with deletion even if ACL deletion fails
+		if err == nil && len(existingAcls) > 0 {
+			// Map existing ACLs to ACLResource format for transaction
+			acls := make([]ACLResource, len(existingAcls))
+			for i, acl := range existingAcls {
+				acls[i] = ACLResource{
+					ParentType: "frontend",
+					ParentName: state.Frontend.Name.ValueString(),
+					Payload:    &acl,
 				}
 			}
+			resources.Acls = acls
+			log.Printf("Successfully mapped %d existing ACLs for deletion", len(acls))
+		} else {
+			log.Printf("No existing ACLs found in HAProxy (state had %d ACLs): %v", len(state.Frontend.Acls), err)
 		}
 	}
 
-	// Delete frontend
-	err := r.client.DeleteFrontend(ctx, state.Frontend.Name.ValueString())
+	// Delete everything in one transaction with retry logic
+	err := r.client.DeleteAllResourcesInSingleTransaction(ctx, resources)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error deleting frontend",
-			"Could not delete frontend, unexpected error: "+err.Error(),
+			"Error deleting resources",
+			"Could not delete resources in transaction, unexpected error: "+err.Error(),
 		)
 		return
 	}
 
-	// Delete backend (this will also delete associated servers)
-	err = r.client.DeleteBackend(ctx, state.Backend.Name.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error deleting backend",
-			"Could not delete backend, unexpected error: "+err.Error(),
-		)
-		return
-	}
+	log.Printf("Successfully deleted all resources in single transaction")
 
 	resp.State.RemoveResource(ctx)
 }

@@ -77,6 +77,58 @@ func (c *HAProxyClient) CreateFrontendInTransaction(ctx context.Context, transac
 	return nil
 }
 
+// UpdateFrontendInTransaction updates an existing frontend using an existing transaction ID.
+func (c *HAProxyClient) UpdateFrontendInTransaction(ctx context.Context, transactionID string, payload *FrontendPayload) error {
+	log.Printf("UpdateFrontendInTransaction called with transaction ID: %s, payload: %+v", transactionID, payload)
+	req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/frontends/%s?transaction_id=%s", payload.Name, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("frontend update failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("frontend update failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Frontend updated successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// DeleteFrontendInTransaction deletes an existing frontend using an existing transaction ID.
+func (c *HAProxyClient) DeleteFrontendInTransaction(ctx context.Context, transactionID string, frontendName string) error {
+	log.Printf("DeleteFrontendInTransaction called with transaction ID: %s, frontend: %s", transactionID, frontendName)
+	req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/frontends/%s?transaction_id=%s", frontendName, transactionID), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("frontend deletion failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("frontend deletion failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Frontend deleted successfully in transaction: %s", transactionID)
+	return nil
+}
+
 // CreateACL creates a new ACL rule for a frontend.
 func (c *HAProxyClient) CreateACL(ctx context.Context, parentType, parentName string, payload *ACLPayload) error {
 	// Debug: Log the ACL payload being sent
@@ -93,6 +145,98 @@ func (c *HAProxyClient) CreateACL(ctx context.Context, parentType, parentName st
 		return c.httpClient.Do(req)
 	})
 	return err
+}
+
+// CreateACLInTransaction creates a new ACL rule using an existing transaction ID.
+func (c *HAProxyClient) CreateACLInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *ACLPayload) error {
+	// Debug: Log the ACL payload being sent
+	payloadJSON, _ := json.Marshal(payload)
+	log.Printf("DEBUG: Creating ACL in transaction %s with payload: %s", transactionID, string(payloadJSON))
+
+	url := fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s&transaction_id=%s",
+		parentType, parentName, transactionID)
+	req, err := c.newRequest(ctx, "POST", url, payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("ACL creation failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("ACL creation failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("ACL created successfully in transaction: %s", transactionID)
+
+	return nil
+}
+
+// UpdateACLInTransaction updates an existing ACL rule using an existing transaction ID.
+func (c *HAProxyClient) UpdateACLInTransaction(ctx context.Context, transactionID, parentType, parentName string, index int64, payload *ACLPayload) error {
+	// Debug: Log the ACL payload being sent
+	payloadJSON, _ := json.Marshal(payload)
+	log.Printf("DEBUG: Updating ACL in transaction %s with payload: %s", transactionID, string(payloadJSON))
+
+	url := fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+		index, parentType, parentName, transactionID)
+	req, err := c.newRequest(ctx, "PUT", url, payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("ACL update failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("ACL update failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("ACL updated successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// DeleteACLInTransaction deletes an existing ACL rule using an existing transaction ID.
+func (c *HAProxyClient) DeleteACLInTransaction(ctx context.Context, transactionID, parentType, parentName string, index int64) error {
+	log.Printf("DEBUG: Deleting ACL in transaction %s at index %d", transactionID, index)
+
+	url := fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+		index, parentType, parentName, transactionID)
+	req, err := c.newRequest(ctx, "DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("ACL deletion failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("ACL deletion failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("ACL deleted successfully in transaction: %s", transactionID)
+	return nil
 }
 
 // ReadACLs reads all ACL rules for a parent (frontend, backend, etc.).
@@ -227,6 +371,160 @@ func (c *HAProxyClient) CreateAllResourcesInSingleTransaction(ctx context.Contex
 	}
 }
 
+// UpdateAllResourcesInSingleTransaction updates all resources in a single transaction.
+// This ensures atomic operations - all resources succeed or all fail together.
+// Includes retry mechanism for concurrency issues when multiple workspaces run in parallel.
+func (c *HAProxyClient) UpdateAllResourcesInSingleTransaction(ctx context.Context, resources *AllResourcesPayload) error {
+	log.Printf("Updating all resources in single transaction with retry mechanism")
+
+	const (
+		maxRetries = 10
+		retryDelay = 2 * time.Second
+	)
+
+	retryCount := 0
+	for {
+		log.Printf("Attempt %d/%d: Updating all resources in single transaction", retryCount+1, maxRetries)
+
+		// Begin transaction
+		transactionID, err := c.BeginTransaction()
+		if err != nil {
+			log.Printf("Attempt %d: Failed to begin transaction: %v", retryCount+1, err)
+			if c.isRetryableError(err) {
+				retryCount++
+				if retryCount >= maxRetries {
+					return fmt.Errorf("failed to begin transaction after %d retries: %v", maxRetries, err)
+				}
+				log.Printf("Attempt %d: Retrying in %v...", retryCount+1, retryDelay)
+				time.Sleep(retryDelay)
+				continue
+			}
+			return fmt.Errorf("failed to begin transaction (non-retryable): %v", err)
+		}
+
+		log.Printf("Attempt %d: Transaction ID created: %s", retryCount+1, transactionID)
+
+		// Update all resources in the transaction
+		err = c.updateResourcesInTransaction(ctx, transactionID, resources)
+		if err != nil {
+			log.Printf("Attempt %d: Resource update failed in transaction %s: %v", retryCount+1, transactionID, err)
+			// Try to rollback the transaction
+			if rollbackErr := c.rollbackTransaction(transactionID); rollbackErr != nil {
+				log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
+			}
+
+			if c.isRetryableError(err) {
+				retryCount++
+				if retryCount >= maxRetries {
+					return fmt.Errorf("resource update failed after %d retries: %v", maxRetries, err)
+				}
+				log.Printf("Attempt %d: Retrying in %v...", retryCount+1, retryDelay)
+				time.Sleep(retryDelay)
+				continue
+			}
+			return fmt.Errorf("resource update failed (non-retryable): %v", err)
+		}
+
+		// Commit transaction
+		log.Printf("Attempt %d: Committing transaction %s", retryCount+1, transactionID)
+		err = c.CommitTransaction(transactionID)
+		if err != nil {
+			log.Printf("Attempt %d: Commit failed for transaction %s: %v", retryCount+1, transactionID, err)
+
+			if c.isRetryableError(err) {
+				retryCount++
+				if retryCount >= maxRetries {
+					return fmt.Errorf("failed to commit transaction after %d retries: %v", maxRetries, err)
+				}
+				log.Printf("Attempt %d: Retrying in %v...", retryCount+1, retryDelay)
+				time.Sleep(retryDelay)
+				continue
+			}
+			return fmt.Errorf("failed to commit transaction (non-retryable): %v", err)
+		}
+
+		log.Printf("Success! Transaction %s committed successfully - all resources updated in %d attempts", transactionID, retryCount+1)
+		return nil
+	}
+}
+
+// DeleteAllResourcesInSingleTransaction deletes all resources in a single transaction.
+// This ensures atomic operations - all resources succeed or all fail together.
+// Includes retry mechanism for concurrency issues when multiple workspaces run in parallel.
+func (c *HAProxyClient) DeleteAllResourcesInSingleTransaction(ctx context.Context, resources *AllResourcesPayload) error {
+	log.Printf("Deleting all resources in single transaction with retry mechanism")
+
+	const (
+		maxRetries = 10
+		retryDelay = 2 * time.Second
+	)
+
+	retryCount := 0
+	for {
+		log.Printf("Attempt %d/%d: Deleting all resources in single transaction", retryCount+1, maxRetries)
+
+		// Begin transaction
+		transactionID, err := c.BeginTransaction()
+		if err != nil {
+			log.Printf("Attempt %d: Failed to begin transaction: %v", retryCount+1, err)
+			if c.isRetryableError(err) {
+				retryCount++
+				if retryCount >= maxRetries {
+					return fmt.Errorf("failed to begin transaction after %d retries: %v", maxRetries, err)
+				}
+				log.Printf("Attempt %d: Retrying in %v...", retryCount+1, retryDelay)
+				time.Sleep(retryDelay)
+				continue
+			}
+			return fmt.Errorf("failed to begin transaction (non-retryable): %v", err)
+		}
+
+		log.Printf("Attempt %d: Transaction ID created: %s", retryCount+1, transactionID)
+
+		// Delete all resources in the transaction
+		err = c.deleteResourcesInTransaction(ctx, transactionID, resources)
+		if err != nil {
+			log.Printf("Attempt %d: Resource deletion failed in transaction %s: %v", retryCount+1, transactionID, err)
+			// Try to rollback the transaction
+			if rollbackErr := c.rollbackTransaction(transactionID); rollbackErr != nil {
+				log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
+			}
+
+			if c.isRetryableError(err) {
+				retryCount++
+				if retryCount >= maxRetries {
+					return fmt.Errorf("resource deletion failed after %d retries: %v", maxRetries, err)
+				}
+				log.Printf("Attempt %d: Retrying in %v...", retryCount+1, retryDelay)
+				time.Sleep(retryDelay)
+				continue
+			}
+			return fmt.Errorf("resource deletion failed (non-retryable): %v", err)
+		}
+
+		// Commit transaction
+		log.Printf("Attempt %d: Committing transaction %s", retryCount+1, transactionID)
+		err = c.CommitTransaction(transactionID)
+		if err != nil {
+			log.Printf("Attempt %d: Commit failed for transaction %s: %v", retryCount+1, transactionID, err)
+
+			if c.isRetryableError(err) {
+				retryCount++
+				if retryCount >= maxRetries {
+					return fmt.Errorf("failed to commit transaction after %d retries: %v", maxRetries, err)
+				}
+				log.Printf("Attempt %d: Retrying in %v...", retryCount+1, retryDelay)
+				time.Sleep(retryDelay)
+				continue
+			}
+			return fmt.Errorf("failed to commit transaction (non-retryable): %v", err)
+		}
+
+		log.Printf("Success! Transaction %s committed successfully - all resources deleted in %d attempts", transactionID, retryCount+1)
+		return nil
+	}
+}
+
 // createResourcesInTransaction creates all resources within an existing transaction
 func (c *HAProxyClient) createResourcesInTransaction(ctx context.Context, transactionID string, resources *AllResourcesPayload) error {
 	// Create backend first (if provided)
@@ -259,6 +557,131 @@ func (c *HAProxyClient) createResourcesInTransaction(ctx context.Context, transa
 			return fmt.Errorf("frontend creation failed: %v", err)
 		}
 		log.Printf("Frontend created successfully in transaction %s", transactionID)
+	}
+
+	// Create ACLs after frontend is created (if provided)
+	if len(resources.Acls) > 0 {
+		for i, acl := range resources.Acls {
+			log.Printf("Creating ACL %d/%d in transaction %s", i+1, len(resources.Acls), transactionID)
+			err := c.CreateACLInTransaction(ctx, transactionID, acl.ParentType, acl.ParentName, acl.Payload)
+			if err != nil {
+				return fmt.Errorf("ACL %d creation failed: %v", i+1, err)
+			}
+			log.Printf("ACL %d created successfully in transaction %s", i+1, transactionID)
+		}
+	}
+
+	return nil
+}
+
+// updateResourcesInTransaction updates all resources within an existing transaction
+func (c *HAProxyClient) updateResourcesInTransaction(ctx context.Context, transactionID string, resources *AllResourcesPayload) error {
+	// Update backend first (if provided)
+	if resources.Backend != nil {
+		log.Printf("Updating backend in transaction %s", transactionID)
+		err := c.UpdateBackendInTransaction(ctx, transactionID, resources.Backend)
+		if err != nil {
+			return fmt.Errorf("backend update failed: %v", err)
+		}
+		log.Printf("Backend updated successfully in transaction %s", transactionID)
+	}
+
+	// Update servers (if provided)
+	if len(resources.Servers) > 0 {
+		for i, server := range resources.Servers {
+			log.Printf("Updating server %d/%d in transaction %s", i+1, len(resources.Servers), transactionID)
+			err := c.UpdateServerInTransaction(ctx, transactionID, server.ParentType, server.ParentName, server.Payload)
+			if err != nil {
+				return fmt.Errorf("server %d update failed: %v", i+1, err)
+			}
+			log.Printf("Server %d updated successfully in transaction %s", i+1, transactionID)
+		}
+	}
+
+	// Update frontend last (if provided)
+	if resources.Frontend != nil {
+		log.Printf("Updating frontend in transaction %s", transactionID)
+		err := c.UpdateFrontendInTransaction(ctx, transactionID, resources.Frontend)
+		if err != nil {
+			return fmt.Errorf("frontend update failed: %v", err)
+		}
+		log.Printf("Frontend updated successfully in transaction %s", transactionID)
+	}
+
+	// Update ACLs after frontend is updated (if provided)
+	if len(resources.Acls) > 0 {
+		for i, acl := range resources.Acls {
+			log.Printf("Updating ACL %d/%d in transaction %s", i+1, len(resources.Acls), transactionID)
+			err := c.UpdateACLInTransaction(ctx, transactionID, acl.ParentType, acl.ParentName, acl.Payload.Index, acl.Payload)
+			if err != nil {
+				return fmt.Errorf("ACL %d update failed: %v", i+1, err)
+			}
+			log.Printf("ACL %d updated successfully in transaction %s", i+1, transactionID)
+		}
+	}
+
+	return nil
+}
+
+// deleteResourcesInTransaction deletes all resources within an existing transaction
+func (c *HAProxyClient) deleteResourcesInTransaction(ctx context.Context, transactionID string, resources *AllResourcesPayload) error {
+	// Delete ACLs first (they depend on frontend)
+	if len(resources.Acls) > 0 {
+		log.Printf("Attempting to delete %d ACLs in transaction %s", len(resources.Acls), transactionID)
+
+		for i, acl := range resources.Acls {
+			log.Printf("Deleting ACL %d/%d in transaction %s", i+1, len(resources.Acls), transactionID)
+
+			err := c.DeleteACLInTransaction(ctx, transactionID, acl.ParentType, acl.ParentName, acl.Payload.Index)
+			if err != nil {
+				// Check if this is a "not found" error (ACL already deleted or wrong index)
+				if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "missing object") {
+					log.Printf("Warning: ACL %d at index %d not found (likely already deleted): %v", i+1, acl.Payload.Index, err)
+					// Continue with deletion - this ACL is already gone
+					continue
+				}
+
+				// For other errors, log warning but continue (don't fail the entire transaction)
+				log.Printf("Warning: ACL %d deletion failed (continuing): %v", i+1, err)
+				continue
+			}
+
+			log.Printf("ACL %d deleted successfully in transaction %s", i+1, transactionID)
+		}
+
+		log.Printf("ACL deletion phase completed in transaction %s", transactionID)
+	}
+
+	// Delete frontend (if provided)
+	if resources.Frontend != nil {
+		log.Printf("Deleting frontend in transaction %s", transactionID)
+		err := c.DeleteFrontendInTransaction(ctx, transactionID, resources.Frontend.Name)
+		if err != nil {
+			return fmt.Errorf("frontend deletion failed: %v", err)
+		}
+		log.Printf("Frontend deleted successfully in transaction %s", transactionID)
+	}
+
+	// Delete servers (if provided)
+	if len(resources.Servers) > 0 {
+		for i, server := range resources.Servers {
+			log.Printf("Deleting server %d/%d in transaction %s", i+1, len(resources.Servers), transactionID)
+			err := c.DeleteServerInTransaction(ctx, transactionID, server.ParentType, server.ParentName, server.Payload.Name)
+			if err != nil {
+				return fmt.Errorf("server %d deletion failed: %v", i+1, err)
+			}
+			log.Printf("Server %d deleted successfully in transaction %s", i+1, transactionID)
+		}
+	}
+
+	// Delete backend last (if provided)
+	if resources.Backend != nil {
+		log.Printf("Deleting backend in transaction %s", transactionID)
+		err := c.DeleteBackendInTransaction(ctx, transactionID, resources.Backend.Name)
+		if err != nil {
+			return fmt.Errorf("backend deletion failed: %v", err)
+		}
+		log.Printf("Backend deleted successfully in transaction %s", transactionID)
 	}
 
 	return nil
@@ -373,6 +796,58 @@ func (c *HAProxyClient) CreateBackendInTransaction(ctx context.Context, transact
 	}
 
 	log.Printf("Backend created successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// UpdateBackendInTransaction updates an existing backend using an existing transaction ID.
+func (c *HAProxyClient) UpdateBackendInTransaction(ctx context.Context, transactionID string, payload *BackendPayload) error {
+	log.Printf("UpdateBackendInTransaction called with transaction ID: %s, payload: %+v", transactionID, payload)
+	req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/backends/%s?transaction_id=%s", payload.Name, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("backend update failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("backend update failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Backend updated successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// DeleteBackendInTransaction deletes an existing backend using an existing transaction ID.
+func (c *HAProxyClient) DeleteBackendInTransaction(ctx context.Context, transactionID string, backendName string) error {
+	log.Printf("DeleteBackendInTransaction called with transaction ID: %s, backend: %s", transactionID, backendName)
+	req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/backends/%s?transaction_id=%s", backendName, transactionID), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("backend deletion failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("backend deletion failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Backend deleted successfully in transaction: %s", transactionID)
 	return nil
 }
 
@@ -542,6 +1017,58 @@ func (c *HAProxyClient) CreateServerInTransaction(ctx context.Context, transacti
 	return nil
 }
 
+// UpdateServerInTransaction updates an existing server using an existing transaction ID.
+func (c *HAProxyClient) UpdateServerInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *ServerPayload) error {
+	log.Printf("UpdateServerInTransaction called with transaction ID: %s, parent: %s/%s, payload: %+v", transactionID, parentType, parentName, payload)
+	req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/servers/%s?parent_type=%s&parent_name=%s&transaction_id=%s", payload.Name, parentType, parentName, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("server update failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("server update failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Server updated successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// DeleteServerInTransaction deletes an existing server using an existing transaction ID.
+func (c *HAProxyClient) DeleteServerInTransaction(ctx context.Context, transactionID, parentType, parentName string, serverName string) error {
+	log.Printf("DeleteServerInTransaction called with transaction ID: %s, parent: %s/%s, server: %s", transactionID, parentType, parentName, serverName)
+	req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/servers/%s?parent_type=%s&parent_name=%s&transaction_id=%s", serverName, parentType, parentName, transactionID), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("server deletion failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("server deletion failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Server deleted successfully in transaction: %s", transactionID)
+	return nil
+}
+
 // ReadServer reads a server.
 func (c *HAProxyClient) ReadServer(ctx context.Context, name, parentType, parentName string) (*ServerPayload, error) {
 	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/servers/%s?parent_type=%s&parent_name=%s", name, parentType, parentName), nil)
@@ -708,7 +1235,7 @@ func (c *HAProxyClient) ReadBinds(ctx context.Context, parentType, parentName st
 }
 
 // CreateAcl creates a new acl.
-func (c *HAProxyClient) CreateAcl(ctx context.Context, parentType, parentName string, payload *AclPayload) error {
+func (c *HAProxyClient) CreateAcl(ctx context.Context, parentType, parentName string, payload *ACLPayload) error {
 	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 		if err != nil {
@@ -756,7 +1283,7 @@ func (c *HAProxyClient) ReadAcls(ctx context.Context, parentType, parentName str
 }
 
 // UpdateAcl updates a acl.
-func (c *HAProxyClient) UpdateAcl(ctx context.Context, index int64, parentType, parentName string, payload *AclPayload) error {
+func (c *HAProxyClient) UpdateAcl(ctx context.Context, index int64, parentType, parentName string, payload *ACLPayload) error {
 	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
 		if err != nil {
