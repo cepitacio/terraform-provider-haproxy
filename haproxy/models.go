@@ -63,7 +63,7 @@ type MonitorFailPayload struct {
 	CondTest string `json:"cond_test"`
 }
 
-// ACLPayload is the payload for ACL resources.
+// ACLPayload is the payload for ACL resources (deprecated, use AclPayload instead).
 type ACLPayload struct {
 	AclName   string `json:"acl_name"`
 	Criterion string `json:"criterion"`
@@ -76,6 +76,14 @@ type AllResourcesPayload struct {
 	Backend  *BackendPayload  `json:"backend,omitempty"`
 	Servers  []ServerResource `json:"servers,omitempty"`
 	Frontend *FrontendPayload `json:"frontend,omitempty"`
+	Acls     []ACLResource    `json:"acls,omitempty"`
+}
+
+// ACLResource contains ACL creation information.
+type ACLResource struct {
+	ParentType string      `json:"parent_type"`
+	ParentName string      `json:"parent_name"`
+	Payload    *ACLPayload `json:"payload"`
 }
 
 // ServerResource contains server creation information.

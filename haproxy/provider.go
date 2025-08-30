@@ -123,17 +123,6 @@ func (p *haproxyProvider) DataSources(_ context.Context) []func() datasource.Dat
 // Resources defines the resources implemented in the provider.
 func (p *haproxyProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewFrontendResource,
-		NewBackendResource,
-		NewServerResource,
-		NewGlobalResource,
-		NewResolverResource,
-		NewNameserverResource,
-		NewPeersResource,
-		NewPeerEntryResource,
-		NewStickRuleResource,
-		NewStickTableResource,
-		NewLogForwardResource,
 		NewHaproxyStackResource,
 	}
 }
