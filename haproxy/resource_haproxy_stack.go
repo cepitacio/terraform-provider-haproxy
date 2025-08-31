@@ -24,7 +24,8 @@ func NewHaproxyStackResource() resource.Resource {
 
 // haproxyStackResource is the resource implementation.
 type haproxyStackResource struct {
-	client *HAProxyClient
+	client     *HAProxyClient
+	aclManager *ACLManager
 }
 
 // haproxyStackResourceModel maps the resource schema data.
@@ -1112,6 +1113,7 @@ func (r *haproxyStackResource) Configure(_ context.Context, req resource.Configu
 	}
 
 	r.client = client
+	r.aclManager = NewACLManager(client)
 }
 
 // Create resource.
@@ -1273,8 +1275,8 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 
 	// Prepare Frontend ACLs for the transaction
 	if plan.Frontend.Acls != nil && len(plan.Frontend.Acls) > 0 {
-		// Sort ACLs by index to ensure proper order
-		sortedAcls := r.processAclsBlock(plan.Frontend.Acls)
+		// Use ACLManager to process ACLs
+		sortedAcls := r.aclManager.processAclsBlock(plan.Frontend.Acls)
 
 		// Create ACLs with sequential indices starting from 0
 		nextIndex := int64(0) // Start from 0 as required by HAProxy
@@ -1297,8 +1299,8 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 
 	// Prepare Backend ACLs for the transaction
 	if plan.Backend.Acls != nil && len(plan.Backend.Acls) > 0 {
-		// Sort ACLs by index to ensure proper order
-		sortedAcls := r.processAclsBlock(plan.Backend.Acls)
+		// Use ACLManager to process ACLs
+		sortedAcls := r.aclManager.processAclsBlock(plan.Backend.Acls)
 
 		// Create ACLs with sequential indices starting from 0
 		nextIndex := int64(0) // Start from 0 as required by HAProxy
@@ -1404,9 +1406,9 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Read ACLs for the frontend
-	var frontendAcls []AclPayload
+	var frontendAcls []ACLPayload
 	if frontend != nil {
-		frontendAcls, err = r.client.ReadAcls(ctx, "frontend", frontendName)
+		frontendAcls, err = r.aclManager.ReadACLs(ctx, "frontend", frontendName)
 		if err != nil {
 			log.Printf("Warning: Failed to read ACLs for frontend %s: %v", frontendName, err)
 			// Continue without ACLs if reading fails
@@ -1414,8 +1416,8 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Read ACLs for the backend
-	var backendAcls []AclPayload
-	backendAcls, err = r.client.ReadAcls(ctx, "backend", backendName)
+	var backendAcls []ACLPayload
+	backendAcls, err = r.aclManager.ReadACLs(ctx, "backend", backendName)
 	if err != nil {
 		log.Printf("Warning: Failed to read ACLs for backend %s: %v", backendName, err)
 		// Continue without ACLs if reading fails
@@ -1717,7 +1719,7 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 		// Handle Frontend ACLs - ALWAYS preserve user's exact configuration from state
 		if existingFrontend.Acls != nil && len(existingFrontend.Acls) > 0 {
 			// ALWAYS use the existing ACLs from state to preserve user's exact order
-			log.Printf("DEBUG: Using existing frontend ACLs from state to preserve user's exact order: %s", r.formatAclOrder(existingFrontend.Acls))
+			log.Printf("DEBUG: Using existing frontend ACLs from state to preserve user's exact order: %s", r.aclManager.formatAclOrder(existingFrontend.Acls))
 			state.Frontend.Acls = existingFrontend.Acls
 		} else if len(frontendAcls) > 0 {
 			// Only create new ACLs if there are no existing ones in state
@@ -1732,7 +1734,7 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 				})
 			}
 			state.Frontend.Acls = aclModels
-			log.Printf("Frontend ACLs created from HAProxy: %s", r.formatAclOrder(aclModels))
+			log.Printf("Frontend ACLs created from HAProxy: %s", r.aclManager.formatAclOrder(aclModels))
 		}
 	} else if existingFrontend != nil {
 		// Preserve existing frontend configuration if HAProxy didn't return it
@@ -1742,7 +1744,7 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 	// Handle Backend ACLs - ALWAYS preserve user's exact configuration from state
 	if existingBackend.Acls != nil && len(existingBackend.Acls) > 0 {
 		// ALWAYS use the existing ACLs from state to preserve user's exact order
-		log.Printf("DEBUG: Using existing backend ACLs from state to preserve user's exact order: %s", r.formatAclOrder(existingBackend.Acls))
+		log.Printf("DEBUG: Using existing backend ACLs from state to preserve user's exact order: %s", r.aclManager.formatAclOrder(existingBackend.Acls))
 		state.Backend.Acls = existingBackend.Acls
 	} else if len(backendAcls) > 0 {
 		// Only create new ACLs if there are no existing ones in state
@@ -1757,7 +1759,7 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 			})
 		}
 		state.Backend.Acls = backendAclModels
-		log.Printf("Backend ACLs created from HAProxy: %s", r.formatAclOrder(backendAclModels))
+		log.Printf("Backend ACLs created from HAProxy: %s", r.aclManager.formatAclOrder(backendAclModels))
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -1937,7 +1939,7 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 
 	// Update Frontend ACLs - this requires careful handling of order and changes
 	if plan.Frontend.Acls != nil && len(plan.Frontend.Acls) > 0 {
-		if err := r.updateACLs(ctx, "frontend", plan.Frontend.Name.ValueString(), plan.Frontend.Acls); err != nil {
+		if err := r.aclManager.UpdateACLs(ctx, "frontend", plan.Frontend.Name.ValueString(), plan.Frontend.Acls); err != nil {
 			resp.Diagnostics.AddError(
 				"Error updating frontend ACLs",
 				fmt.Sprintf("Could not update frontend ACLs: %s", err.Error()),
@@ -1948,7 +1950,7 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 
 	// Update Backend ACLs - this requires careful handling of order and changes
 	if plan.Backend.Acls != nil && len(plan.Backend.Acls) > 0 {
-		if err := r.updateACLs(ctx, "backend", plan.Backend.Name.ValueString(), plan.Backend.Acls); err != nil {
+		if err := r.aclManager.UpdateACLs(ctx, "backend", plan.Backend.Name.ValueString(), plan.Backend.Acls); err != nil {
 			resp.Diagnostics.AddError(
 				"Error updating backend ACLs",
 				fmt.Sprintf("Could not update backend ACLs: %s", err.Error()),
@@ -2052,7 +2054,7 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, parentType string
 	}
 
 	// Process new ACLs with proper indexing
-	sortedNewAcls := r.processAclsBlock(newAcls)
+	sortedNewAcls := r.aclManager.processAclsBlock(newAcls)
 
 	// Create maps for efficient lookup
 	existingAclMap := make(map[string]*ACLPayload)
@@ -2246,44 +2248,7 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, parentType string
 	return nil
 }
 
-// processAclsBlock processes the ACLs block configuration with proper index normalization
-// This function normalizes user-specified indices to sequential order (0, 1, 2, 3...)
-// while preserving the user's intended ACL sequence
-func (r *haproxyStackResource) processAclsBlock(acls []haproxyAclModel) []haproxyAclModel {
-	if len(acls) == 0 {
-		return nil
-	}
-
-	// Create a copy to avoid modifying the original
-	normalizedAcls := make([]haproxyAclModel, len(acls))
-	copy(normalizedAcls, acls)
-
-	// Sort ACLs by user-specified index to determine the intended order
-	sort.Slice(normalizedAcls, func(i, j int) bool {
-		indexI := normalizedAcls[i].Index.ValueInt64()
-		indexJ := normalizedAcls[j].Index.ValueInt64()
-		return indexI < indexJ
-	})
-
-	// DO NOT normalize indices - preserve user's exact configuration
-	// HAProxy can handle non-sequential indices, and normalization causes state drift
-	log.Printf("ACL order preserved as configured: %s", r.formatAclOrder(normalizedAcls))
-
-	return normalizedAcls
-}
-
-// formatAclOrder creates a readable string showing ACL order for logging
-func (r *haproxyStackResource) formatAclOrder(acls []haproxyAclModel) string {
-	if len(acls) == 0 {
-		return "none"
-	}
-
-	var order []string
-	for _, acl := range acls {
-		order = append(order, fmt.Sprintf("%s(index:%d)", acl.AclName.ValueString(), acl.Index.ValueInt64()))
-	}
-	return strings.Join(order, " → ")
-}
+// ACL processing functions are now handled by ACLManager
 
 // translateNoTlsToForceTls translates no_tlsv* fields to force_tlsv* fields
 // Based on your example:
