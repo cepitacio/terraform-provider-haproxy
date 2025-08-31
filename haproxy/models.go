@@ -347,6 +347,18 @@ type BindPayload struct {
 	Metadata            string `json:"metadata,omitempty"`
 }
 
+// Bind represents the bind configuration
+type Bind struct {
+	Name         string `json:"name"`
+	Address      string `json:"address,omitempty"`
+	Port         int    `json:"port,omitempty"`
+	PortRangeEnd int    `json:"port_range_end,omitempty"`
+	Transparent  bool   `json:"transparent,omitempty"`
+	Mode         string `json:"mode,omitempty"`
+	Maxconn      int    `json:"maxconn,omitempty"`
+	Ssl          bool   `json:"ssl,omitempty"`
+}
+
 // AclPayload is the payload for the acl resource.
 type AclPayload struct {
 	AclName   string `json:"acl_name"`
