@@ -54,7 +54,7 @@ type haproxyBackendModel struct {
 	Forwardfor         []haproxyForwardforModel       `tfsdk:"forwardfor"`
 	Httpcheck          []haproxyHttpcheckModel        `tfsdk:"httpcheck"`
 	TcpCheck           []haproxyTcpCheckModel         `tfsdk:"tcp_check"`
-	Acl                []haproxyAclModel              `tfsdk:"acl"`
+	Acls               []haproxyAclModel              `tfsdk:"acls"`
 	HttpRequestRule    []haproxyHttpRequestRuleModel  `tfsdk:"http_request_rule"`
 	HttpResponseRule   []haproxyHttpResponseRuleModel `tfsdk:"http_response_rule"`
 	TcpRequestRule     []haproxyTcpRequestRuleModel   `tfsdk:"tcp_request_rule"`
@@ -611,29 +611,7 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 							},
 						},
 					},
-					"acl": schema.ListNestedBlock{
-						Description: "Access Control List configuration for the backend.",
-						NestedObject: schema.NestedBlockObject{
-							Attributes: map[string]schema.Attribute{
-								"acl_name": schema.StringAttribute{
-									Required:    true,
-									Description: "The acl name. Pattern: ^[^\\s]+$",
-								},
-								"index": schema.Int64Attribute{
-									Required:    true,
-									Description: "The index of the acl.",
-								},
-								"criterion": schema.StringAttribute{
-									Required:    true,
-									Description: "The criterion. Pattern: ^[^\\s]+$",
-								},
-								"value": schema.StringAttribute{
-									Required:    true,
-									Description: "The value of the criterion.",
-								},
-							},
-						},
-					},
+
 					"http_request_rule": schema.ListNestedBlock{
 						Description: "HTTP request rule configuration for the backend.",
 						NestedObject: schema.NestedBlockObject{
@@ -801,6 +779,29 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 								"stats_auth": schema.StringAttribute{
 									Optional:    true,
 									Description: "The stats authentication for the backend.",
+								},
+							},
+						},
+					},
+					"acls": schema.ListNestedBlock{
+						Description: "Access Control List (ACL) configuration blocks for content switching and decision making in the backend.",
+						NestedObject: schema.NestedBlockObject{
+							Attributes: map[string]schema.Attribute{
+								"acl_name": schema.StringAttribute{
+									Required:    true,
+									Description: "The name of the ACL rule.",
+								},
+								"criterion": schema.StringAttribute{
+									Required:    true,
+									Description: "The criterion for the ACL rule (e.g., 'path', 'hdr', 'src').",
+								},
+								"value": schema.StringAttribute{
+									Required:    true,
+									Description: "The value for the ACL rule.",
+								},
+								"index": schema.Int64Attribute{
+									Optional:    true,
+									Description: "The index/order of the ACL rule. If not specified, will be auto-assigned.",
 								},
 							},
 						},
@@ -1270,7 +1271,7 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 	log.Printf("  Original AdvCheck from plan: %+v", plan.Backend.AdvCheck.ValueString())
 	log.Printf("  HttpchkParams from plan: %+v", len(plan.Backend.HttpchkParams))
 
-	// Prepare ACLs for the transaction
+	// Prepare Frontend ACLs for the transaction
 	if plan.Frontend.Acls != nil && len(plan.Frontend.Acls) > 0 {
 		// Sort ACLs by index to ensure proper order
 		sortedAcls := r.processAclsBlock(plan.Frontend.Acls)
@@ -1282,6 +1283,30 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 			aclResource := ACLResource{
 				ParentType: "frontend",
 				ParentName: plan.Frontend.Name.ValueString(),
+				Payload: &ACLPayload{
+					AclName:   acl.AclName.ValueString(),
+					Criterion: acl.Criterion.ValueString(),
+					Value:     acl.Value.ValueString(),
+					Index:     nextIndex, // Use sequential index starting from 0
+				},
+			}
+			allResources.Acls = append(allResources.Acls, aclResource)
+			nextIndex++ // Increment for next ACL
+		}
+	}
+
+	// Prepare Backend ACLs for the transaction
+	if plan.Backend.Acls != nil && len(plan.Backend.Acls) > 0 {
+		// Sort ACLs by index to ensure proper order
+		sortedAcls := r.processAclsBlock(plan.Backend.Acls)
+
+		// Create ACLs with sequential indices starting from 0
+		nextIndex := int64(0) // Start from 0 as required by HAProxy
+
+		for _, acl := range sortedAcls {
+			aclResource := ACLResource{
+				ParentType: "backend",
+				ParentName: plan.Backend.Name.ValueString(),
 				Payload: &ACLPayload{
 					AclName:   acl.AclName.ValueString(),
 					Criterion: acl.Criterion.ValueString(),
@@ -1379,13 +1404,21 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Read ACLs for the frontend
-	var acls []AclPayload
+	var frontendAcls []AclPayload
 	if frontend != nil {
-		acls, err = r.client.ReadAcls(ctx, "frontend", frontendName)
+		frontendAcls, err = r.client.ReadAcls(ctx, "frontend", frontendName)
 		if err != nil {
 			log.Printf("Warning: Failed to read ACLs for frontend %s: %v", frontendName, err)
 			// Continue without ACLs if reading fails
 		}
+	}
+
+	// Read ACLs for the backend
+	var backendAcls []AclPayload
+	backendAcls, err = r.client.ReadAcls(ctx, "backend", backendName)
+	if err != nil {
+		log.Printf("Warning: Failed to read ACLs for backend %s: %v", backendName, err)
+		// Continue without ACLs if reading fails
 	}
 
 	// Update state with actual HAProxy configuration
@@ -1681,50 +1714,50 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 			state.Frontend.Backlog = types.Int64Value(frontend.Backlog)
 		}
 
-		// Handle ACLs - read them from HAProxy and map back to user's intended order
-		if len(acls) > 0 {
+		// Handle Frontend ACLs - ALWAYS preserve user's exact configuration from state
+		if existingFrontend.Acls != nil && len(existingFrontend.Acls) > 0 {
+			// ALWAYS use the existing ACLs from state to preserve user's exact order
+			log.Printf("DEBUG: Using existing frontend ACLs from state to preserve user's exact order: %s", r.formatAclOrder(existingFrontend.Acls))
+			state.Frontend.Acls = existingFrontend.Acls
+		} else if len(frontendAcls) > 0 {
+			// Only create new ACLs if there are no existing ones in state
+			log.Printf("DEBUG: No existing ACLs in state, creating from HAProxy response")
 			var aclModels []haproxyAclModel
-
-			// Create a map of existing ACLs by name to preserve user's intended order
-			existingAclMap := make(map[string]haproxyAclModel)
-			if existingFrontend.Acls != nil {
-				for _, existingAcl := range existingFrontend.Acls {
-					existingAclMap[existingAcl.AclName.ValueString()] = existingAcl
-				}
-			}
-
-			// Map HAProxy ACLs back to user's intended order
-			for _, acl := range acls {
-				aclName := acl.AclName
-				if existingAcl, exists := existingAclMap[aclName]; exists {
-					// Use the user's intended index and preserve their configuration
-					aclModels = append(aclModels, existingAcl)
-				} else {
-					// This is a new ACL, create it with HAProxy's index
-					aclModels = append(aclModels, haproxyAclModel{
-						AclName:   types.StringValue(acl.AclName),
-						Criterion: types.StringValue(acl.Criterion),
-						Value:     types.StringValue(acl.Value),
-						Index:     types.Int64Value(acl.Index),
-					})
-				}
-			}
-
-			// Sort by user's intended index to maintain order
-			if len(aclModels) > 0 {
-				sort.Slice(aclModels, func(i, j int) bool {
-					return aclModels[i].Index.ValueInt64() < aclModels[j].Index.ValueInt64()
+			for _, acl := range frontendAcls {
+				aclModels = append(aclModels, haproxyAclModel{
+					AclName:   types.StringValue(acl.AclName),
+					Criterion: types.StringValue(acl.Criterion),
+					Value:     types.StringValue(acl.Value),
+					Index:     types.Int64Value(acl.Index),
 				})
 			}
-
 			state.Frontend.Acls = aclModels
-		} else if existingFrontend.Acls != nil && len(existingFrontend.Acls) > 0 {
-			// Preserve existing ACLs if HAProxy didn't return them
-			state.Frontend.Acls = existingFrontend.Acls
+			log.Printf("Frontend ACLs created from HAProxy: %s", r.formatAclOrder(aclModels))
 		}
 	} else if existingFrontend != nil {
 		// Preserve existing frontend configuration if HAProxy didn't return it
 		state.Frontend = existingFrontend
+	}
+
+	// Handle Backend ACLs - ALWAYS preserve user's exact configuration from state
+	if existingBackend.Acls != nil && len(existingBackend.Acls) > 0 {
+		// ALWAYS use the existing ACLs from state to preserve user's exact order
+		log.Printf("DEBUG: Using existing backend ACLs from state to preserve user's exact order: %s", r.formatAclOrder(existingBackend.Acls))
+		state.Backend.Acls = existingBackend.Acls
+	} else if len(backendAcls) > 0 {
+		// Only create new ACLs if there are no existing ones in state
+		log.Printf("DEBUG: No existing backend ACLs in state, creating from HAProxy response")
+		var backendAclModels []haproxyAclModel
+		for _, acl := range backendAcls {
+			backendAclModels = append(backendAclModels, haproxyAclModel{
+				AclName:   types.StringValue(acl.AclName),
+				Criterion: types.StringValue(acl.Criterion),
+				Value:     types.StringValue(acl.Value),
+				Index:     types.Int64Value(acl.Index),
+			})
+		}
+		state.Backend.Acls = backendAclModels
+		log.Printf("Backend ACLs created from HAProxy: %s", r.formatAclOrder(backendAclModels))
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -1902,13 +1935,26 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	// Update ACLs - this requires careful handling of order and changes
-	if err := r.updateACLs(ctx, plan.Frontend.Name.ValueString(), plan.Frontend.Acls); err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating ACLs",
-			fmt.Sprintf("Could not update ACLs: %s", err.Error()),
-		)
-		return
+	// Update Frontend ACLs - this requires careful handling of order and changes
+	if plan.Frontend.Acls != nil && len(plan.Frontend.Acls) > 0 {
+		if err := r.updateACLs(ctx, "frontend", plan.Frontend.Name.ValueString(), plan.Frontend.Acls); err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating frontend ACLs",
+				fmt.Sprintf("Could not update frontend ACLs: %s", err.Error()),
+			)
+			return
+		}
+	}
+
+	// Update Backend ACLs - this requires careful handling of order and changes
+	if plan.Backend.Acls != nil && len(plan.Backend.Acls) > 0 {
+		if err := r.updateACLs(ctx, "backend", plan.Backend.Name.ValueString(), plan.Backend.Acls); err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating backend ACLs",
+				fmt.Sprintf("Could not update backend ACLs: %s", err.Error()),
+			)
+			return
+		}
 	}
 
 	// Set state
@@ -1998,9 +2044,9 @@ func (r *haproxyStackResource) processForwardforBlock(forwardfor []haproxyForwar
 }
 
 // updateACLs handles the complex logic of updating ACLs while maintaining order
-func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName string, newAcls []haproxyAclModel) error {
+func (r *haproxyStackResource) updateACLs(ctx context.Context, parentType string, parentName string, newAcls []haproxyAclModel) error {
 	// Read existing ACLs from HAProxy
-	existingAcls, err := r.client.ReadACLs(ctx, "frontend", frontendName)
+	existingAcls, err := r.client.ReadACLs(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read existing ACLs: %w", err)
 	}
@@ -2021,17 +2067,46 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName stri
 	var aclsToRecreate []haproxyAclModel
 
 	// First pass: identify ACLs that need index changes and mark them for recreation
+	// Also detect renames by matching content and position swaps
 	for _, newAcl := range sortedNewAcls {
 		newAclName := newAcl.AclName.ValueString()
 		newAclIndex := newAcl.Index.ValueInt64()
+		newAclContent := fmt.Sprintf("%s:%s", newAcl.Criterion.ValueString(), newAcl.Value.ValueString())
 
+		// First check if this ACL exists by name
 		if existingAcl, exists := existingAclMap[newAclName]; exists {
 			// Check if the index has changed
 			if existingAcl.Index != newAclIndex {
-				// Index has changed, mark for recreation
-				log.Printf("ACL '%s' index changed from %d to %d, will recreate",
-					newAclName, existingAcl.Index, newAclIndex)
-				aclsToRecreate = append(aclsToRecreate, newAcl)
+				// Index has changed - check if this is just a position swap
+				// Look for another ACL that might have moved to this ACL's old position
+				var isPositionSwap bool
+				var swappedAcl *ACLPayload
+
+				for _, otherExistingAcl := range existingAcls {
+					if otherExistingAcl.AclName != newAclName && !processedAcls[otherExistingAcl.AclName] {
+						otherContent := fmt.Sprintf("%s:%s", otherExistingAcl.Criterion, otherExistingAcl.Value)
+						if otherContent == newAclContent {
+							// This is a position swap - same content, different positions
+							isPositionSwap = true
+							swappedAcl = &otherExistingAcl
+							break
+						}
+					}
+				}
+
+				if isPositionSwap {
+					// This is a position swap, not a real change
+					log.Printf("ACL '%s' position swapped with '%s' (same content, different positions) - no update needed",
+						newAclName, swappedAcl.AclName)
+					// Mark both as processed since they're just swapped
+					processedAcls[newAclName] = true
+					processedAcls[swappedAcl.AclName] = true
+				} else {
+					// Real index change, mark for recreation
+					log.Printf("ACL '%s' index changed from %d to %d, will recreate",
+						newAclName, existingAcl.Index, newAclIndex)
+					aclsToRecreate = append(aclsToRecreate, newAcl)
+				}
 			} else if existingAcl.Criterion != newAcl.Criterion.ValueString() || existingAcl.Value != newAcl.Value.ValueString() {
 				// Index is the same but content has changed, update in place
 				aclPayload := ACLPayload{
@@ -2042,7 +2117,7 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName stri
 				}
 
 				log.Printf("Updating existing ACL '%s' at index %d", aclPayload.AclName, aclPayload.Index)
-				err := r.client.UpdateAcl(ctx, existingAcl.Index, "frontend", frontendName, &aclPayload)
+				err := r.client.UpdateAcl(ctx, existingAcl.Index, parentType, parentName, &aclPayload)
 				if err != nil {
 					return fmt.Errorf("failed to update ACL '%s': %w", aclPayload.AclName, err)
 				}
@@ -2053,6 +2128,40 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName stri
 
 			// Mark this ACL as processed
 			processedAcls[newAclName] = true
+		} else {
+			// ACL doesn't exist by name, check if it's a rename by matching content
+			var renamedAcl *ACLPayload
+			for _, existingAcl := range existingAcls {
+				existingContent := fmt.Sprintf("%s:%s", existingAcl.Criterion, existingAcl.Value)
+				if existingContent == newAclContent && !processedAcls[existingAcl.AclName] {
+					// This is a rename - same content, different name
+					renamedAcl = &existingAcl
+					break
+				}
+			}
+
+			if renamedAcl != nil {
+				// This is a rename, update the name while keeping the same index and content
+				log.Printf("ACL renamed from '%s' to '%s' at index %d", renamedAcl.AclName, newAclName, renamedAcl.Index)
+				aclPayload := ACLPayload{
+					AclName:   newAclName,
+					Criterion: renamedAcl.Criterion,
+					Value:     renamedAcl.Value,
+					Index:     renamedAcl.Index, // Keep the same index
+				}
+
+				err := r.client.UpdateAcl(ctx, renamedAcl.Index, parentType, parentName, &aclPayload)
+				if err != nil {
+					return fmt.Errorf("failed to rename ACL from '%s' to '%s': %w", renamedAcl.AclName, newAclName, err)
+				}
+
+				// Mark both as processed
+				processedAcls[renamedAcl.AclName] = true
+				processedAcls[newAclName] = true
+			} else {
+				// This is a completely new ACL, mark for creation
+				log.Printf("ACL '%s' is new, will create", newAclName)
+			}
 		}
 	}
 
@@ -2062,7 +2171,7 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName stri
 		newAclName := newAcl.AclName.ValueString()
 		if existingAcl, exists := existingAclMap[newAclName]; exists {
 			log.Printf("Deleting ACL '%s' at old index %d for recreation", newAclName, existingAcl.Index)
-			err := r.client.DeleteAcl(ctx, existingAcl.Index, "frontend", frontendName)
+			err := r.client.DeleteAcl(ctx, existingAcl.Index, parentType, parentName)
 			if err != nil {
 				return fmt.Errorf("failed to delete ACL '%s' at old index %d: %w", newAclName, existingAcl.Index, err)
 			}
@@ -2070,21 +2179,22 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName stri
 	}
 
 	// Third pass: create all ACLs that need to be recreated at their new positions
+	// Use the user-specified index to maintain order
 	for _, newAcl := range aclsToRecreate {
 		newAclName := newAcl.AclName.ValueString()
 		newAclIndex := newAcl.Index.ValueInt64()
 
-		log.Printf("Creating ACL '%s' at new index %d", newAclName, newAclIndex)
+		log.Printf("Creating ACL '%s' at user-specified index %d", newAclName, newAclIndex)
 		aclPayload := ACLPayload{
 			AclName:   newAcl.AclName.ValueString(),
 			Criterion: newAcl.Criterion.ValueString(),
 			Value:     newAcl.Value.ValueString(),
-			Index:     newAclIndex,
+			Index:     newAclIndex, // Use the user-specified index
 		}
 
-		err = r.client.CreateAcl(ctx, "frontend", frontendName, &aclPayload)
+		err = r.client.CreateAcl(ctx, parentType, parentName, &aclPayload)
 		if err != nil {
-			return fmt.Errorf("failed to create ACL '%s' at new index %d: %w", newAclName, newAclIndex, err)
+			return fmt.Errorf("failed to create ACL '%s' at index %d: %w", newAclName, newAclIndex)
 		}
 	}
 
@@ -2105,68 +2215,74 @@ func (r *haproxyStackResource) updateACLs(ctx context.Context, frontendName stri
 	// Delete ACLs in reverse order
 	for _, aclToDelete := range aclsToDelete {
 		log.Printf("Deleting ACL '%s' at index %d (no longer needed)", aclToDelete.AclName, aclToDelete.Index)
-		err := r.client.DeleteAcl(ctx, aclToDelete.Index, "frontend", frontendName)
+		err := r.client.DeleteAcl(ctx, aclToDelete.Index, parentType, parentName)
 		if err != nil {
 			return fmt.Errorf("failed to delete ACL '%s': %w", aclToDelete.AclName, err)
 		}
 	}
 
 	// Create new ACLs that don't exist yet
-	// Find the next available index
-	nextIndex := int64(0)
-	if len(existingAcls) > 0 {
-		maxIndex := int64(0)
-		for _, existingAcl := range existingAcls {
-			if existingAcl.Index > maxIndex {
-				maxIndex = existingAcl.Index
-			}
-		}
-		nextIndex = maxIndex + 1
-	}
-
+	// Use the user-specified index to maintain order
 	for _, newAcl := range sortedNewAcls {
 		newAclName := newAcl.AclName.ValueString()
 		if !processedAcls[newAclName] {
-			// This is a new ACL, create it with the next available index
+			// This is a new ACL, create it with the user-specified index
+			newAclIndex := newAcl.Index.ValueInt64()
 			aclPayload := ACLPayload{
 				AclName:   newAcl.AclName.ValueString(),
 				Criterion: newAcl.Criterion.ValueString(),
 				Value:     newAcl.Value.ValueString(),
-				Index:     nextIndex, // Use the next available index
+				Index:     newAclIndex, // Use the user-specified index
 			}
 
 			log.Printf("Creating new ACL '%s' at index %d", aclPayload.AclName, aclPayload.Index)
-			err := r.client.CreateAcl(ctx, "frontend", frontendName, &aclPayload)
+			err := r.client.CreateAcl(ctx, parentType, parentName, &aclPayload)
 			if err != nil {
 				return fmt.Errorf("failed to create ACL '%s': %w", aclPayload.AclName, err)
 			}
-			nextIndex++ // Increment for next ACL
 		}
 	}
 
 	return nil
 }
 
-// processAclsBlock processes the ACLs block configuration with proper index sorting
+// processAclsBlock processes the ACLs block configuration with proper index normalization
+// This function normalizes user-specified indices to sequential order (0, 1, 2, 3...)
+// while preserving the user's intended ACL sequence
 func (r *haproxyStackResource) processAclsBlock(acls []haproxyAclModel) []haproxyAclModel {
 	if len(acls) == 0 {
 		return nil
 	}
 
-	// Sort ACLs by index to ensure proper order
-	sortedAcls := make([]haproxyAclModel, len(acls))
-	copy(sortedAcls, acls)
+	// Create a copy to avoid modifying the original
+	normalizedAcls := make([]haproxyAclModel, len(acls))
+	copy(normalizedAcls, acls)
 
-	// Sort ACLs by index to ensure proper order
-	sort.Slice(sortedAcls, func(i, j int) bool {
-		indexI := sortedAcls[i].Index.ValueInt64()
-		indexJ := sortedAcls[j].Index.ValueInt64()
-
-		// Sort numerically by index (0, 1, 2, 3...)
+	// Sort ACLs by user-specified index to determine the intended order
+	sort.Slice(normalizedAcls, func(i, j int) bool {
+		indexI := normalizedAcls[i].Index.ValueInt64()
+		indexJ := normalizedAcls[j].Index.ValueInt64()
 		return indexI < indexJ
 	})
 
-	return sortedAcls
+	// DO NOT normalize indices - preserve user's exact configuration
+	// HAProxy can handle non-sequential indices, and normalization causes state drift
+	log.Printf("ACL order preserved as configured: %s", r.formatAclOrder(normalizedAcls))
+
+	return normalizedAcls
+}
+
+// formatAclOrder creates a readable string showing ACL order for logging
+func (r *haproxyStackResource) formatAclOrder(acls []haproxyAclModel) string {
+	if len(acls) == 0 {
+		return "none"
+	}
+
+	var order []string
+	for _, acl := range acls {
+		order = append(order, fmt.Sprintf("%s(index:%d)", acl.AclName.ValueString(), acl.Index.ValueInt64()))
+	}
+	return strings.Join(order, " → ")
 }
 
 // translateNoTlsToForceTls translates no_tlsv* fields to force_tlsv* fields
@@ -2270,9 +2386,9 @@ func (r *haproxyStackResource) Delete(ctx context.Context, req resource.DeleteRe
 		},
 	}
 
-	// Add ACLs if they exist in the state
+	// Add Frontend ACLs if they exist in the state
 	if state.Frontend.Acls != nil && len(state.Frontend.Acls) > 0 {
-		log.Printf("Including %d ACLs in deletion transaction", len(state.Frontend.Acls))
+		log.Printf("Including %d frontend ACLs in deletion transaction", len(state.Frontend.Acls))
 
 		// Read existing ACLs to get their current indices
 		existingAcls, err := r.client.ReadACLs(ctx, "frontend", state.Frontend.Name.ValueString())
@@ -2286,10 +2402,33 @@ func (r *haproxyStackResource) Delete(ctx context.Context, req resource.DeleteRe
 					Payload:    &acl,
 				}
 			}
-			resources.Acls = acls
-			log.Printf("Successfully mapped %d existing ACLs for deletion", len(acls))
+			resources.Acls = append(resources.Acls, acls...)
+			log.Printf("Successfully mapped %d existing frontend ACLs for deletion", len(acls))
 		} else {
-			log.Printf("No existing ACLs found in HAProxy (state had %d ACLs): %v", len(state.Frontend.Acls), err)
+			log.Printf("No existing frontend ACLs found in HAProxy (state had %d ACLs): %v", len(state.Frontend.Acls), err)
+		}
+	}
+
+	// Add Backend ACLs if they exist in the state
+	if state.Backend.Acls != nil && len(state.Backend.Acls) > 0 {
+		log.Printf("Including %d backend ACLs in deletion transaction", len(state.Backend.Acls))
+
+		// Read existing ACLs to get their current indices
+		existingAcls, err := r.client.ReadACLs(ctx, "backend", state.Backend.Name.ValueString())
+		if err == nil && len(existingAcls) > 0 {
+			// Map existing ACLs to ACLResource format for transaction
+			acls := make([]ACLResource, len(existingAcls))
+			for i, acl := range existingAcls {
+				acls[i] = ACLResource{
+					ParentType: "backend",
+					ParentName: state.Backend.Name.ValueString(),
+					Payload:    &acl,
+				}
+			}
+			resources.Acls = append(resources.Acls, acls...)
+			log.Printf("Successfully mapped %d existing backend ACLs for deletion", len(acls))
+		} else {
+			log.Printf("No existing backend ACLs found in HAProxy (state had %d ACLs): %v", len(state.Backend.Acls), err)
 		}
 	}
 
