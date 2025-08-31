@@ -6,7 +6,36 @@ import (
 	"log"
 	"sort"
 	"strings"
+
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
+
+// GetACLSchema returns the schema for the ACL block
+func GetACLSchema() schema.ListNestedBlock {
+	return schema.ListNestedBlock{
+		Description: "Access Control List (ACL) configuration blocks for content switching and decision making.",
+		NestedObject: schema.NestedBlockObject{
+			Attributes: map[string]schema.Attribute{
+				"acl_name": schema.StringAttribute{
+					Required:    true,
+					Description: "The name of the ACL rule.",
+				},
+				"criterion": schema.StringAttribute{
+					Required:    true,
+					Description: "The criterion for the ACL rule (e.g., 'path', 'hdr', 'src').",
+				},
+				"value": schema.StringAttribute{
+					Required:    true,
+					Description: "The value for the ACL rule.",
+				},
+				"index": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The index/order of the ACL rule. If not specified, will be auto-assigned.",
+				},
+			},
+		},
+	}
+}
 
 // ACLManager handles ACL operations for both frontend and backend
 type ACLManager struct {
