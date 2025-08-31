@@ -24,8 +24,10 @@ func NewHaproxyStackResource() resource.Resource {
 
 // haproxyStackResource is the resource implementation.
 type haproxyStackResource struct {
-	client     *HAProxyClient
-	aclManager *ACLManager
+	client          *HAProxyClient
+	aclManager      *ACLManager
+	frontendManager *FrontendManager
+	backendManager  *BackendManager
 }
 
 // haproxyStackResourceModel maps the resource schema data.
@@ -1114,6 +1116,8 @@ func (r *haproxyStackResource) Configure(_ context.Context, req resource.Configu
 
 	r.client = client
 	r.aclManager = NewACLManager(client)
+	r.frontendManager = NewFrontendManager(client)
+	r.backendManager = NewBackendManager(client)
 }
 
 // Create resource.
@@ -1171,66 +1175,7 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 
 	// Create payload for single transaction with version-aware DefaultServer
 	allResources := &AllResourcesPayload{
-		Backend: &BackendPayload{
-			Name:               plan.Backend.Name.ValueString(),
-			Mode:               plan.Backend.Mode.ValueString(),
-			AdvCheck:           r.determineAdvCheckForAPI(plan.Backend.AdvCheck, plan.Backend.HttpchkParams),
-			HttpConnectionMode: plan.Backend.HttpConnectionMode.ValueString(),
-			ServerTimeout:      plan.Backend.ServerTimeout.ValueInt64(),
-			CheckTimeout:       plan.Backend.CheckTimeout.ValueInt64(),
-			ConnectTimeout:     plan.Backend.ConnectTimeout.ValueInt64(),
-			QueueTimeout:       plan.Backend.QueueTimeout.ValueInt64(),
-			TunnelTimeout:      plan.Backend.TunnelTimeout.ValueInt64(),
-			TarpitTimeout:      plan.Backend.TarpitTimeout.ValueInt64(),
-			CheckCache:         plan.Backend.Checkcache.ValueString(),
-			Retries:            plan.Backend.Retries.ValueInt64(),
-
-			// Process nested blocks
-			Balance:       r.processBalanceBlock(plan.Backend.Balance),
-			HttpchkParams: r.processHttpchkParamsBlock(plan.Backend.HttpchkParams),
-
-			Forwardfor: r.processForwardforBlock(plan.Backend.Forwardfor),
-
-			DefaultServer: func() *DefaultServerPayload {
-				if plan.Backend.DefaultServer == nil {
-					return nil
-				}
-				return &DefaultServerPayload{
-					// Core SSL fields (supported in both v2 and v3)
-					Ssl:            plan.Backend.DefaultServer.Ssl.ValueString(),
-					SslCafile:      plan.Backend.DefaultServer.SslCafile.ValueString(),
-					SslCertificate: plan.Backend.DefaultServer.SslCertificate.ValueString(),
-					SslMaxVer:      plan.Backend.DefaultServer.SslMaxVer.ValueString(),
-					SslMinVer:      plan.Backend.DefaultServer.SslMinVer.ValueString(),
-					SslReuse:       plan.Backend.DefaultServer.SslReuse.ValueString(),
-					Ciphers:        plan.Backend.DefaultServer.Ciphers.ValueString(),
-					Ciphersuites:   plan.Backend.DefaultServer.Ciphersuites.ValueString(),
-					Verify:         plan.Backend.DefaultServer.Verify.ValueString(),
-
-					// Protocol control fields (v3 only)
-					Sslv3:  plan.Backend.DefaultServer.Sslv3.ValueString(),
-					Tlsv10: plan.Backend.DefaultServer.Tlsv10.ValueString(),
-					Tlsv11: plan.Backend.DefaultServer.Tlsv11.ValueString(),
-					Tlsv12: plan.Backend.DefaultServer.Tlsv12.ValueString(),
-					Tlsv13: plan.Backend.DefaultServer.Tlsv13.ValueString(),
-
-					// Deprecated fields (v2 only) - translate to force fields
-					NoSslv3:  plan.Backend.DefaultServer.NoSslv3.ValueString(),
-					NoTlsv10: r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv10.ValueString()),
-					NoTlsv11: r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv11.ValueString()),
-					NoTlsv12: r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv12.ValueString()),
-					NoTlsv13: r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv13.ValueString()),
-
-					// Force fields (v3 only)
-					ForceSslv3:     plan.Backend.DefaultServer.ForceSslv3.ValueString(),
-					ForceTlsv10:    plan.Backend.DefaultServer.ForceTlsv10.ValueString(),
-					ForceTlsv11:    plan.Backend.DefaultServer.ForceTlsv11.ValueString(),
-					ForceTlsv12:    plan.Backend.DefaultServer.ForceTlsv12.ValueString(),
-					ForceTlsv13:    plan.Backend.DefaultServer.ForceTlsv13.ValueString(),
-					ForceStrictSni: plan.Backend.DefaultServer.ForceStrictSni.ValueString(),
-				}
-			}(),
-		},
+		Backend: r.backendManager.processBackendBlock(plan.Backend),
 		Servers: []ServerResource{
 			{
 				ParentType: "backend",
@@ -1255,13 +1200,7 @@ func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRe
 				},
 			},
 		},
-		Frontend: &FrontendPayload{
-			Name:           plan.Frontend.Name.ValueString(),
-			Mode:           plan.Frontend.Mode.ValueString(),
-			DefaultBackend: plan.Frontend.DefaultBackend.ValueString(),
-			MaxConn:        plan.Frontend.Maxconn.ValueInt64(),
-			Backlog:        plan.Frontend.Backlog.ValueInt64(),
-		},
+		Frontend: r.frontendManager.processFrontendBlock(plan.Frontend),
 	}
 
 	// Debug: Log the payload being sent to HAProxy
@@ -1396,7 +1335,8 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	frontend, err := r.client.ReadFrontend(ctx, frontendName)
+	// Read frontend using FrontendManager
+	frontendModel, err := r.frontendManager.ReadFrontend(ctx, frontendName, existingFrontend)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading frontend",
@@ -1404,24 +1344,9 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 		)
 		return
 	}
+	state.Frontend = frontendModel
 
-	// Read ACLs for the frontend
-	var frontendAcls []ACLPayload
-	if frontend != nil {
-		frontendAcls, err = r.aclManager.ReadACLs(ctx, "frontend", frontendName)
-		if err != nil {
-			log.Printf("Warning: Failed to read ACLs for frontend %s: %v", frontendName, err)
-			// Continue without ACLs if reading fails
-		}
-	}
-
-	// Read ACLs for the backend
-	var backendAcls []ACLPayload
-	backendAcls, err = r.aclManager.ReadACLs(ctx, "backend", backendName)
-	if err != nil {
-		log.Printf("Warning: Failed to read ACLs for backend %s: %v", backendName, err)
-		// Continue without ACLs if reading fails
-	}
+	// Backend ACLs are now handled by BackendManager
 
 	// Update state with actual HAProxy configuration
 	if backend != nil {
@@ -1701,66 +1626,15 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 		state.Server = existingServer
 	}
 
-	if frontend != nil {
-		// Only set fields if HAProxy actually returned them
-		if frontend.Mode != "" {
-			state.Frontend.Mode = types.StringValue(frontend.Mode)
-		}
-		if frontend.DefaultBackend != "" {
-			state.Frontend.DefaultBackend = types.StringValue(frontend.DefaultBackend)
-		}
-		if frontend.MaxConn != 0 {
-			state.Frontend.Maxconn = types.Int64Value(frontend.MaxConn)
-		}
-		if frontend.Backlog != 0 {
-			state.Frontend.Backlog = types.Int64Value(frontend.Backlog)
-		}
-
-		// Handle Frontend ACLs - ALWAYS preserve user's exact configuration from state
-		if existingFrontend.Acls != nil && len(existingFrontend.Acls) > 0 {
-			// ALWAYS use the existing ACLs from state to preserve user's exact order
-			log.Printf("DEBUG: Using existing frontend ACLs from state to preserve user's exact order: %s", r.aclManager.formatAclOrder(existingFrontend.Acls))
-			state.Frontend.Acls = existingFrontend.Acls
-		} else if len(frontendAcls) > 0 {
-			// Only create new ACLs if there are no existing ones in state
-			log.Printf("DEBUG: No existing ACLs in state, creating from HAProxy response")
-			var aclModels []haproxyAclModel
-			for _, acl := range frontendAcls {
-				aclModels = append(aclModels, haproxyAclModel{
-					AclName:   types.StringValue(acl.AclName),
-					Criterion: types.StringValue(acl.Criterion),
-					Value:     types.StringValue(acl.Value),
-					Index:     types.Int64Value(acl.Index),
-				})
-			}
-			state.Frontend.Acls = aclModels
-			log.Printf("Frontend ACLs created from HAProxy: %s", r.aclManager.formatAclOrder(aclModels))
-		}
-	} else if existingFrontend != nil {
-		// Preserve existing frontend configuration if HAProxy didn't return it
-		state.Frontend = existingFrontend
-	}
+	// Frontend is already processed by FrontendManager above
 
 	// Handle Backend ACLs - ALWAYS preserve user's exact configuration from state
 	if existingBackend.Acls != nil && len(existingBackend.Acls) > 0 {
 		// ALWAYS use the existing ACLs from state to preserve user's exact order
 		log.Printf("DEBUG: Using existing backend ACLs from state to preserve user's exact order: %s", r.aclManager.formatAclOrder(existingBackend.Acls))
 		state.Backend.Acls = existingBackend.Acls
-	} else if len(backendAcls) > 0 {
-		// Only create new ACLs if there are no existing ones in state
-		log.Printf("DEBUG: No existing backend ACLs in state, creating from HAProxy response")
-		var backendAclModels []haproxyAclModel
-		for _, acl := range backendAcls {
-			backendAclModels = append(backendAclModels, haproxyAclModel{
-				AclName:   types.StringValue(acl.AclName),
-				Criterion: types.StringValue(acl.Criterion),
-				Value:     types.StringValue(acl.Value),
-				Index:     types.Int64Value(acl.Index),
-			})
-		}
-		state.Backend.Acls = backendAclModels
-		log.Printf("Backend ACLs created from HAProxy: %s", r.aclManager.formatAclOrder(backendAclModels))
 	}
+	// Backend ACLs are handled by BackendManager above
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -1821,59 +1695,7 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 
 	// Create payload for single transaction with ALL configuration
 	allResources := &AllResourcesPayload{
-		Backend: &BackendPayload{
-			Name:               plan.Backend.Name.ValueString(),
-			Mode:               plan.Backend.Mode.ValueString(),
-			AdvCheck:           r.determineAdvCheckForAPI(plan.Backend.AdvCheck, plan.Backend.HttpchkParams),
-			HttpConnectionMode: plan.Backend.HttpConnectionMode.ValueString(),
-			ServerTimeout:      plan.Backend.ServerTimeout.ValueInt64(),
-			CheckTimeout:       plan.Backend.CheckTimeout.ValueInt64(),
-			ConnectTimeout:     plan.Backend.ConnectTimeout.ValueInt64(),
-			QueueTimeout:       plan.Backend.QueueTimeout.ValueInt64(),
-			TunnelTimeout:      plan.Backend.TunnelTimeout.ValueInt64(),
-			TarpitTimeout:      plan.Backend.TarpitTimeout.ValueInt64(),
-			CheckCache:         plan.Backend.Checkcache.ValueString(),
-			Retries:            plan.Backend.Retries.ValueInt64(),
-
-			// Process nested blocks
-			Balance:       r.processBalanceBlock(plan.Backend.Balance),
-			HttpchkParams: r.processHttpchkParamsBlock(plan.Backend.HttpchkParams),
-
-			Forwardfor: r.processForwardforBlock(plan.Backend.Forwardfor),
-
-			DefaultServer: func() *DefaultServerPayload {
-				if plan.Backend.DefaultServer == nil {
-					return nil
-				}
-				return &DefaultServerPayload{
-					Ssl:            plan.Backend.DefaultServer.Ssl.ValueString(),
-					SslCafile:      plan.Backend.DefaultServer.SslCafile.ValueString(),
-					SslCertificate: plan.Backend.DefaultServer.SslCertificate.ValueString(),
-					SslMaxVer:      plan.Backend.DefaultServer.SslMaxVer.ValueString(),
-					SslMinVer:      plan.Backend.DefaultServer.SslMinVer.ValueString(),
-					SslReuse:       plan.Backend.DefaultServer.SslReuse.ValueString(),
-					Ciphers:        plan.Backend.DefaultServer.Ciphers.ValueString(),
-					Ciphersuites:   plan.Backend.DefaultServer.Ciphersuites.ValueString(),
-					Verify:         plan.Backend.DefaultServer.Verify.ValueString(),
-					Sslv3:          plan.Backend.DefaultServer.Sslv3.ValueString(),
-					Tlsv10:         plan.Backend.DefaultServer.Tlsv10.ValueString(),
-					Tlsv11:         plan.Backend.DefaultServer.Tlsv11.ValueString(),
-					Tlsv12:         plan.Backend.DefaultServer.Tlsv12.ValueString(),
-					Tlsv13:         plan.Backend.DefaultServer.Tlsv13.ValueString(),
-					NoSslv3:        plan.Backend.DefaultServer.NoSslv3.ValueString(),
-					NoTlsv10:       r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv10.ValueString()),
-					NoTlsv11:       r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv11.ValueString()),
-					NoTlsv12:       r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv12.ValueString()),
-					NoTlsv13:       r.translateNoTlsToForceTls(plan.Backend.DefaultServer.NoTlsv13.ValueString()),
-					ForceSslv3:     plan.Backend.DefaultServer.ForceSslv3.ValueString(),
-					ForceTlsv10:    plan.Backend.DefaultServer.ForceTlsv10.ValueString(),
-					ForceTlsv11:    plan.Backend.DefaultServer.ForceTlsv11.ValueString(),
-					ForceTlsv12:    plan.Backend.DefaultServer.ForceTlsv12.ValueString(),
-					ForceTlsv13:    plan.Backend.DefaultServer.ForceTlsv13.ValueString(),
-					ForceStrictSni: plan.Backend.DefaultServer.ForceStrictSni.ValueString(),
-				}
-			}(),
-		},
+		Backend: r.backendManager.processBackendBlock(plan.Backend),
 		Servers: []ServerResource{
 			{
 				ParentType: "backend",
@@ -1898,13 +1720,7 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 				},
 			},
 		},
-		Frontend: &FrontendPayload{
-			Name:           plan.Frontend.Name.ValueString(),
-			Mode:           plan.Frontend.Mode.ValueString(),
-			DefaultBackend: plan.Frontend.DefaultBackend.ValueString(),
-			MaxConn:        plan.Frontend.Maxconn.ValueInt64(),
-			Backlog:        plan.Frontend.Backlog.ValueInt64(),
-		},
+		Frontend: r.frontendManager.processFrontendBlock(plan.Frontend),
 	}
 
 	// Update backend
