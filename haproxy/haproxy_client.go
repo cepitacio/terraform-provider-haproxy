@@ -332,7 +332,7 @@ func (c *HAProxyClient) CreateAllResourcesInSingleTransaction(ctx context.Contex
 		if err != nil {
 			log.Printf("Attempt %d: Resource creation failed in transaction %s: %v", retryCount+1, transactionID, err)
 			// Try to rollback the transaction
-			if rollbackErr := c.rollbackTransaction(transactionID); rollbackErr != nil {
+			if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
 				log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
 			}
 
@@ -409,7 +409,7 @@ func (c *HAProxyClient) UpdateAllResourcesInSingleTransaction(ctx context.Contex
 		if err != nil {
 			log.Printf("Attempt %d: Resource update failed in transaction %s: %v", retryCount+1, transactionID, err)
 			// Try to rollback the transaction
-			if rollbackErr := c.rollbackTransaction(transactionID); rollbackErr != nil {
+			if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
 				log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
 			}
 
@@ -486,7 +486,7 @@ func (c *HAProxyClient) DeleteAllResourcesInSingleTransaction(ctx context.Contex
 		if err != nil {
 			log.Printf("Attempt %d: Resource deletion failed in transaction %s: %v", retryCount+1, transactionID, err)
 			// Try to rollback the transaction
-			if rollbackErr := c.rollbackTransaction(transactionID); rollbackErr != nil {
+			if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
 				log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
 			}
 
@@ -2442,4 +2442,58 @@ func (c *HAProxyClient) DeleteGlobal(ctx context.Context) error {
 		return c.httpClient.Do(req)
 	})
 	return err
+}
+
+// CreateHttpRequestRuleInTransaction creates a new httprequestrule using an existing transaction ID.
+func (c *HAProxyClient) CreateHttpRequestRuleInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *HttpRequestRulePayload) error {
+	url := fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
+		parentType, parentName, transactionID)
+	req, err := c.newRequest(ctx, "POST", url, payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("HTTP request rule creation failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("HTTP request rule creation failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("HTTP request rule created successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// DeleteHttpRequestRuleInTransaction deletes an existing httprequestrule using an existing transaction ID.
+func (c *HAProxyClient) DeleteHttpRequestRuleInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string) error {
+	url := fmt.Sprintf("/services/haproxy/configuration/http_request_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+		index, parentType, parentName, transactionID)
+	req, err := c.newRequest(ctx, "DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("HTTP request rule deletion failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("HTTP request rule deletion failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("HTTP request rule deleted successfully in transaction: %s", transactionID)
+	return nil
 }

@@ -77,6 +77,34 @@ func (r *ACLManager) CreateACLs(ctx context.Context, parentType string, parentNa
 	return nil
 }
 
+// CreateACLsInTransaction creates ACLs using an existing transaction ID
+func (r *ACLManager) CreateACLsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, acls []haproxyAclModel) error {
+	if len(acls) == 0 {
+		return nil
+	}
+
+	// Process ACLs with proper indexing
+	sortedAcls := r.processAclsBlock(acls)
+
+	// Create ACLs in order using the existing transaction
+	for _, acl := range sortedAcls {
+		aclPayload := ACLPayload{
+			AclName:   acl.AclName.ValueString(),
+			Criterion: acl.Criterion.ValueString(),
+			Value:     acl.Value.ValueString(),
+			Index:     acl.Index.ValueInt64(),
+		}
+
+		log.Printf("Creating ACL '%s' at index %d for %s '%s' in transaction %s", aclPayload.AclName, aclPayload.Index, parentType, parentName, transactionID)
+		err := r.client.CreateACLInTransaction(ctx, transactionID, parentType, parentName, &aclPayload)
+		if err != nil {
+			return fmt.Errorf("failed to create ACL '%s': %w", aclPayload.AclName, err)
+		}
+	}
+
+	return nil
+}
+
 // ReadACLs reads ACLs from HAProxy for a given parent
 func (r *ACLManager) ReadACLs(ctx context.Context, parentType string, parentName string) ([]ACLPayload, error) {
 	return r.client.ReadACLs(ctx, parentType, parentName)
@@ -279,6 +307,48 @@ func (r *ACLManager) UpdateACLs(ctx context.Context, parentType string, parentNa
 			if err != nil {
 				return fmt.Errorf("failed to create ACL '%s': %w", aclPayload.AclName, err)
 			}
+		}
+	}
+
+	return nil
+}
+
+// UpdateACLsInTransaction updates ACLs using an existing transaction ID
+func (r *ACLManager) UpdateACLsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, acls []haproxyAclModel) error {
+	// For now, we'll use the existing UpdateACLs logic but with transaction support
+	// This is a simplified version that creates a new transaction for ACL updates
+	// In a more sophisticated implementation, we could reuse the existing transaction
+
+	// Delete existing ACLs first
+	if err := r.DeleteACLsInTransaction(ctx, transactionID, parentType, parentName); err != nil {
+		return fmt.Errorf("failed to delete existing ACLs: %w", err)
+	}
+
+	// Create new ACLs with the transaction
+	if err := r.CreateACLsInTransaction(ctx, transactionID, parentType, parentName, acls); err != nil {
+		return fmt.Errorf("failed to create new ACLs: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteACLsInTransaction deletes all ACLs for a given parent using an existing transaction ID
+func (r *ACLManager) DeleteACLsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+	acls, err := r.client.ReadACLs(ctx, parentType, parentName)
+	if err != nil {
+		return fmt.Errorf("failed to read ACLs for deletion: %w", err)
+	}
+
+	// Delete in reverse order (highest index first) to avoid shifting issues
+	sort.Slice(acls, func(i, j int) bool {
+		return acls[i].Index > acls[j].Index
+	})
+
+	for _, acl := range acls {
+		log.Printf("Deleting ACL '%s' at index %d in transaction %s", acl.AclName, acl.Index, transactionID)
+		err := r.client.DeleteACLInTransaction(ctx, transactionID, parentType, parentName, acl.Index)
+		if err != nil {
+			return fmt.Errorf("failed to delete ACL '%s': %w", acl.AclName, err)
 		}
 	}
 
