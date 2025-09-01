@@ -53,7 +53,25 @@ func (r *HttpRequestRuleManager) CreateHttpRequestRulesInTransaction(ctx context
 	// Sort rules by index to ensure proper order
 	sortedRules := r.processHttpRequestRulesBlock(rules)
 
-	// Create rules in order using the existing transaction
+	// For v3, we need to send all rules at once due to API limitations
+	if r.client.apiVersion == "v3" {
+		// Convert all rules to payloads
+		var allPayloads []HttpRequestRulePayload
+		for _, rule := range sortedRules {
+			rulePayload := r.convertToHttpRequestRulePayload(&rule)
+			allPayloads = append(allPayloads, *rulePayload)
+		}
+
+		// Send all rules in one request
+		if err := r.client.CreateAllHttpRequestRulesInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
+			return fmt.Errorf("failed to create all HTTP request rules for %s %s: %w", parentType, parentName, err)
+		}
+
+		log.Printf("Created all %d HTTP request rules for %s %s in transaction %s", len(allPayloads), parentType, parentName, transactionID)
+		return nil
+	}
+
+	// v2: Create rules one by one (original logic)
 	for _, rule := range sortedRules {
 		rulePayload := r.convertToHttpRequestRulePayload(&rule)
 

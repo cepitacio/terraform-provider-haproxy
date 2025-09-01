@@ -153,8 +153,22 @@ func (c *HAProxyClient) CreateACLInTransaction(ctx context.Context, transactionI
 	payloadJSON, _ := json.Marshal(payload)
 	log.Printf("DEBUG: Creating ACL in transaction %s with payload: %s", transactionID, string(payloadJSON))
 
-	url := fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s&transaction_id=%s",
-		parentType, parentName, transactionID)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint with index-based positioning
+		// Use the actual index from the payload for proper ordering
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/acls/%d?transaction_id=%s",
+			parentTypePlural, parentName, payload.Index, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s&transaction_id=%s",
+			parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using ACL endpoint: %s for API version %s", url, c.apiVersion)
+
 	req, err := c.newRequest(ctx, "POST", url, payload)
 	if err != nil {
 		return err
@@ -185,8 +199,21 @@ func (c *HAProxyClient) UpdateACLInTransaction(ctx context.Context, transactionI
 	payloadJSON, _ := json.Marshal(payload)
 	log.Printf("DEBUG: Updating ACL in transaction %s with payload: %s", transactionID, string(payloadJSON))
 
-	url := fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
-		index, parentType, parentName, transactionID)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint with index-based positioning
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/acls/%d?transaction_id=%s",
+			parentTypePlural, parentName, index, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+			index, parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using ACL update endpoint: %s for API version %s", url, c.apiVersion)
+
 	req, err := c.newRequest(ctx, "PUT", url, payload)
 	if err != nil {
 		return err
@@ -214,8 +241,21 @@ func (c *HAProxyClient) UpdateACLInTransaction(ctx context.Context, transactionI
 func (c *HAProxyClient) DeleteACLInTransaction(ctx context.Context, transactionID, parentType, parentName string, index int64) error {
 	log.Printf("DEBUG: Deleting ACL in transaction %s at index %d", transactionID, index)
 
-	url := fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
-		index, parentType, parentName, transactionID)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint with index-based positioning
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/acls/%d?transaction_id=%s",
+			parentTypePlural, parentName, index, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+			index, parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using ACL delete endpoint: %s for API version %s", url, c.apiVersion)
+
 	req, err := c.newRequest(ctx, "DELETE", url, nil)
 	if err != nil {
 		return err
@@ -241,7 +281,21 @@ func (c *HAProxyClient) DeleteACLInTransaction(ctx context.Context, transactionI
 
 // ReadACLs reads all ACL rules for a parent (frontend, backend, etc.).
 func (c *HAProxyClient) ReadACLs(ctx context.Context, parentType, parentName string) ([]ACLPayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	var url string
+
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/acls", parentTypePlural, parentName)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s", parentType, parentName)
+	}
+
+	log.Printf("DEBUG: Using ACL read endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -256,14 +310,25 @@ func (c *HAProxyClient) ReadACLs(ctx context.Context, parentType, parentName str
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var response struct {
-		Data []ACLPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, err
+	var acls []ACLPayload
+
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct array, no wrapper
+		if err := json.NewDecoder(resp.Body).Decode(&acls); err != nil {
+			return nil, fmt.Errorf("failed to decode v3 ACL response: %w", err)
+		}
+	} else {
+		// v2: Response has a data wrapper
+		var response struct {
+			Data []ACLPayload `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+			return nil, fmt.Errorf("failed to decode v2 ACL response: %w", err)
+		}
+		acls = response.Data
 	}
 
-	return response.Data, nil
+	return acls, nil
 }
 
 // UpdateACL updates an existing ACL rule by index.
@@ -994,7 +1059,23 @@ func (c *HAProxyClient) ReadServers(ctx context.Context, parentType, parentName 
 // CreateServerInTransaction creates a new server using an existing transaction ID.
 func (c *HAProxyClient) CreateServerInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *ServerPayload) error {
 	log.Printf("CreateServerInTransaction called with transaction ID: %s, parent: %s/%s, payload: %+v", transactionID, parentType, parentName, payload)
-	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/servers?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
+
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/servers?transaction_id=%s",
+			parentTypePlural, parentName, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/servers?parent_type=%s&parent_name=%s&transaction_id=%s",
+			parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using server endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "POST", url, payload)
 	if err != nil {
 		return err
 	}
@@ -1020,7 +1101,23 @@ func (c *HAProxyClient) CreateServerInTransaction(ctx context.Context, transacti
 // UpdateServerInTransaction updates an existing server using an existing transaction ID.
 func (c *HAProxyClient) UpdateServerInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *ServerPayload) error {
 	log.Printf("UpdateServerInTransaction called with transaction ID: %s, parent: %s/%s, payload: %+v", transactionID, parentType, parentName, payload)
-	req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/servers/%s?parent_type=%s&parent_name=%s&transaction_id=%s", payload.Name, parentType, parentName, transactionID), payload)
+
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/servers/%s?transaction_id=%s",
+			parentTypePlural, parentName, payload.Name, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/servers/%s?parent_type=%s&parent_name=%s&transaction_id=%s",
+			payload.Name, parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using server update endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "PUT", url, payload)
 	if err != nil {
 		return err
 	}
@@ -1046,7 +1143,23 @@ func (c *HAProxyClient) UpdateServerInTransaction(ctx context.Context, transacti
 // DeleteServerInTransaction deletes an existing server using an existing transaction ID.
 func (c *HAProxyClient) DeleteServerInTransaction(ctx context.Context, transactionID, parentType, parentName string, serverName string) error {
 	log.Printf("DeleteServerInTransaction called with transaction ID: %s, parent: %s/%s, server: %s", transactionID, parentType, parentName, serverName)
-	req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/servers/%s?parent_type=%s&parent_name=%s&transaction_id=%s", serverName, parentType, parentName, transactionID), nil)
+
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/servers/%s?transaction_id=%s",
+			parentTypePlural, parentName, serverName, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/servers/%s?parent_type=%s&parent_name=%s&transaction_id=%s",
+			serverName, parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using server delete endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "DELETE", url, nil)
 	if err != nil {
 		return err
 	}
@@ -1309,7 +1422,40 @@ func (c *HAProxyClient) DeleteAcl(ctx context.Context, index int64, parentType, 
 // CreateHttpRequestRule creates a new httprequestrule.
 func (c *HAProxyClient) CreateHttpRequestRule(ctx context.Context, parentType, parentName string, payload *HttpRequestRulePayload) error {
 	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
-		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
+		var url string
+		var method string
+		var requestPayload interface{}
+
+		if c.apiVersion == "v3" {
+			// v3: Use nested endpoint under frontends/backends
+			// v3 doesn't support POST for individual rules - only PUT to replace entire list
+			// v3 expects an array of rules, not a single rule
+			parentTypePlural := parentType + "s"
+			url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_request_rules?transaction_id=%s",
+				parentTypePlural, parentName, transactionID)
+			method = "PUT"
+
+			// For v3, we need to read existing rules first, then add the new one
+			// This is a limitation of v3 - we can't create individual rules
+			existingRules, err := c.ReadHttpRequestRules(ctx, parentType, parentName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read existing HTTP request rules for v3: %w", err)
+			}
+
+			// Add the new rule to existing rules
+			allRules := append(existingRules, *payload)
+			requestPayload = allRules
+		} else {
+			// v2: Use query parameter approach with POST
+			url = fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
+				parentType, parentName, transactionID)
+			method = "POST"
+			requestPayload = payload
+		}
+
+		log.Printf("DEBUG: Using HTTP request rule endpoint: %s with method %s for API version %s", url, method, c.apiVersion)
+
+		req, err := c.newRequest(ctx, method, url, requestPayload)
 		if err != nil {
 			return nil, err
 		}
@@ -1320,7 +1466,17 @@ func (c *HAProxyClient) CreateHttpRequestRule(ctx context.Context, parentType, p
 
 // ReadHttpRequestRules reads all httprequestrules for a given parent.
 func (c *HAProxyClient) ReadHttpRequestRules(ctx context.Context, parentType, parentName string) ([]HttpRequestRulePayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_request_rules", parentTypePlural, parentName)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s", parentType, parentName)
+	}
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1344,14 +1500,24 @@ func (c *HAProxyClient) ReadHttpRequestRules(ctx context.Context, parentType, pa
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var httpRequestRulesWrapper struct {
-		Data []HttpRequestRulePayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&httpRequestRulesWrapper); err != nil {
-		return nil, err
+	var httpRequestRules []HttpRequestRulePayload
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct array, no wrapper
+		if err := json.NewDecoder(resp.Body).Decode(&httpRequestRules); err != nil {
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": [...]}
+		var httpRequestRulesWrapper struct {
+			Data []HttpRequestRulePayload `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&httpRequestRulesWrapper); err != nil {
+			return nil, err
+		}
+		httpRequestRules = httpRequestRulesWrapper.Data
 	}
 
-	return httpRequestRulesWrapper.Data, nil
+	return httpRequestRules, nil
 }
 
 // UpdateHttpRequestRule updates a httprequestrule.
@@ -2446,9 +2612,40 @@ func (c *HAProxyClient) DeleteGlobal(ctx context.Context) error {
 
 // CreateHttpRequestRuleInTransaction creates a new httprequestrule using an existing transaction ID.
 func (c *HAProxyClient) CreateHttpRequestRuleInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *HttpRequestRulePayload) error {
-	url := fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
-		parentType, parentName, transactionID)
-	req, err := c.newRequest(ctx, "POST", url, payload)
+	var url string
+	var method string
+	var requestPayload interface{}
+
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends
+		// v3 doesn't support POST for individual rules - only PUT to replace entire list
+		// v3 expects an array of rules, not a single rule
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_request_rules?transaction_id=%s",
+			parentTypePlural, parentName, transactionID)
+		method = "PUT"
+
+		// For v3, we need to read existing rules first, then add the new one
+		// This is a limitation of v3 - we can't create individual rules
+		existingRules, err := c.ReadHttpRequestRules(ctx, parentType, parentName)
+		if err != nil {
+			return fmt.Errorf("failed to read existing HTTP request rules for v3: %w", err)
+		}
+
+		// Add the new rule to existing rules
+		allRules := append(existingRules, *payload)
+		requestPayload = allRules
+	} else {
+		// v2: Use query parameter approach with POST
+		url = fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
+			parentType, parentName, transactionID)
+		method = "POST"
+		requestPayload = payload
+	}
+
+	log.Printf("DEBUG: Using HTTP request rule endpoint: %s with method %s for API version %s", url, method, c.apiVersion)
+
+	req, err := c.newRequest(ctx, method, url, requestPayload)
 	if err != nil {
 		return err
 	}
@@ -2462,7 +2659,7 @@ func (c *HAProxyClient) CreateHttpRequestRuleInTransaction(ctx context.Context, 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("HTTP request rule creation failed with status %d", resp.StatusCode)
+			return fmt.Errorf("HTTP request rule creation failed with status %d", resp.StatusCode, string(body))
 		}
 		return fmt.Errorf("HTTP request rule creation failed with status %d: %s", resp.StatusCode, string(body))
 	}
@@ -2471,10 +2668,59 @@ func (c *HAProxyClient) CreateHttpRequestRuleInTransaction(ctx context.Context, 
 	return nil
 }
 
+// CreateAllHttpRequestRulesInTransaction creates all HTTP request rules at once using an existing transaction ID
+func (c *HAProxyClient) CreateAllHttpRequestRulesInTransaction(ctx context.Context, transactionID, parentType, parentName string, payloads []HttpRequestRulePayload) error {
+	if c.apiVersion != "v3" {
+		return fmt.Errorf("CreateAllHttpRequestRulesInTransaction is only supported for v3")
+	}
+
+	// v3: Use nested endpoint under frontends/backends
+	parentTypePlural := parentType + "s"
+	url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_request_rules?transaction_id=%s",
+		parentTypePlural, parentName, transactionID)
+
+	log.Printf("DEBUG: Creating all HTTP request rules at once using endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "PUT", url, payloads)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("HTTP request rules creation failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("HTTP request rules creation failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("All HTTP request rules created successfully in transaction: %s", transactionID)
+	return nil
+}
+
 // DeleteHttpRequestRuleInTransaction deletes an existing httprequestrule using an existing transaction ID.
 func (c *HAProxyClient) DeleteHttpRequestRuleInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string) error {
-	url := fmt.Sprintf("/services/haproxy/configuration/http_request_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
-		index, parentType, parentName, transactionID)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_request_rules/%d?transaction_id=%s",
+			parentTypePlural, parentName, index, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/http_request_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+			index, parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using HTTP request rule delete endpoint: %s for API version %s", url, c.apiVersion)
+
 	req, err := c.newRequest(ctx, "DELETE", url, nil)
 	if err != nil {
 		return err

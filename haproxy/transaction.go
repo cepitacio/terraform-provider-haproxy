@@ -243,34 +243,57 @@ func (c *HAProxyClient) CommitTransaction(transactionID string) error {
 }
 
 func (c *HAProxyClient) getCurrentConfigurationVersion() (string, error) {
+	// For BOTH v2 and v3, fetch the actual configuration version
 	req, err := c.newRequest(context.Background(), "GET", "/services/haproxy/configuration/version", nil)
 	if err != nil {
 		return "", err
 	}
 
+	// Debug: log what URL we're actually calling
+	log.Printf("Getting configuration version from URL: %s", req.URL.String())
+	log.Printf("Using API version: %s", c.apiVersion)
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		log.Printf("HTTP request failed: %v", err)
 		return "", err
 	}
 	defer resp.Body.Close()
 
+	log.Printf("Configuration version response status: %d", resp.StatusCode)
+
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		// Try to read the response body to see what HAProxy is saying
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Failed to read response body: %v", err)
+		} else {
+			log.Printf("Response body: %s", string(body))
+		}
+		return "", fmt.Errorf("failed to get configuration version: unexpected status code: %d", resp.StatusCode)
 	}
 
 	var version int
 	if err := json.NewDecoder(resp.Body).Decode(&version); err != nil {
+		log.Printf("Failed to decode version: %v", err)
 		return "", err
 	}
 
+	log.Printf("Successfully got configuration version: %d", version)
 	return fmt.Sprintf("%d", version), nil
 }
 
 func (c *HAProxyClient) createTransactionID(version string) (string, error) {
+	// Debug: log what endpoint we're trying to use
+	log.Printf("Creating transaction with API version: %s", c.apiVersion)
+
 	req, err := c.newRequest(context.Background(), "POST", fmt.Sprintf("/services/haproxy/transactions?version=%s", version), nil)
 	if err != nil {
 		return "", err
 	}
+
+	// Debug: log the actual URL being called
+	log.Printf("Transaction request URL: %s", req.URL.String())
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

@@ -33,6 +33,12 @@ type haproxyProviderModel struct {
 	APIVersion types.String `tfsdk:"api_version"`
 }
 
+// ProviderData contains data that resources and data sources can access
+type ProviderData struct {
+	Client     *HAProxyClient
+	APIVersion string
+}
+
 // Metadata returns the provider type name.
 func (p *haproxyProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "haproxy"
@@ -90,9 +96,15 @@ func (p *haproxyProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 	client := NewHAProxyClient(httpClient, config.URL.ValueString(), config.Username.ValueString(), config.Password.ValueString(), apiVersion)
 
-	// Make the client available to resources and data sources
-	resp.DataSourceData = client
-	resp.ResourceData = client
+	// Create a provider data structure that includes both client and API version
+	providerData := &ProviderData{
+		Client:     client,
+		APIVersion: apiVersion,
+	}
+
+	// Make the provider data available to resources and data sources
+	resp.DataSourceData = providerData
+	resp.ResourceData = providerData
 }
 
 // DataSources defines the data sources implemented in the provider.
