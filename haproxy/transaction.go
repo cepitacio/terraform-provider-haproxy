@@ -74,7 +74,7 @@ func (c *HAProxyClient) Transaction(fn func(transactionID string) (*http.Respons
 		if err != nil {
 			// 🔥 CRITICAL: Rollback transaction on any error to prevent orphaned resources
 			log.Printf("Resource creation failed, rolling back transaction %s", id)
-			rollbackErr := c.rollbackTransaction(id)
+			rollbackErr := c.RollbackTransaction(id)
 			if rollbackErr != nil {
 				log.Printf("Warning: Failed to rollback transaction %s: %v", id, rollbackErr)
 			}
@@ -102,7 +102,7 @@ func (c *HAProxyClient) Transaction(fn func(transactionID string) (*http.Respons
 			if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 				// 🔥 CRITICAL: Resource creation failed - rollback transaction to prevent orphaned resources
 				log.Printf("Resource creation failed with status %d, rolling back transaction %s", resp.StatusCode, id)
-				rollbackErr := c.rollbackTransaction(id)
+				rollbackErr := c.RollbackTransaction(id)
 				if rollbackErr != nil {
 					log.Printf("Warning: Failed to rollback transaction %s: %v", id, rollbackErr)
 				}
@@ -202,7 +202,7 @@ func (c *HAProxyClient) BeginTransaction() (string, error) {
 }
 
 // RollbackTransaction rolls back a transaction by its ID.
-func (c *HAProxyClient) rollbackTransaction(transactionID string) error {
+func (c *HAProxyClient) RollbackTransaction(transactionID string) error {
 	log.Printf("Rolling back transaction: %s", transactionID)
 
 	// HAProxy Data Plane API doesn't have a rollback endpoint

@@ -550,6 +550,87 @@ func (r *BackendManager) CreateBackend(ctx context.Context, plan *haproxyBackend
 	return backendPayload, nil
 }
 
+// CreateBackendInTransaction creates a backend using an existing transaction ID
+func (r *BackendManager) CreateBackendInTransaction(ctx context.Context, transactionID string, plan *haproxyBackendModel) error {
+	// Create the backend payload
+	backendPayload := &BackendPayload{
+		Name:               plan.Name.ValueString(),
+		Mode:               plan.Mode.ValueString(),
+		AdvCheck:           r.determineAdvCheckForAPI(plan.AdvCheck, plan.HttpchkParams),
+		HttpConnectionMode: plan.HttpConnectionMode.ValueString(),
+		ServerTimeout:      plan.ServerTimeout.ValueInt64(),
+		CheckTimeout:       plan.CheckTimeout.ValueInt64(),
+		ConnectTimeout:     plan.ConnectTimeout.ValueInt64(),
+		QueueTimeout:       plan.QueueTimeout.ValueInt64(),
+		TarpitTimeout:      plan.TarpitTimeout.ValueInt64(),
+		CheckCache:         plan.Checkcache.ValueString(),
+		Retries:            plan.Retries.ValueInt64(),
+
+		// Process nested blocks (only those supported by BackendPayload)
+		Balance:       r.processBalanceBlock(plan.Balance),
+		HttpchkParams: r.processHttpchkParamsBlock(plan.HttpchkParams),
+		Forwardfor:    r.processForwardforBlock(plan.Forwardfor),
+		DefaultServer: r.processDefaultServerBlock(plan.DefaultServer),
+		StatsOptions:  r.processStatsOptionsBlock(plan.StatsOptions),
+	}
+
+	// Create backend in HAProxy using the existing transaction
+	if err := r.client.CreateBackendInTransaction(ctx, transactionID, backendPayload); err != nil {
+		return fmt.Errorf("failed to create backend: %w", err)
+	}
+
+	// Create backend ACLs AFTER backend exists
+	if plan.Acls != nil && len(plan.Acls) > 0 {
+		aclManager := NewACLManager(r.client)
+		if err := aclManager.CreateACLsInTransaction(ctx, transactionID, "backend", plan.Name.ValueString(), plan.Acls); err != nil {
+			return fmt.Errorf("failed to create backend ACLs: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// UpdateBackendInTransaction updates a backend in HAProxy using an existing transaction ID
+func (r *BackendManager) UpdateBackendInTransaction(ctx context.Context, transactionID string, plan *haproxyBackendModel) error {
+	// Update backend payload
+	backendPayload := &BackendPayload{
+		Name:               plan.Name.ValueString(),
+		Mode:               plan.Mode.ValueString(),
+		AdvCheck:           r.determineAdvCheckForAPI(plan.AdvCheck, plan.HttpchkParams),
+		HttpConnectionMode: plan.HttpConnectionMode.ValueString(),
+		ServerTimeout:      plan.ServerTimeout.ValueInt64(),
+		CheckTimeout:       plan.CheckTimeout.ValueInt64(),
+		ConnectTimeout:     plan.ConnectTimeout.ValueInt64(),
+		QueueTimeout:       plan.QueueTimeout.ValueInt64(),
+		TarpitTimeout:      plan.TarpitTimeout.ValueInt64(),
+		CheckCache:         plan.Checkcache.ValueString(),
+		Retries:            plan.Retries.ValueInt64(),
+
+		// Process nested blocks (only those supported by BackendPayload)
+		Balance:       r.processBalanceBlock(plan.Balance),
+		HttpchkParams: r.processHttpchkParamsBlock(plan.HttpchkParams),
+		Forwardfor:    r.processForwardforBlock(plan.Forwardfor),
+		DefaultServer: r.processDefaultServerBlock(plan.DefaultServer),
+		StatsOptions:  r.processStatsOptionsBlock(plan.StatsOptions),
+	}
+
+	// Update backend in HAProxy using the existing transaction
+	err := r.client.UpdateBackendInTransaction(ctx, transactionID, backendPayload)
+	if err != nil {
+		return fmt.Errorf("failed to update backend: %w", err)
+	}
+
+	// Update ACLs if specified
+	if plan.Acls != nil && len(plan.Acls) > 0 {
+		aclManager := NewACLManager(r.client)
+		if err := aclManager.UpdateACLsInTransaction(ctx, transactionID, "backend", plan.Name.ValueString(), plan.Acls); err != nil {
+			return fmt.Errorf("failed to update backend ACLs: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // ReadBackend reads a backend and its components from HAProxy
 func (r *BackendManager) ReadBackend(ctx context.Context, backendName string, existingBackend *haproxyBackendModel) (*haproxyBackendModel, error) {
 	// Read backend from HAProxy
@@ -789,6 +870,24 @@ func (r *BackendManager) DeleteBackend(ctx context.Context, backendName string) 
 
 	// Delete backend
 	err := r.client.DeleteBackend(ctx, backendName)
+	if err != nil {
+		return fmt.Errorf("failed to delete backend: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteBackendInTransaction deletes a backend using an existing transaction ID
+func (r *BackendManager) DeleteBackendInTransaction(ctx context.Context, transactionID string, backendName string) error {
+	// Delete ACLs first (if any)
+	aclManager := NewACLManager(r.client)
+	if err := aclManager.DeleteACLsInTransaction(ctx, transactionID, "backend", backendName); err != nil {
+		log.Printf("Warning: Failed to delete backend ACLs: %v", err)
+		// Continue with backend deletion even if ACL deletion fails
+	}
+
+	// Delete backend in HAProxy using the existing transaction
+	err := r.client.DeleteBackendInTransaction(ctx, transactionID, backendName)
 	if err != nil {
 		return fmt.Errorf("failed to delete backend: %w", err)
 	}
