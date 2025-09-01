@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -22,6 +24,7 @@ func NewHaproxyStackResource() resource.Resource {
 // haproxyStackResource is the resource implementation.
 type haproxyStackResource struct {
 	stackManager *StackManager
+	apiVersion   string
 }
 
 // haproxyStackResourceModel maps the resource schema data.
@@ -110,6 +113,24 @@ type haproxyServerModel struct {
 	Verify    types.String `tfsdk:"verify"`
 	Cookie    types.String `tfsdk:"cookie"`
 	Disabled  types.Bool   `tfsdk:"disabled"`
+	// SSL/TLS Protocol Control (v3 fields)
+	Sslv3  types.String `tfsdk:"sslv3"`
+	Tlsv10 types.String `tfsdk:"tlsv10"`
+	Tlsv11 types.String `tfsdk:"tlsv11"`
+	Tlsv12 types.String `tfsdk:"tlsv12"`
+	Tlsv13 types.String `tfsdk:"tlsv13"`
+	// SSL/TLS Protocol Control (deprecated v2 fields)
+	NoSslv3        types.String `tfsdk:"no_sslv3"`
+	NoTlsv10       types.String `tfsdk:"no_tlsv10"`
+	NoTlsv11       types.String `tfsdk:"no_tlsv11"`
+	NoTlsv12       types.String `tfsdk:"no_tlsv12"`
+	NoTlsv13       types.String `tfsdk:"no_tlsv13"`
+	ForceSslv3     types.String `tfsdk:"force_sslv3"`
+	ForceTlsv10    types.String `tfsdk:"force_tlsv10"`
+	ForceTlsv11    types.String `tfsdk:"force_tlsv11"`
+	ForceTlsv12    types.String `tfsdk:"force_tlsv12"`
+	ForceTlsv13    types.String `tfsdk:"force_tlsv13"`
+	ForceStrictSni types.String `tfsdk:"force_strict_sni"`
 }
 
 // haproxyFrontendModel maps the frontend block schema data.
@@ -395,6 +416,20 @@ type haproxyBindModel struct {
 	Mode         types.String `tfsdk:"mode"`
 	Maxconn      types.Int64  `tfsdk:"maxconn"`
 	Ssl          types.Bool   `tfsdk:"ssl"`
+	// SSL/TLS Protocol Control (v3 fields)
+	Sslv3  types.Bool `tfsdk:"sslv3"`
+	Tlsv10 types.Bool `tfsdk:"tlsv10"`
+	Tlsv11 types.Bool `tfsdk:"tlsv11"`
+	Tlsv12 types.Bool `tfsdk:"tlsv12"`
+	Tlsv13 types.Bool `tfsdk:"tlsv13"`
+	// SSL/TLS Protocol Control (deprecated v2 fields)
+	NoSslv3        types.Bool   `tfsdk:"no_sslv3"`
+	ForceSslv3     types.Bool   `tfsdk:"force_sslv3"`
+	ForceTlsv10    types.Bool   `tfsdk:"force_tlsv10"`
+	ForceTlsv11    types.Bool   `tfsdk:"force_tlsv11"`
+	ForceTlsv12    types.Bool   `tfsdk:"force_tlsv12"`
+	ForceTlsv13    types.Bool   `tfsdk:"force_tlsv13"`
+	ForceStrictSni types.String `tfsdk:"force_strict_sni"`
 }
 
 // Metadata returns the resource type name.
@@ -404,6 +439,14 @@ func (r *haproxyStackResource) Metadata(_ context.Context, req resource.Metadata
 
 // Schema defines the schema for the resource.
 func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	// Use default v2 if apiVersion is not set (for backward compatibility)
+	apiVersion := r.apiVersion
+	if apiVersion == "" {
+		apiVersion = "v2"
+	}
+
+	schemaBuilder := NewVersionAwareSchemaBuilder(apiVersion)
+
 	resp.Schema = schema.Schema{
 		Description: "Manages a complete HAProxy stack including backend, server, frontend, and ACLs.",
 		Attributes: map[string]schema.Attribute{
@@ -413,9 +456,9 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 			},
 		},
 		Blocks: map[string]schema.Block{
-			"backend":  GetBackendSchema(),
-			"server":   GetServerSchema(),
-			"frontend": GetFrontendSchema(),
+			"backend":  GetBackendSchema(schemaBuilder),
+			"server":   GetServerSchema(schemaBuilder),
+			"frontend": GetFrontendSchema(schemaBuilder),
 			"acls":     GetACLSchema(),
 		},
 	}
@@ -427,24 +470,32 @@ func (r *haproxyStackResource) Configure(_ context.Context, req resource.Configu
 		return
 	}
 
-	client, ok := req.ProviderData.(*HAProxyClient)
+	providerData, ok := req.ProviderData.(*ProviderData)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developer.", req.ProviderData),
+			fmt.Sprintf("Expected *ProviderData, got: %T. Please report this issue to the provider developer.", req.ProviderData),
 		)
 		return
 	}
 
 	// Initialize the stack manager with all required components
-	aclManager := NewACLManager(client)
-	frontendManager := NewFrontendManager(client)
-	backendManager := NewBackendManager(client)
-	r.stackManager = NewStackManager(client, aclManager, frontendManager, backendManager)
+	aclManager := NewACLManager(providerData.Client)
+	frontendManager := NewFrontendManager(providerData.Client)
+	backendManager := NewBackendManager(providerData.Client)
+	r.stackManager = NewStackManager(providerData.Client, aclManager, frontendManager, backendManager)
+
+	// Store the API version for schema generation
+	r.apiVersion = providerData.APIVersion
 }
 
 // Create resource.
 func (r *haproxyStackResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	// Validate configuration based on API version before creating
+	if err := r.validateConfigForAPIVersion(ctx, req, resp); err != nil {
+		return // Validation failed, don't proceed with creation
+	}
+
 	if err := r.stackManager.Create(ctx, req, resp); err != nil {
 		resp.Diagnostics.AddError("Error creating HAProxy stack", err.Error())
 	}
@@ -468,5 +519,373 @@ func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRe
 func (r *haproxyStackResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	if err := r.stackManager.Delete(ctx, req, resp); err != nil {
 		resp.Diagnostics.AddError("Error deleting HAProxy stack", err.Error())
+	}
+}
+
+// validateConfigForAPIVersion validates the configuration based on API version
+func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) error {
+	// Get the API version from the provider configuration
+	apiVersion := r.apiVersion
+	if apiVersion == "" {
+		apiVersion = "v2" // Default to v2
+	}
+
+	// Get the configuration data
+	var config haproxyStackResourceModel
+	diags := req.Config.Get(ctx, &config)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return fmt.Errorf("failed to get configuration")
+	}
+
+	// Validate based on API version
+	if apiVersion == "v2" {
+		// Check for v3 fields that are not supported in v2
+		if config.Backend != nil && config.Backend.DefaultServer != nil {
+			validateDefaultServerV2ForCreate(ctx, &resp.Diagnostics, config.Backend.DefaultServer, "backend.default_server")
+		}
+
+		if config.Server != nil {
+			validateServerV2ForCreate(ctx, &resp.Diagnostics, *config.Server, "server")
+		}
+
+		if config.Frontend != nil {
+			for i, bind := range config.Frontend.Bind {
+				validateBindV2ForCreate(ctx, &resp.Diagnostics, bind, fmt.Sprintf("frontend.bind[%d]", i))
+			}
+		}
+	} else if apiVersion == "v3" {
+		// Check for v2 fields that are deprecated in v3
+		if config.Backend != nil && config.Backend.DefaultServer != nil {
+			validateDefaultServerV3ForCreate(ctx, &resp.Diagnostics, config.Backend.DefaultServer, "backend.default_server")
+		}
+
+		if config.Server != nil {
+			validateServerV3ForCreate(ctx, &resp.Diagnostics, *config.Server, "server")
+		}
+
+		if config.Frontend != nil {
+			for i, bind := range config.Frontend.Bind {
+				validateBindV3ForCreate(ctx, &resp.Diagnostics, bind, fmt.Sprintf("frontend.bind[%d]", i))
+			}
+		}
+	}
+
+	// Check if validation produced any errors
+	if resp.Diagnostics.HasError() {
+		return fmt.Errorf("configuration validation failed")
+	}
+
+	return nil
+}
+
+// Create-specific validation functions that work with diag.Diagnostics
+func validateDefaultServerV2ForCreate(ctx context.Context, diags *diag.Diagnostics, defaultServer *haproxyDefaultServerModel, pathPrefix string) {
+	if !defaultServer.Sslv3.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("sslv3"),
+			"Unsupported field in v2",
+			"Field 'sslv3' is not supported in Data Plane API v2. Use 'no_sslv3' or 'force_sslv3' instead.",
+		)
+	}
+	if !defaultServer.Tlsv10.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv10"),
+			"Unsupported field in v2",
+			"Field 'tlsv10' is not supported in Data Plane API v2. Use 'no_tlsv10' or 'force_tlsv10' instead.",
+		)
+	}
+	if !defaultServer.Tlsv11.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv11"),
+			"Unsupported field in v2",
+			"Field 'tlsv11' is not supported in Data Plane API v2. Use 'no_tlsv11' or 'force_tlsv11' instead.",
+		)
+	}
+	if !defaultServer.Tlsv12.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv12"),
+			"Unsupported field in v2",
+			"Field 'tlsv12' is not supported in Data Plane API v2. Use 'no_tlsv12' or 'force_tlsv12' instead.",
+		)
+	}
+	if !defaultServer.Tlsv13.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv13"),
+			"Unsupported field in v2",
+			"Field 'tlsv13' is not supported in Data Plane API v2. Use 'no_tlsv13' or 'force_tlsv13' instead.",
+		)
+	}
+}
+
+// validateServerV2ForCreate validates that v3 fields are not used in v2 mode
+func validateServerV2ForCreate(ctx context.Context, diags *diag.Diagnostics, server haproxyServerModel, pathPrefix string) {
+	if !server.Sslv3.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("sslv3"),
+			"Unsupported field in v2",
+			"Field 'sslv3' is not supported in Data Plane API v2. Use 'no_sslv3' or 'force_sslv3' instead.",
+		)
+	}
+	if !server.Tlsv10.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv10"),
+			"Unsupported field in v2",
+			"Field 'tlsv10' is not supported in Data Plane API v2. Use 'no_tlsv10' or 'force_tlsv10' instead.",
+		)
+	}
+	if !server.Tlsv11.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv11"),
+			"Unsupported field in v2",
+			"Field 'tlsv11' is not supported in Data Plane API v2. Use 'no_tlsv11' or 'force_tlsv11' instead.",
+		)
+	}
+	if !server.Tlsv12.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv12"),
+			"Unsupported field in v2",
+			"Field 'tlsv12' is not supported in Data Plane API v2. Use 'no_tlsv12' or 'force_tlsv12' instead.",
+		)
+	}
+	if !server.Tlsv13.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv13"),
+			"Unsupported field in v2",
+			"Field 'tlsv13' is not supported in Data Plane API v2. Use 'no_tlsv13' or 'force_tlsv13' instead.",
+		)
+	}
+}
+
+// validateBindV2ForCreate validates that v3 fields are not used in v2 mode
+func validateBindV2ForCreate(ctx context.Context, diags *diag.Diagnostics, bind haproxyBindModel, pathPrefix string) {
+	if !bind.Sslv3.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("sslv3"),
+			"Unsupported field in v2",
+			"Field 'sslv3' is not supported in Data Plane API v2. Use 'force_sslv3' instead.",
+		)
+	}
+	if !bind.Tlsv10.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv10"),
+			"Unsupported field in v2",
+			"Field 'tlsv10' is not supported in Data Plane API v2. Use 'force_tlsv10' instead.",
+		)
+	}
+	if !bind.Tlsv11.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv11"),
+			"Unsupported field in v2",
+			"Field 'tlsv11' is not supported in Data Plane API v2. Use 'force_tlsv11' instead.",
+		)
+	}
+	if !bind.Tlsv12.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv12"),
+			"Unsupported field in v2",
+			"Field 'tlsv12' is not supported in Data Plane API v2. Use 'force_tlsv12' instead.",
+		)
+	}
+	if !bind.Tlsv13.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("tlsv13"),
+			"Unsupported field in v2",
+			"Field 'tlsv13' is not supported in Data Plane API v2. Use 'force_tlsv13' instead.",
+		)
+	}
+}
+
+// validateDefaultServerV3ForCreate validates that deprecated v2 fields are not used in v3 mode
+func validateDefaultServerV3ForCreate(ctx context.Context, diags *diag.Diagnostics, defaultServer *haproxyDefaultServerModel, pathPrefix string) {
+	if !defaultServer.NoSslv3.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_sslv3"),
+			"Invalid field in v3 default-server",
+			"Field 'no_sslv3' is not accepted in default-server sections in Data Plane API v3. Use 'sslv3' in individual server sections instead.",
+		)
+	}
+	if !defaultServer.NoTlsv10.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_tlsv10"),
+			"Invalid field in v3 default-server",
+			"Field 'no_tlsv10' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv10' in individual server sections instead.",
+		)
+	}
+	if !defaultServer.NoTlsv11.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_tlsv11"),
+			"Invalid field in v3 default-server",
+			"Field 'no_tlsv11' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv11' in individual server sections instead.",
+		)
+	}
+	if !defaultServer.NoTlsv12.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_tlsv12"),
+			"Invalid field in v3 default-server",
+			"Field 'no_tlsv12' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv12' in individual server sections instead.",
+		)
+	}
+	if !defaultServer.NoTlsv13.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_tlsv13"),
+			"Invalid field in v3 default-server",
+			"Field 'no_tlsv13' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv13' in individual server sections instead.",
+		)
+	}
+	if !defaultServer.ForceSslv3.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_sslv3"),
+			"Invalid field in v3 default-server",
+			"Field 'force_sslv3' is not accepted in default-server sections in Data Plane API v3. Use 'sslv3' in individual server sections instead.",
+		)
+	}
+	if !defaultServer.ForceTlsv10.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv10"),
+			"Invalid field in v3 default-server",
+			"Field 'force_tlsv10' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv10' in individual server sections instead.",
+		)
+	}
+	if !defaultServer.ForceTlsv11.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv11"),
+			"Invalid field in v3 default-server",
+			"Field 'force_tlsv11' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv11' in individual server sections instead.",
+		)
+	}
+	if !defaultServer.ForceTlsv12.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv12"),
+			"Invalid field in v3 default-server",
+			"Field 'force_tlsv12' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv12' in individual server sections instead.",
+		)
+	}
+	if !defaultServer.ForceTlsv13.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv13"),
+			"Invalid field in v3 default-server",
+			"Field 'force_tlsv13' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv13' in individual server sections instead.",
+		)
+	}
+}
+
+// validateServerV3ForCreate validates that deprecated v2 fields are not used in v3 mode
+func validateServerV3ForCreate(ctx context.Context, diags *diag.Diagnostics, server haproxyServerModel, pathPrefix string) {
+	if !server.NoSslv3.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_sslv3"),
+			"Deprecated field in v3",
+			"Field 'no_sslv3' is deprecated in Data Plane API v3. Use 'sslv3' instead.",
+		)
+	}
+	if !server.NoTlsv10.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_tlsv10"),
+			"Deprecated field in v3",
+			"Field 'no_tlsv10' is deprecated in Data Plane API v3. Use 'tlsv10' instead.",
+		)
+	}
+	if !server.NoTlsv11.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_tlsv11"),
+			"Deprecated field in v3",
+			"Field 'no_tlsv11' is deprecated in Data Plane API v3. Use 'tlsv11' instead.",
+		)
+	}
+	if !server.NoTlsv12.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_tlsv12"),
+			"Deprecated field in v3",
+			"Field 'no_tlsv12' is deprecated in Data Plane API v3. Use 'tlsv12' instead.",
+		)
+	}
+	if !server.NoTlsv13.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_tlsv13"),
+			"Deprecated field in v3",
+			"Field 'no_tlsv13' is deprecated in Data Plane API v3. Use 'tlsv13' instead.",
+		)
+	}
+	if !server.ForceSslv3.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_sslv3"),
+			"Deprecated field in v3",
+			"Field 'force_sslv3' is deprecated in Data Plane API v3. Use 'sslv3' instead.",
+		)
+	}
+	if !server.ForceTlsv10.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv10"),
+			"Deprecated field in v3",
+			"Field 'force_tlsv10' is deprecated in Data Plane API v3. Use 'tlsv10' instead.",
+		)
+	}
+	if !server.ForceTlsv11.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv11"),
+			"Deprecated field in v3",
+			"Field 'force_tlsv11' is deprecated in Data Plane API v3. Use 'tlsv11' instead.",
+		)
+	}
+	if !server.ForceTlsv12.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv12"),
+			"Deprecated field in v3",
+			"Field 'force_tlsv12' is deprecated in Data Plane API v3. Use 'tlsv12' instead.",
+		)
+	}
+	if !server.ForceTlsv13.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv13"),
+			"Deprecated field in v3",
+			"Field 'force_tlsv13' is deprecated in Data Plane API v3. Use 'tlsv13' instead.",
+		)
+	}
+}
+
+// validateBindV3ForCreate validates that deprecated v2 fields are not used in v3 mode
+func validateBindV3ForCreate(ctx context.Context, diags *diag.Diagnostics, bind haproxyBindModel, pathPrefix string) {
+	if !bind.NoSslv3.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("no_sslv3"),
+			"Deprecated field in v3",
+			"Field 'no_sslv3' is deprecated in Data Plane API v3. Use 'sslv3' instead.",
+		)
+	}
+	if !bind.ForceSslv3.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_sslv3"),
+			"Deprecated field in v3",
+			"Field 'force_sslv3' is deprecated in Data Plane API v3. Use 'sslv3' instead.",
+		)
+	}
+	if !bind.ForceTlsv10.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv10"),
+			"Deprecated field in v3",
+			"Field 'force_tlsv10' is deprecated in Data Plane API v3. Use 'tlsv10' instead.",
+		)
+	}
+	if !bind.ForceTlsv11.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv11"),
+			"Deprecated field in v3",
+			"Field 'force_tlsv11' is deprecated in Data Plane API v3. Use 'tlsv11' instead.",
+		)
+	}
+	if !bind.ForceTlsv12.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv12"),
+			"Deprecated field in v3",
+			"Field 'force_tlsv12' is deprecated in Data Plane API v3. Use 'tlsv12' instead.",
+		)
+	}
+	if !bind.ForceTlsv13.IsNull() {
+		diags.AddAttributeError(
+			path.Root(pathPrefix).AtName("force_tlsv13"),
+			"Deprecated field in v3",
+			"Field 'force_tlsv13' is deprecated in Data Plane API v3. Use 'tlsv13' instead.",
+		)
 	}
 }

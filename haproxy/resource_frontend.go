@@ -11,7 +11,11 @@ import (
 )
 
 // GetFrontendSchema returns the schema for the frontend block
-func GetFrontendSchema() schema.SingleNestedBlock {
+func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNestedBlock {
+	// If no schema builder is provided, include all fields for backward compatibility
+	if schemaBuilder == nil {
+		schemaBuilder = NewVersionAwareSchemaBuilder("v2") // Default to v2
+	}
 	return schema.SingleNestedBlock{
 		Description: "Frontend configuration.",
 		Attributes: map[string]schema.Attribute{
@@ -97,6 +101,10 @@ func GetFrontendSchema() schema.SingleNestedBlock {
 				Description: "Bind configuration for the frontend.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
+						"name": schema.StringAttribute{
+							Required:    true,
+							Description: "The name of the bind.",
+						},
 						"address": schema.StringAttribute{
 							Required:    true,
 							Description: "The bind address.",
@@ -141,69 +149,55 @@ func GetFrontendSchema() schema.SingleNestedBlock {
 							Optional:    true,
 							Description: "SSL verification for the bind.",
 						},
-						"sslv3": schema.StringAttribute{
+						"transparent": schema.BoolAttribute{
 							Optional:    true,
-							Description: "SSLv3 support for the bind.",
+							Description: "Whether the bind is transparent.",
 						},
-						"tlsv10": schema.StringAttribute{
+						// v3 fields
+						"sslv3": schema.BoolAttribute{
 							Optional:    true,
-							Description: "TLSv1.0 support for the bind.",
+							Description: "SSLv3 support for the bind (Data Plane API v3 only).",
 						},
-						"tlsv11": schema.StringAttribute{
+						"tlsv10": schema.BoolAttribute{
 							Optional:    true,
-							Description: "TLSv1.1 support for the bind.",
+							Description: "TLSv1.0 support for the bind (Data Plane API v3 only).",
 						},
-						"tlsv12": schema.StringAttribute{
+						"tlsv11": schema.BoolAttribute{
 							Optional:    true,
-							Description: "TLSv1.2 support for the bind.",
+							Description: "TLSv1.1 support for the bind (Data Plane API v3 only).",
 						},
-						"tlsv13": schema.StringAttribute{
+						"tlsv12": schema.BoolAttribute{
 							Optional:    true,
-							Description: "TLSv1.3 support for the bind.",
+							Description: "TLSv1.2 support for the bind (Data Plane API v3 only).",
 						},
-						"no_sslv3": schema.StringAttribute{
+						"tlsv13": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Disable SSLv3 for the bind.",
+							Description: "TLSv1.3 support for the bind (Data Plane API v3 only).",
 						},
-						"no_tlsv10": schema.StringAttribute{
+						// v2 fields (deprecated in v3)
+						"force_sslv3": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Disable TLSv1.0 for the bind.",
+							Description: "Force SSLv3 for the bind (Data Plane API v2 only, deprecated in v3).",
 						},
-						"no_tlsv11": schema.StringAttribute{
+						"force_tlsv10": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Disable TLSv1.1 for the bind.",
+							Description: "Force TLSv1.0 for the bind (Data Plane API v2 only, deprecated in v3).",
 						},
-						"no_tlsv12": schema.StringAttribute{
+						"force_tlsv11": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Disable TLSv1.2 for the bind.",
+							Description: "Force TLSv1.1 for the bind (Data Plane API v2 only, deprecated in v3).",
 						},
-						"no_tlsv13": schema.StringAttribute{
+						"force_tlsv12": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Disable TLSv1.3 for the bind.",
+							Description: "Force TLSv1.2 for the bind (Data Plane API v2 only, deprecated in v3).",
 						},
-						"force_sslv3": schema.StringAttribute{
+						"force_tlsv13": schema.BoolAttribute{
 							Optional:    true,
-							Description: "Force SSLv3 for the bind.",
-						},
-						"force_tlsv10": schema.StringAttribute{
-							Optional:    true,
-							Description: "Force TLSv1.0 for the bind.",
-						},
-						"force_tlsv11": schema.StringAttribute{
-							Optional:    true,
-							Description: "Force TLSv1.1 for the bind.",
-						},
-						"force_tlsv12": schema.StringAttribute{
-							Optional:    true,
-							Description: "Force TLSv1.2 for the bind.",
-						},
-						"force_tlsv13": schema.StringAttribute{
-							Optional:    true,
-							Description: "Force TLSv1.3 for the bind.",
+							Description: "Force TLSv1.3 for the bind (Data Plane API v2 only, deprecated in v3).",
 						},
 						"force_strict_sni": schema.StringAttribute{
 							Optional:    true,
-							Description: "Force strict SNI for the bind.",
+							Description: "Force strict SNI for the bind (Data Plane API v2 only, deprecated in v3).",
 						},
 					},
 				},
@@ -227,9 +221,9 @@ func GetFrontendSchema() schema.SingleNestedBlock {
 						"index": schema.Int64Attribute{
 							Optional:    true,
 							Description: "The index/order of the ACL rule. If not specified, will be auto-assigned.",
-						},
 					},
 				},
+			},
 			},
 			"http_request_rules": schema.ListNestedBlock{
 				Description: "HTTP request rule configuration for the frontend.",
@@ -867,7 +861,7 @@ func (r *FrontendManager) UpdateFrontendInTransaction(ctx context.Context, trans
 
 	// Update frontend in HAProxy using the existing transaction
 	err := r.client.UpdateFrontendInTransaction(ctx, transactionID, frontendPayload)
-	if err != nil {
+			if err != nil {
 		return fmt.Errorf("failed to update frontend: %w", err)
 	}
 
@@ -894,7 +888,7 @@ func (r *FrontendManager) DeleteFrontendInTransaction(ctx context.Context, trans
 
 	// Delete frontend in HAProxy using the existing transaction
 	err := r.client.DeleteFrontendInTransaction(ctx, transactionID, frontendName)
-	if err != nil {
+			if err != nil {
 		return fmt.Errorf("failed to delete frontend: %w", err)
 	}
 
@@ -905,7 +899,7 @@ func (r *FrontendManager) DeleteFrontendInTransaction(ctx context.Context, trans
 func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string, existingFrontend *haproxyFrontendModel) (*haproxyFrontendModel, error) {
 	// Read frontend from HAProxy
 	frontend, err := r.client.ReadFrontend(ctx, frontendName)
-	if err != nil {
+			if err != nil {
 		return nil, fmt.Errorf("failed to read frontend: %w", err)
 	}
 
@@ -914,7 +908,7 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 	if frontend != nil {
 		aclManager := NewACLManager(r.client)
 		frontendAcls, err = aclManager.ReadACLs(ctx, "frontend", frontendName)
-		if err != nil {
+			if err != nil {
 			log.Printf("Warning: Failed to read ACLs for frontend %s: %v", frontendName, err)
 			// Continue without ACLs if reading fails
 		}
@@ -963,7 +957,7 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 		// Read HTTP request rules from HAProxy
 		httpRequestRuleManager := NewHttpRequestRuleManager(r.client)
 		httpRequestRules, err := httpRequestRuleManager.ReadHttpRequestRules(ctx, "frontend", frontendName)
-		if err != nil {
+			if err != nil {
 			log.Printf("Warning: Failed to read HTTP request rules for frontend %s: %v", frontendName, err)
 			// Continue without HTTP request rules if reading fails
 		} else if len(httpRequestRules) > 0 {
