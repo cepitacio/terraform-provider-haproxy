@@ -38,32 +38,33 @@ type haproxyStackResourceModel struct {
 
 // haproxyBackendModel maps the backend block schema data.
 type haproxyBackendModel struct {
-	Name               types.String                   `tfsdk:"name"`
-	Mode               types.String                   `tfsdk:"mode"`
-	AdvCheck           types.String                   `tfsdk:"adv_check"`
-	HttpConnectionMode types.String                   `tfsdk:"http_connection_mode"`
-	ServerTimeout      types.Int64                    `tfsdk:"server_timeout"`
-	CheckTimeout       types.Int64                    `tfsdk:"check_timeout"`
-	ConnectTimeout     types.Int64                    `tfsdk:"connect_timeout"`
-	QueueTimeout       types.Int64                    `tfsdk:"queue_timeout"`
-	TunnelTimeout      types.Int64                    `tfsdk:"tunnel_timeout"`
-	TarpitTimeout      types.Int64                    `tfsdk:"tarpit_timeout"`
-	Checkcache         types.String                   `tfsdk:"checkcache"`
-	Retries            types.Int64                    `tfsdk:"retries"`
-	Balance            []haproxyBalanceModel          `tfsdk:"balance"`
-	HttpchkParams      []haproxyHttpchkParamsModel    `tfsdk:"httpchk_params"`
-	Forwardfor         []haproxyForwardforModel       `tfsdk:"forwardfor"`
-	Httpcheck          []haproxyHttpcheckModel        `tfsdk:"httpcheck"`
-	TcpCheck           []haproxyTcpCheckModel         `tfsdk:"tcp_check"`
-	Acls               []haproxyAclModel              `tfsdk:"acls"`
-	HttpRequestRule    []haproxyHttpRequestRuleModel  `tfsdk:"http_request_rule"`
-	HttpResponseRule   []haproxyHttpResponseRuleModel `tfsdk:"http_response_rule"`
-	TcpRequestRule     []haproxyTcpRequestRuleModel   `tfsdk:"tcp_request_rule"`
-	TcpResponseRule    []haproxyTcpResponseRuleModel  `tfsdk:"tcp_response_rule"`
-	DefaultServer      *haproxyDefaultServerModel     `tfsdk:"default_server"`
-	StickTable         *haproxyStickTableModel        `tfsdk:"stick_table"`
-	StickRule          []haproxyStickRuleModel        `tfsdk:"stick_rule"`
-	StatsOptions       []haproxyStatsOptionsModel     `tfsdk:"stats_options"`
+	Name               types.String                  `tfsdk:"name"`
+	Mode               types.String                  `tfsdk:"mode"`
+	AdvCheck           types.String                  `tfsdk:"adv_check"`
+	HttpConnectionMode types.String                  `tfsdk:"http_connection_mode"`
+	ServerTimeout      types.Int64                   `tfsdk:"server_timeout"`
+	CheckTimeout       types.Int64                   `tfsdk:"check_timeout"`
+	ConnectTimeout     types.Int64                   `tfsdk:"connect_timeout"`
+	QueueTimeout       types.Int64                   `tfsdk:"queue_timeout"`
+	TunnelTimeout      types.Int64                   `tfsdk:"tunnel_timeout"`
+	TarpitTimeout      types.Int64                   `tfsdk:"tarpit_timeout"`
+	Checkcache         types.String                  `tfsdk:"checkcache"`
+	Retries            types.Int64                   `tfsdk:"retries"`
+	Balance            []haproxyBalanceModel         `tfsdk:"balance"`
+	HttpchkParams      []haproxyHttpchkParamsModel   `tfsdk:"httpchk_params"`
+	Forwardfor         []haproxyForwardforModel      `tfsdk:"forwardfor"`
+	Httpcheck          []haproxyHttpcheckModel       `tfsdk:"httpcheck"`
+	TcpCheck           []haproxyTcpCheckModel        `tfsdk:"tcp_check"`
+	Acls               []haproxyAclModel             `tfsdk:"acls"`
+	HttpRequestRule    []haproxyHttpRequestRuleModel `tfsdk:"http_request_rule"`
+
+	HttpResponseRule []haproxyHttpResponseRuleModel `tfsdk:"http_response_rule"`
+	TcpRequestRule   []haproxyTcpRequestRuleModel   `tfsdk:"tcp_request_rule"`
+	TcpResponseRule  []haproxyTcpResponseRuleModel  `tfsdk:"tcp_response_rule"`
+	DefaultServer    *haproxyDefaultServerModel     `tfsdk:"default_server"`
+	StickTable       *haproxyStickTableModel        `tfsdk:"stick_table"`
+	StickRule        []haproxyStickRuleModel        `tfsdk:"stick_rule"`
+	StatsOptions     []haproxyStatsOptionsModel     `tfsdk:"stats_options"`
 }
 
 // haproxyDefaultServerModel maps the default_server block schema data.
@@ -155,9 +156,9 @@ type haproxyFrontendModel struct {
 	V4v6             types.Bool                    `tfsdk:"v4v6"`
 	V6only           types.Bool                    `tfsdk:"v6only"`
 	Bind             []haproxyBindModel            `tfsdk:"bind"`
-	StatsOptions     []haproxyStatsOptionsModel    `tfsdk:"stats_options"`
 	Acls             []haproxyAclModel             `tfsdk:"acls"`
 	HttpRequestRules []haproxyHttpRequestRuleModel `tfsdk:"http_request_rules"`
+	StatsOptions     []haproxyStatsOptionsModel    `tfsdk:"stats_options"`
 }
 
 // haproxyBalanceModel maps the balance block schema data.
@@ -204,147 +205,6 @@ type haproxyTcpCheckModel struct {
 	Action   types.String `tfsdk:"action"`
 	Cond     types.String `tfsdk:"cond"`
 	CondTest types.String `tfsdk:"cond_test"`
-}
-
-// haproxyAclModel maps the acl block schema data.
-type haproxyAclModel struct {
-	AclName   types.String `tfsdk:"acl_name"`
-	Index     types.Int64  `tfsdk:"index"`
-	Criterion types.String `tfsdk:"criterion"`
-	Value     types.String `tfsdk:"value"`
-}
-
-// haproxyHttpRequestRuleModel maps the http_request_rule block schema data.
-type haproxyHttpRequestRuleModel struct {
-	Index                types.Int64             `tfsdk:"index"`
-	Type                 types.String            `tfsdk:"type"`
-	Cond                 types.String            `tfsdk:"cond"`
-	CondTest             types.String            `tfsdk:"cond_test"`
-	HdrName              types.String            `tfsdk:"hdr_name"`
-	HdrFormat            types.String            `tfsdk:"hdr_format"`
-	HdrMatch             types.String            `tfsdk:"hdr_match"`
-	RedirType            types.String            `tfsdk:"redir_type"`
-	RedirValue           types.String            `tfsdk:"redir_value"`
-	RedirCode            types.Int64             `tfsdk:"redir_code"`
-	RedirOption          types.String            `tfsdk:"redir_option"`
-	PathMatch            types.String            `tfsdk:"path_match"`
-	PathFmt              types.String            `tfsdk:"path_fmt"`
-	UriMatch             types.String            `tfsdk:"uri_match"`
-	UriFmt               types.String            `tfsdk:"uri_fmt"`
-	QueryFmt             types.String            `tfsdk:"query_fmt"`
-	MethodFmt            types.String            `tfsdk:"method_fmt"`
-	VarName              types.String            `tfsdk:"var_name"`
-	VarFormat            types.String            `tfsdk:"var_format"`
-	VarExpr              types.String            `tfsdk:"var_expr"`
-	VarScope             types.String            `tfsdk:"var_scope"`
-	CaptureID            types.Int64             `tfsdk:"capture_id"`
-	CaptureLen           types.Int64             `tfsdk:"capture_len"`
-	CaptureSample        types.String            `tfsdk:"capture_sample"`
-	LogLevel             types.String            `tfsdk:"log_level"`
-	Timeout              types.String            `tfsdk:"timeout"`
-	TimeoutType          types.String            `tfsdk:"timeout_type"`
-	StrictMode           types.String            `tfsdk:"strict_mode"`
-	Normalizer           types.String            `tfsdk:"normalizer"`
-	NormalizerFull       types.Bool              `tfsdk:"normalizer_full"`
-	NormalizerStrict     types.Bool              `tfsdk:"normalizer_strict"`
-	NiceValue            types.Int64             `tfsdk:"nice_value"`
-	MarkValue            types.String            `tfsdk:"mark_value"`
-	TosValue             types.String            `tfsdk:"tos_value"`
-	TrackScKey           types.String            `tfsdk:"track_sc_key"`
-	TrackScTable         types.String            `tfsdk:"track_sc_table"`
-	TrackScID            types.Int64             `tfsdk:"track_sc_id"`
-	TrackScIdx           types.Int64             `tfsdk:"track_sc_idx"`
-	TrackScInt           types.Int64             `tfsdk:"track_sc_int"`
-	ReturnStatusCode     types.Int64             `tfsdk:"return_status_code"`
-	ReturnContent        types.String            `tfsdk:"return_content"`
-	ReturnContentType    types.String            `tfsdk:"return_content_type"`
-	ReturnContentFormat  types.String            `tfsdk:"return_content_format"`
-	DenyStatus           types.Int64             `tfsdk:"deny_status"`
-	WaitTime             types.Int64             `tfsdk:"wait_time"`
-	WaitAtLeast          types.Int64             `tfsdk:"wait_at_least"`
-	Expr                 types.String            `tfsdk:"expr"`
-	LuaAction            types.String            `tfsdk:"lua_action"`
-	LuaParams            types.String            `tfsdk:"lua_params"`
-	SpoeEngine           types.String            `tfsdk:"spoe_engine"`
-	SpoeGroup            types.String            `tfsdk:"spoe_group"`
-	ServiceName          types.String            `tfsdk:"service_name"`
-	CacheName            types.String            `tfsdk:"cache_name"`
-	Resolvers            types.String            `tfsdk:"resolvers"`
-	Protocol             types.String            `tfsdk:"protocol"`
-	BandwidthLimitName   types.String            `tfsdk:"bandwidth_limit_name"`
-	BandwidthLimitLimit  types.String            `tfsdk:"bandwidth_limit_limit"`
-	BandwidthLimitPeriod types.String            `tfsdk:"bandwidth_limit_period"`
-	MapFile              types.String            `tfsdk:"map_file"`
-	MapKeyfmt            types.String            `tfsdk:"map_keyfmt"`
-	MapValuefmt          types.String            `tfsdk:"map_valuefmt"`
-	AclFile              types.String            `tfsdk:"acl_file"`
-	AclKeyfmt            types.String            `tfsdk:"acl_keyfmt"`
-	AuthRealm            types.String            `tfsdk:"auth_realm"`
-	HintName             types.String            `tfsdk:"hint_name"`
-	HintFormat           types.String            `tfsdk:"hint_format"`
-	ScExpr               types.String            `tfsdk:"sc_expr"`
-	ScID                 types.Int64             `tfsdk:"sc_id"`
-	ScIdx                types.Int64             `tfsdk:"sc_idx"`
-	ScInt                types.Int64             `tfsdk:"sc_int"`
-	ScAddGpc             types.String            `tfsdk:"sc_add_gpc"`
-	ScIncGpc             types.String            `tfsdk:"sc_inc_gpc"`
-	ScIncGpc0            types.String            `tfsdk:"sc_inc_gpc0"`
-	ScIncGpc1            types.String            `tfsdk:"sc_inc_gpc1"`
-	ScSetGpt             types.String            `tfsdk:"sc_set_gpt"`
-	ScSetGpt0            types.String            `tfsdk:"sc_set_gpt0"`
-	SetPriorityClass     types.String            `tfsdk:"set_priority_class"`
-	SetPriorityOffset    types.String            `tfsdk:"set_priority_offset"`
-	SetRetries           types.String            `tfsdk:"set_retries"`
-	SetBcMark            types.String            `tfsdk:"set_bc_mark"`
-	SetBcTos             types.String            `tfsdk:"set_bc_tos"`
-	SetFcMark            types.String            `tfsdk:"set_fc_mark"`
-	SetFcTos             types.String            `tfsdk:"set_fc_tos"`
-	SetDst               types.String            `tfsdk:"set_dst"`
-	SetDstPort           types.String            `tfsdk:"set_dst_port"`
-	SetSrc               types.String            `tfsdk:"set_src"`
-	SetSrcPort           types.String            `tfsdk:"set_src_port"`
-	SetTimeout           types.String            `tfsdk:"set_timeout"`
-	SetTos               types.String            `tfsdk:"set_tos"`
-	SetMark              types.String            `tfsdk:"set_mark"`
-	SetVar               types.String            `tfsdk:"set_var"`
-	SetVarFmt            types.String            `tfsdk:"set_var_fmt"`
-	UnsetVar             types.String            `tfsdk:"unset_var"`
-	EarlyHint            types.String            `tfsdk:"early_hint"`
-	UseService           types.String            `tfsdk:"use_service"`
-	WaitForBody          types.String            `tfsdk:"wait_for_body"`
-	WaitForHandshake     types.String            `tfsdk:"wait_for_handshake"`
-	SilentDrop           types.String            `tfsdk:"silent_drop"`
-	Tarpit               types.String            `tfsdk:"tarpit"`
-	DisableL7Retry       types.String            `tfsdk:"disable_l7_retry"`
-	DoResolve            types.String            `tfsdk:"do_resolve"`
-	SendSpoeGroup        types.String            `tfsdk:"send_spoe_group"`
-	ReplaceHeader        types.String            `tfsdk:"replace_header"`
-	ReplacePath          types.String            `tfsdk:"replace_path"`
-	ReplacePathq         types.String            `tfsdk:"replace_pathq"`
-	ReplaceUri           types.String            `tfsdk:"replace_uri"`
-	ReplaceValue         types.String            `tfsdk:"replace_value"`
-	AddHeader            types.String            `tfsdk:"add_header"`
-	DelHeader            types.String            `tfsdk:"del_header"`
-	AddAcl               types.String            `tfsdk:"add_acl"`
-	DelAcl               types.String            `tfsdk:"del_acl"`
-	SetMap               types.String            `tfsdk:"set_map"`
-	DelMap               types.String            `tfsdk:"del_map"`
-	CacheUse             types.String            `tfsdk:"cache_use"`
-	Capture              types.String            `tfsdk:"capture"`
-	Auth                 types.String            `tfsdk:"auth"`
-	Allow                types.String            `tfsdk:"allow"`
-	Deny                 types.String            `tfsdk:"deny"`
-	Return               types.String            `tfsdk:"return"`
-	Reject               types.String            `tfsdk:"reject"`
-	Pause                types.String            `tfsdk:"pause"`
-	NormalizeUri         types.String            `tfsdk:"normalize_uri"`
-	SetMethod            types.String            `tfsdk:"set_method"`
-	SetQuery             types.String            `tfsdk:"set_query"`
-	SetUri               types.String            `tfsdk:"set_uri"`
-	SetLogLevel          types.String            `tfsdk:"set_log_level"`
-	SetBandwidthLimit    types.String            `tfsdk:"set_bandwidth_limit"`
-	RstTtl               types.Int64             `tfsdk:"rst_ttl"`
-	ReturnHdrs           []haproxyReturnHdrModel `tfsdk:"return_hdrs"`
 }
 
 // haproxyReturnHdrModel maps the return_hdrs block schema data.
