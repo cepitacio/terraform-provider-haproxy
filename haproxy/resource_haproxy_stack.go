@@ -266,32 +266,6 @@ type haproxyStatsOptionsModel struct {
 	StatsAuth   types.String `tfsdk:"stats_auth"`
 }
 
-// haproxyBindModel maps the bind block schema data.
-type haproxyBindModel struct {
-	Name         types.String `tfsdk:"name"`
-	Address      types.String `tfsdk:"address"`
-	Port         types.Int64  `tfsdk:"port"`
-	PortRangeEnd types.Int64  `tfsdk:"port_range_end"`
-	Transparent  types.Bool   `tfsdk:"transparent"`
-	Mode         types.String `tfsdk:"mode"`
-	Maxconn      types.Int64  `tfsdk:"maxconn"`
-	Ssl          types.Bool   `tfsdk:"ssl"`
-	// SSL/TLS Protocol Control (v3 fields)
-	Sslv3  types.Bool `tfsdk:"sslv3"`
-	Tlsv10 types.Bool `tfsdk:"tlsv10"`
-	Tlsv11 types.Bool `tfsdk:"tlsv11"`
-	Tlsv12 types.Bool `tfsdk:"tlsv12"`
-	Tlsv13 types.Bool `tfsdk:"tlsv13"`
-	// SSL/TLS Protocol Control (deprecated v2 fields)
-	NoSslv3        types.Bool   `tfsdk:"no_sslv3"`
-	ForceSslv3     types.Bool   `tfsdk:"force_sslv3"`
-	ForceTlsv10    types.Bool   `tfsdk:"force_tlsv10"`
-	ForceTlsv11    types.Bool   `tfsdk:"force_tlsv11"`
-	ForceTlsv12    types.Bool   `tfsdk:"force_tlsv12"`
-	ForceTlsv13    types.Bool   `tfsdk:"force_tlsv13"`
-	ForceStrictSni types.String `tfsdk:"force_strict_sni"`
-}
-
 // Metadata returns the resource type name.
 func (r *haproxyStackResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_stack"

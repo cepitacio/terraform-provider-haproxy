@@ -1249,6 +1249,46 @@ func (c *HAProxyClient) CreateBind(ctx context.Context, parentType, parentName s
 	return err
 }
 
+// CreateBindInTransaction creates a new bind within an existing transaction.
+func (c *HAProxyClient) CreateBindInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *BindPayload) (*http.Response, error) {
+	var url string
+
+	// Use version-aware endpoint structure
+	if c.apiVersion == "v3" {
+		// v3: nested under parent resource
+		url = fmt.Sprintf("/services/haproxy/configuration/%ss/%s/binds?transaction_id=%s", parentType, parentName, transactionID)
+	} else {
+		// v2: query parameters
+		url = fmt.Sprintf("/services/haproxy/configuration/binds?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID)
+	}
+
+	req, err := c.newRequest(ctx, "POST", url, payload)
+	if err != nil {
+		return nil, err
+	}
+	return c.httpClient.Do(req)
+}
+
+// UpdateBindInTransaction updates a bind within an existing transaction.
+func (c *HAProxyClient) UpdateBindInTransaction(ctx context.Context, transactionID, name, parentType, parentName string, payload *BindPayload) (*http.Response, error) {
+	var url string
+
+	// Use version-aware endpoint structure
+	if c.apiVersion == "v3" {
+		// v3: nested under parent resource
+		url = fmt.Sprintf("/services/haproxy/configuration/%ss/%s/binds/%s?transaction_id=%s", parentType, parentName, name, transactionID)
+	} else {
+		// v2: query parameters
+		url = fmt.Sprintf("/services/haproxy/configuration/binds/%s?parent_type=%s&parent_name=%s&transaction_id=%s", name, parentType, parentName, transactionID)
+	}
+
+	req, err := c.newRequest(ctx, "PUT", url, payload)
+	if err != nil {
+		return nil, err
+	}
+	return c.httpClient.Do(req)
+}
+
 // ReadBind reads a bind.
 func (c *HAProxyClient) ReadBind(ctx context.Context, name, parentType, parentName string) (*BindPayload, error) {
 	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/binds/%s?parent_type=%s&parent_name=%s", name, parentType, parentName), nil)
@@ -1304,6 +1344,26 @@ func (c *HAProxyClient) DeleteBind(ctx context.Context, name, parentType, parent
 	return err
 }
 
+// DeleteBindInTransaction deletes a bind within an existing transaction.
+func (c *HAProxyClient) DeleteBindInTransaction(ctx context.Context, transactionID, name, parentType, parentName string) (*http.Response, error) {
+	var url string
+
+	// Use version-aware endpoint structure
+	if c.apiVersion == "v3" {
+		// v3: nested under parent resource
+		url = fmt.Sprintf("/services/haproxy/configuration/%ss/%s/binds/%s?transaction_id=%s", parentType, parentName, name, transactionID)
+	} else {
+		// v2: query parameters
+		url = fmt.Sprintf("/services/haproxy/configuration/binds/%s?parent_type=%s&parent_name=%s&transaction_id=%s", name, parentType, parentName, transactionID)
+	}
+
+	req, err := c.newRequest(ctx, "DELETE", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.httpClient.Do(req)
+}
+
 // DeleteFrontend deletes a frontend.
 func (c *HAProxyClient) DeleteFrontend(ctx context.Context, name string) error {
 	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
@@ -1318,10 +1378,39 @@ func (c *HAProxyClient) DeleteFrontend(ctx context.Context, name string) error {
 
 // ReadBinds reads all binds for a given parent.
 func (c *HAProxyClient) ReadBinds(ctx context.Context, parentType, parentName string) ([]BindPayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/binds?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	var url string
+
+	// Construct URL based on API version
+	if c.apiVersion == "v3" {
+		// v3: nested under parent resource (note: frontend -> frontends, backend -> backends)
+		if parentType == "frontend" {
+			parentType = "frontends"
+		} else if parentType == "backend" {
+			parentType = "backends"
+		}
+		// Use same format as CreateBindsInTransaction (without /v3 prefix)
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/binds", parentType, parentName)
+	} else {
+		// v2: query parameters (no version prefix needed)
+		url = fmt.Sprintf("/services/haproxy/configuration/binds?parent_type=%s&parent_name=%s", parentType, parentName)
+	}
+
+	// Debug: Log the URL being constructed
+	log.Printf("DEBUG: ReadBinds constructing URL: %s (API version: %s)", url, c.apiVersion)
+
+	// Debug: Log the full request details
+	log.Printf("DEBUG: ReadBinds base URL: %s", c.baseURL)
+	log.Printf("DEBUG: ReadBinds full URL: %s%s", c.baseURL, url)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	// Debug: Log the actual request being sent
+	log.Printf("DEBUG: ReadBinds request method: %s", req.Method)
+	log.Printf("DEBUG: ReadBinds request URL: %s", req.URL.String())
+	log.Printf("DEBUG: ReadBinds request headers: %+v", req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -1329,22 +1418,46 @@ func (c *HAProxyClient) ReadBinds(ctx context.Context, parentType, parentName st
 	}
 	defer resp.Body.Close()
 
+	// Debug: Log the response status
+	log.Printf("DEBUG: ReadBinds response status: %d", resp.StatusCode)
+
 	if resp.StatusCode == http.StatusNotFound {
-		return []BindPayload{}, nil // No binds found is not an error
+		if c.apiVersion == "v3" {
+			// v3: 404 means the endpoint doesn't exist (configuration error)
+			return nil, fmt.Errorf("binds endpoint not found for v3 API - check URL construction. URL attempted: %s", url)
+		} else {
+			// v2: 404 might mean "no binds found" (legitimate)
+			log.Printf("DEBUG: ReadBinds: 404 - No binds found (v2)")
+			return []BindPayload{}, nil
+		}
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		// Debug: Log error response body
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Printf("DEBUG: ReadBinds error response body: %s", string(bodyBytes))
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var bindsWrapper struct {
-		Data []BindPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&bindsWrapper); err != nil {
-		return nil, err
+	var binds []BindPayload
+
+	if c.apiVersion == "v3" {
+		// v3: binds are returned directly as an array
+		if err := json.NewDecoder(resp.Body).Decode(&binds); err != nil {
+			return nil, err
+		}
+	} else {
+		// v2: binds are wrapped in a "data" field
+		var bindsWrapper struct {
+			Data []BindPayload `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&bindsWrapper); err != nil {
+			return nil, err
+		}
+		binds = bindsWrapper.Data
 	}
 
-	return bindsWrapper.Data, nil
+	return binds, nil
 }
 
 // CreateAcl creates a new acl.

@@ -72,32 +72,32 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 			"balance": schema.ListNestedBlock{
 				Description: "Load balancing configuration for the backend.",
 				NestedObject: schema.NestedBlockObject{
-				Attributes: map[string]schema.Attribute{
-					"algorithm": schema.StringAttribute{
-						Required:    true,
+					Attributes: map[string]schema.Attribute{
+						"algorithm": schema.StringAttribute{
+							Required:    true,
 							Description: "The load balancing algorithm.",
-					},
-					"url_param": schema.StringAttribute{
-						Optional:    true,
+						},
+						"url_param": schema.StringAttribute{
+							Optional:    true,
 							Description: "The URL parameter for load balancing.",
+						},
 					},
 				},
-			},
 			},
 			"httpchk_params": schema.ListNestedBlock{
 				Description: "HTTP health check parameters for the backend.",
 				NestedObject: schema.NestedBlockObject{
-				Attributes: map[string]schema.Attribute{
-					"method": schema.StringAttribute{
+					Attributes: map[string]schema.Attribute{
+						"method": schema.StringAttribute{
 							Required:    true,
 							Description: "The HTTP method for health checks.",
-					},
-					"uri": schema.StringAttribute{
+						},
+						"uri": schema.StringAttribute{
 							Required:    true,
 							Description: "The URI for health checks.",
-					},
-					"version": schema.StringAttribute{
-						Optional:    true,
+						},
+						"version": schema.StringAttribute{
+							Optional:    true,
 							Description: "The HTTP version for health checks.",
 						},
 					},
@@ -169,9 +169,9 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 							Optional:    true,
 							Description: "The condition test of the tcp_check.",
 						},
-						},
 					},
 				},
+			},
 			"acls": schema.ListNestedBlock{
 				Description: "Access Control List (ACL) configuration blocks for content switching and decision making in the backend.",
 				NestedObject: schema.NestedBlockObject{
@@ -323,105 +323,105 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 				Description: "Default server configuration for SSL/TLS settings.",
 				Attributes: map[string]schema.Attribute{
 					"ssl": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "SSL configuration for the default server.",
-						},
+					},
 					"ssl_cafile": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "SSL CA file for the default server.",
-						},
+					},
 					"ssl_certificate": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "SSL certificate for the default server.",
-						},
+					},
 					"ssl_max_ver": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "SSL maximum version for the default server.",
-						},
+					},
 					"ssl_min_ver": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "SSL minimum version for the default server.",
-						},
+					},
 					"ssl_reuse": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "SSL reuse configuration for the default server.",
-						},
+					},
 					"ciphers": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Ciphers for the default server.",
-						},
+					},
 					"ciphersuites": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Cipher suites for the default server.",
-						},
+					},
 					"verify": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "SSL verification for the default server.",
-						},
+					},
 					// v3 fields
 					"sslv3": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "SSLv3 support for the default server (Data Plane API v3 only).",
-						},
+					},
 					"tlsv10": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "TLSv1.0 support for the default server (Data Plane API v3 only).",
-						},
+					},
 					"tlsv11": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "TLSv1.1 support for the default server (Data Plane API v3 only).",
 					},
 					"tlsv12": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "TLSv1.2 support for the default server (Data Plane API v3 only).",
-						},
+					},
 					"tlsv13": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "TLSv1.3 support for the default server (Data Plane API v3 only).",
-						},
+					},
 					// v2 fields (deprecated in v3)
 					"no_sslv3": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Disable SSLv3 for the default server (Data Plane API v2 only, deprecated in v3).",
-						},
+					},
 					"no_tlsv10": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Disable TLSv1.0 for the default server (Data Plane API v2 only, deprecated in v3).",
-						},
+					},
 					"no_tlsv11": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Disable TLSv1.1 for the default server (Data Plane API v2 only, deprecated in v3).",
-						},
+					},
 					"no_tlsv12": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Disable TLSv1.2 for the default server (Data Plane API v2 only, deprecated in v3).",
-						},
+					},
 					"no_tlsv13": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Disable TLSv1.3 for the default server (Data Plane API v2 only, deprecated in v3).",
-						},
+					},
 					"force_sslv3": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Force SSLv3 for the default server (Data Plane API v2 only, deprecated in v3).",
-						},
+					},
 					"force_tlsv10": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Force TLSv1.0 for the default server (Data Plane API v2 only, deprecated in v3).",
-						},
+					},
 					"force_tlsv11": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Force TLSv1.1 for the default server (Data Plane API v2 only, deprecated in v3).",
-						},
+					},
 					"force_tlsv12": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Force TLSv1.2 for the default server (Data Plane API v2 only, deprecated in v3).",
-						},
+					},
 					"force_tlsv13": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Force TLSv1.3 for the default server (Data Plane API v2 only, deprecated in v3).",
-						},
+					},
 					"force_strict_sni": schema.StringAttribute{
-							Optional:    true,
+						Optional:    true,
 						Description: "Force strict SNI for the default server (Data Plane API v2 only, deprecated in v3).",
 					},
 				},
@@ -477,23 +477,23 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 			"stats_options": schema.ListNestedBlock{
 				Description: "Stats options configuration for the backend.",
 				NestedObject: schema.NestedBlockObject{
-				Attributes: map[string]schema.Attribute{
-					"stats_enable": schema.BoolAttribute{
-						Optional:    true,
+					Attributes: map[string]schema.Attribute{
+						"stats_enable": schema.BoolAttribute{
+							Optional:    true,
 							Description: "Whether to enable stats for the backend.",
-					},
-					"stats_uri": schema.StringAttribute{
-						Optional:    true,
+						},
+						"stats_uri": schema.StringAttribute{
+							Optional:    true,
 							Description: "The stats URI for the backend.",
-					},
-					"stats_realm": schema.StringAttribute{
-						Optional:    true,
+						},
+						"stats_realm": schema.StringAttribute{
+							Optional:    true,
 							Description: "The stats realm for the backend.",
-					},
-					"stats_auth": schema.StringAttribute{
-						Optional:    true,
+						},
+						"stats_auth": schema.StringAttribute{
+							Optional:    true,
 							Description: "The stats authentication for the backend.",
-					},
+						},
 					},
 				},
 			},
@@ -622,7 +622,7 @@ func (r *BackendManager) UpdateBackendInTransaction(ctx context.Context, transac
 
 	// Update backend in HAProxy using the existing transaction
 	err := r.client.UpdateBackendInTransaction(ctx, transactionID, backendPayload)
-			if err != nil {
+	if err != nil {
 		return fmt.Errorf("failed to update backend: %w", err)
 	}
 
@@ -641,7 +641,7 @@ func (r *BackendManager) UpdateBackendInTransaction(ctx context.Context, transac
 func (r *BackendManager) ReadBackend(ctx context.Context, backendName string, existingBackend *haproxyBackendModel) (*haproxyBackendModel, error) {
 	// Read backend from HAProxy
 	backend, err := r.client.ReadBackend(ctx, backendName)
-			if err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("failed to read backend: %w", err)
 	}
 
@@ -649,7 +649,7 @@ func (r *BackendManager) ReadBackend(ctx context.Context, backendName string, ex
 	var backendAcls []ACLPayload
 	aclManager := NewACLManager(r.client)
 	backendAcls, err = aclManager.ReadACLs(ctx, "backend", backendName)
-			if err != nil {
+	if err != nil {
 		log.Printf("Warning: Failed to read ACLs for backend %s: %v", backendName, err)
 		// Continue without ACLs if reading fails
 	}
@@ -876,7 +876,7 @@ func (r *BackendManager) DeleteBackend(ctx context.Context, backendName string) 
 
 	// Delete backend
 	err := r.client.DeleteBackend(ctx, backendName)
-				if err != nil {
+	if err != nil {
 		return fmt.Errorf("failed to delete backend: %w", err)
 	}
 
@@ -894,7 +894,7 @@ func (r *BackendManager) DeleteBackendInTransaction(ctx context.Context, transac
 
 	// Delete backend in HAProxy using the existing transaction
 	err := r.client.DeleteBackendInTransaction(ctx, transactionID, backendName)
-				if err != nil {
+	if err != nil {
 		return fmt.Errorf("failed to delete backend: %w", err)
 	}
 
