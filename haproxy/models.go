@@ -329,8 +329,8 @@ type BindPayload struct {
 	Sslv3               bool   `json:"sslv3,omitempty"`
 	Tlsv10              bool   `json:"tlsv10,omitempty"`
 	Tlsv11              bool   `json:"tlsv11,omitempty"`
-	Tlsv12              bool   `json:"tlsv12,omitempty"`
-	Tlsv13              bool   `json:"tlsv13,omitempty"`
+	Tlsv12              string `json:"tlsv12,omitempty"`
+	Tlsv13              string `json:"tlsv13,omitempty"`
 	Npn                 string `json:"npn,omitempty"`
 	PreferClientCiphers bool   `json:"prefer_client_ciphers,omitempty"`
 	Process             string `json:"process,omitempty"`
@@ -345,6 +345,18 @@ type BindPayload struct {
 	V6only              bool   `json:"v6only,omitempty"`
 	Verify              string `json:"verify,omitempty"`
 	Metadata            string `json:"metadata,omitempty"`
+	// Additional v3 fields
+	TlsTickets          string `json:"tls_tickets,omitempty"`
+	NoStrictSni         bool   `json:"no_strict_sni,omitempty"`
+	GuidPrefix          string `json:"guid_prefix,omitempty"`
+	IdlePing            *int64 `json:"idle_ping,omitempty"`
+	QuicCcAlgo          string `json:"quic-cc-algo,omitempty"`
+	QuicForceRetry      bool   `json:"quic-force-retry,omitempty"`
+	QuicSocket          string `json:"quic-socket,omitempty"`
+	QuicCcAlgoBurstSize *int64 `json:"quic_cc_algo_burst_size,omitempty"`
+	QuicCcAlgoMaxWindow *int64 `json:"quic_cc_algo_max_window,omitempty"`
+	// Additional v2 fields (deprecated in v3)
+	NoTlsTickets bool `json:"no_tls_tickets,omitempty"`
 }
 
 // Bind represents the bind configuration

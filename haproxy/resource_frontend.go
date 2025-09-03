@@ -24,184 +24,80 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 				Description: "The name of the frontend.",
 			},
 			"mode": schema.StringAttribute{
-				Required:    true,
+							Required:    true,
 				Description: "The mode of the frontend (http, tcp).",
-			},
+						},
 			"default_backend": schema.StringAttribute{
-				Required:    true,
+							Required:    true,
 				Description: "The default backend for the frontend.",
-			},
-			"maxconn": schema.Int64Attribute{
-				Optional:    true,
+						},
+						"maxconn": schema.Int64Attribute{
+							Optional:    true,
 				Description: "Maximum number of connections for the frontend.",
-			},
+						},
 			"backlog": schema.Int64Attribute{
-				Optional:    true,
+							Optional:    true,
 				Description: "Backlog setting for the frontend.",
-			},
+						},
 			"ssl": schema.BoolAttribute{
-				Optional:    true,
+							Optional:    true,
 				Description: "Whether SSL is enabled for the frontend.",
-			},
+						},
 			"ssl_certificate": schema.StringAttribute{
-				Optional:    true,
+							Optional:    true,
 				Description: "SSL certificate for the frontend.",
-			},
-			"ssl_cafile": schema.StringAttribute{
-				Optional:    true,
+						},
+						"ssl_cafile": schema.StringAttribute{
+							Optional:    true,
 				Description: "SSL CA file for the frontend.",
-			},
-			"ssl_max_ver": schema.StringAttribute{
-				Optional:    true,
+						},
+						"ssl_max_ver": schema.StringAttribute{
+							Optional:    true,
 				Description: "SSL maximum version for the frontend.",
-			},
-			"ssl_min_ver": schema.StringAttribute{
-				Optional:    true,
+						},
+						"ssl_min_ver": schema.StringAttribute{
+							Optional:    true,
 				Description: "SSL minimum version for the frontend.",
-			},
-			"ciphers": schema.StringAttribute{
-				Optional:    true,
+						},
+						"ciphers": schema.StringAttribute{
+							Optional:    true,
 				Description: "Ciphers for the frontend.",
-			},
-			"ciphersuites": schema.StringAttribute{
-				Optional:    true,
+						},
+						"ciphersuites": schema.StringAttribute{
+							Optional:    true,
 				Description: "Cipher suites for the frontend.",
-			},
+						},
 			"verify": schema.StringAttribute{
-				Optional:    true,
+							Optional:    true,
 				Description: "SSL verification for the frontend.",
-			},
+						},
 			"accept_proxy": schema.BoolAttribute{
-				Optional:    true,
+							Optional:    true,
 				Description: "Whether to accept proxy protocol.",
-			},
-			"defer_accept": schema.BoolAttribute{
-				Optional:    true,
+						},
+						"defer_accept": schema.BoolAttribute{
+							Optional:    true,
 				Description: "Whether to defer accept.",
-			},
-			"tcp_user_timeout": schema.Int64Attribute{
-				Optional:    true,
+						},
+						"tcp_user_timeout": schema.Int64Attribute{
+							Optional:    true,
 				Description: "TCP user timeout for the frontend.",
-			},
-			"tfo": schema.BoolAttribute{
-				Optional:    true,
+						},
+						"tfo": schema.BoolAttribute{
+							Optional:    true,
 				Description: "Whether TCP Fast Open is enabled.",
-			},
-			"v4v6": schema.BoolAttribute{
-				Optional:    true,
+						},
+						"v4v6": schema.BoolAttribute{
+							Optional:    true,
 				Description: "Whether to use both IPv4 and IPv6.",
-			},
-			"v6only": schema.BoolAttribute{
-				Optional:    true,
+						},
+						"v6only": schema.BoolAttribute{
+							Optional:    true,
 				Description: "Whether to use IPv6 only.",
 			},
 		},
 		Blocks: map[string]schema.Block{
-			"bind": schema.ListNestedBlock{
-				Description: "Bind configuration for the frontend.",
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"name": schema.StringAttribute{
-							Required:    true,
-							Description: "The name of the bind.",
-						},
-						"address": schema.StringAttribute{
-							Required:    true,
-							Description: "The bind address.",
-						},
-						"port": schema.Int64Attribute{
-							Required:    true,
-							Description: "The bind port.",
-						},
-						"ssl": schema.StringAttribute{
-							Optional:    true,
-							Description: "SSL configuration for the bind.",
-						},
-						"ssl_cafile": schema.StringAttribute{
-							Optional:    true,
-							Description: "SSL CA file for the bind.",
-						},
-						"ssl_certificate": schema.StringAttribute{
-							Optional:    true,
-							Description: "SSL certificate for the bind.",
-						},
-						"ssl_max_ver": schema.StringAttribute{
-							Optional:    true,
-							Description: "SSL maximum version for the bind.",
-						},
-						"ssl_min_ver": schema.StringAttribute{
-							Optional:    true,
-							Description: "SSL minimum version for the bind.",
-						},
-						"ssl_reuse": schema.StringAttribute{
-							Optional:    true,
-							Description: "SSL reuse configuration for the bind.",
-						},
-						"ciphers": schema.StringAttribute{
-							Optional:    true,
-							Description: "Ciphers for the bind.",
-						},
-						"ciphersuites": schema.StringAttribute{
-							Optional:    true,
-							Description: "Cipher suites for the bind.",
-						},
-						"verify": schema.StringAttribute{
-							Optional:    true,
-							Description: "SSL verification for the bind.",
-						},
-						"transparent": schema.BoolAttribute{
-							Optional:    true,
-							Description: "Whether the bind is transparent.",
-						},
-						// v3 fields
-						"sslv3": schema.BoolAttribute{
-							Optional:    true,
-							Description: "SSLv3 support for the bind (Data Plane API v3 only).",
-						},
-						"tlsv10": schema.BoolAttribute{
-							Optional:    true,
-							Description: "TLSv1.0 support for the bind (Data Plane API v3 only).",
-						},
-						"tlsv11": schema.BoolAttribute{
-							Optional:    true,
-							Description: "TLSv1.1 support for the bind (Data Plane API v3 only).",
-						},
-						"tlsv12": schema.BoolAttribute{
-							Optional:    true,
-							Description: "TLSv1.2 support for the bind (Data Plane API v3 only).",
-						},
-						"tlsv13": schema.BoolAttribute{
-							Optional:    true,
-							Description: "TLSv1.3 support for the bind (Data Plane API v3 only).",
-						},
-						// v2 fields (deprecated in v3)
-						"force_sslv3": schema.BoolAttribute{
-							Optional:    true,
-							Description: "Force SSLv3 for the bind (Data Plane API v2 only, deprecated in v3).",
-						},
-						"force_tlsv10": schema.BoolAttribute{
-							Optional:    true,
-							Description: "Force TLSv1.0 for the bind (Data Plane API v2 only, deprecated in v3).",
-						},
-						"force_tlsv11": schema.BoolAttribute{
-							Optional:    true,
-							Description: "Force TLSv1.1 for the bind (Data Plane API v2 only, deprecated in v3).",
-						},
-						"force_tlsv12": schema.BoolAttribute{
-							Optional:    true,
-							Description: "Force TLSv1.2 for the bind (Data Plane API v2 only, deprecated in v3).",
-						},
-						"force_tlsv13": schema.BoolAttribute{
-							Optional:    true,
-							Description: "Force TLSv1.3 for the bind (Data Plane API v2 only, deprecated in v3).",
-						},
-						"force_strict_sni": schema.StringAttribute{
-							Optional:    true,
-							Description: "Force strict SNI for the bind (Data Plane API v2 only, deprecated in v3).",
-						},
-					},
-				},
-			},
+			"bind": GetBindSchema(),
 			"acls": schema.ListNestedBlock{
 				Description: "Access Control List (ACL) configuration blocks for content switching and decision making in the frontend.",
 				NestedObject: schema.NestedBlockObject{
