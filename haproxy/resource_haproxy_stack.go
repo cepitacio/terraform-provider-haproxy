@@ -31,7 +31,7 @@ type haproxyStackResource struct {
 type haproxyStackResourceModel struct {
 	Name     types.String          `tfsdk:"name"`
 	Backend  *haproxyBackendModel  `tfsdk:"backend"`
-	Server   *haproxyServerModel   `tfsdk:"server"`
+	Servers  []haproxyServerModel  `tfsdk:"servers"` // Multiple servers
 	Frontend *haproxyFrontendModel `tfsdk:"frontend"`
 	Acls     []haproxyAclModel     `tfsdk:"acls"`
 }
@@ -291,7 +291,7 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 		},
 		Blocks: map[string]schema.Block{
 			"backend":  GetBackendSchema(schemaBuilder),
-			"server":   GetServerSchema(schemaBuilder),
+			"servers":  GetServersSchema(schemaBuilder), // Multiple servers
 			"frontend": GetFrontendSchema(schemaBuilder),
 			"acls":     GetACLSchema(),
 		},
@@ -379,8 +379,10 @@ func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, 
 			validateDefaultServerV2ForCreate(ctx, &resp.Diagnostics, config.Backend.DefaultServer, "backend.default_server")
 		}
 
-		if config.Server != nil {
-			validateServerV2ForCreate(ctx, &resp.Diagnostics, *config.Server, "server")
+		if len(config.Servers) > 0 {
+			for i, server := range config.Servers {
+				validateServerV2ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("servers[%d]", i))
+			}
 		}
 
 		if config.Frontend != nil {
@@ -394,8 +396,10 @@ func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, 
 			validateDefaultServerV3ForCreate(ctx, &resp.Diagnostics, config.Backend.DefaultServer, "backend.default_server")
 		}
 
-		if config.Server != nil {
-			validateServerV3ForCreate(ctx, &resp.Diagnostics, *config.Server, "server")
+		if len(config.Servers) > 0 {
+			for i, server := range config.Servers {
+				validateServerV3ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("servers[%d]", i))
+			}
 		}
 
 		if config.Frontend != nil {
