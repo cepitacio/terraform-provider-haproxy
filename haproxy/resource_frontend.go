@@ -14,7 +14,7 @@ import (
 func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNestedBlock {
 	// If no schema builder is provided, include all fields for backward compatibility
 	if schemaBuilder == nil {
-		schemaBuilder = NewVersionAwareSchemaBuilder("v2") // Default to v2
+		schemaBuilder = NewVersionAwareSchemaBuilder("v3") // Default to v3
 	}
 	return schema.SingleNestedBlock{
 		Description: "Frontend configuration.",
@@ -24,80 +24,80 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 				Description: "The name of the frontend.",
 			},
 			"mode": schema.StringAttribute{
-							Required:    true,
+				Required:    true,
 				Description: "The mode of the frontend (http, tcp).",
-						},
+			},
 			"default_backend": schema.StringAttribute{
-							Required:    true,
+				Required:    true,
 				Description: "The default backend for the frontend.",
-						},
-						"maxconn": schema.Int64Attribute{
-							Optional:    true,
+			},
+			"maxconn": schema.Int64Attribute{
+				Optional:    true,
 				Description: "Maximum number of connections for the frontend.",
-						},
+			},
 			"backlog": schema.Int64Attribute{
-							Optional:    true,
+				Optional:    true,
 				Description: "Backlog setting for the frontend.",
-						},
+			},
 			"ssl": schema.BoolAttribute{
-							Optional:    true,
+				Optional:    true,
 				Description: "Whether SSL is enabled for the frontend.",
-						},
+			},
 			"ssl_certificate": schema.StringAttribute{
-							Optional:    true,
+				Optional:    true,
 				Description: "SSL certificate for the frontend.",
-						},
-						"ssl_cafile": schema.StringAttribute{
-							Optional:    true,
+			},
+			"ssl_cafile": schema.StringAttribute{
+				Optional:    true,
 				Description: "SSL CA file for the frontend.",
-						},
-						"ssl_max_ver": schema.StringAttribute{
-							Optional:    true,
+			},
+			"ssl_max_ver": schema.StringAttribute{
+				Optional:    true,
 				Description: "SSL maximum version for the frontend.",
-						},
-						"ssl_min_ver": schema.StringAttribute{
-							Optional:    true,
+			},
+			"ssl_min_ver": schema.StringAttribute{
+				Optional:    true,
 				Description: "SSL minimum version for the frontend.",
-						},
-						"ciphers": schema.StringAttribute{
-							Optional:    true,
+			},
+			"ciphers": schema.StringAttribute{
+				Optional:    true,
 				Description: "Ciphers for the frontend.",
-						},
-						"ciphersuites": schema.StringAttribute{
-							Optional:    true,
+			},
+			"ciphersuites": schema.StringAttribute{
+				Optional:    true,
 				Description: "Cipher suites for the frontend.",
-						},
+			},
 			"verify": schema.StringAttribute{
-							Optional:    true,
+				Optional:    true,
 				Description: "SSL verification for the frontend.",
-						},
+			},
 			"accept_proxy": schema.BoolAttribute{
-							Optional:    true,
+				Optional:    true,
 				Description: "Whether to accept proxy protocol.",
-						},
-						"defer_accept": schema.BoolAttribute{
-							Optional:    true,
+			},
+			"defer_accept": schema.BoolAttribute{
+				Optional:    true,
 				Description: "Whether to defer accept.",
-						},
-						"tcp_user_timeout": schema.Int64Attribute{
-							Optional:    true,
+			},
+			"tcp_user_timeout": schema.Int64Attribute{
+				Optional:    true,
 				Description: "TCP user timeout for the frontend.",
-						},
-						"tfo": schema.BoolAttribute{
-							Optional:    true,
+			},
+			"tfo": schema.BoolAttribute{
+				Optional:    true,
 				Description: "Whether TCP Fast Open is enabled.",
-						},
-						"v4v6": schema.BoolAttribute{
-							Optional:    true,
+			},
+			"v4v6": schema.BoolAttribute{
+				Optional:    true,
 				Description: "Whether to use both IPv4 and IPv6.",
-						},
-						"v6only": schema.BoolAttribute{
-							Optional:    true,
+			},
+			"v6only": schema.BoolAttribute{
+				Optional:    true,
 				Description: "Whether to use IPv6 only.",
 			},
+			"binds": GetBindSchema(),
 		},
 		Blocks: map[string]schema.Block{
-			"bind": GetBindSchema(),
 			"acls": schema.ListNestedBlock{
 				Description: "Access Control List (ACL) configuration blocks for content switching and decision making in the frontend.",
 				NestedObject: schema.NestedBlockObject{
@@ -260,7 +260,7 @@ func (r *FrontendManager) UpdateFrontendInTransaction(ctx context.Context, trans
 
 	// Update frontend in HAProxy using the existing transaction
 	err := r.client.UpdateFrontendInTransaction(ctx, transactionID, frontendPayload)
-			if err != nil {
+	if err != nil {
 		return fmt.Errorf("failed to update frontend: %w", err)
 	}
 
@@ -287,7 +287,7 @@ func (r *FrontendManager) DeleteFrontendInTransaction(ctx context.Context, trans
 
 	// Delete frontend in HAProxy using the existing transaction
 	err := r.client.DeleteFrontendInTransaction(ctx, transactionID, frontendName)
-			if err != nil {
+	if err != nil {
 		return fmt.Errorf("failed to delete frontend: %w", err)
 	}
 
@@ -307,7 +307,7 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 	if frontend != nil {
 		aclManager := NewACLManager(r.client)
 		frontendAcls, err = aclManager.ReadACLs(ctx, "frontend", frontendName)
-	if err != nil {
+		if err != nil {
 			log.Printf("Warning: Failed to read ACLs for frontend %s: %v", frontendName, err)
 			// Continue without ACLs if reading fails
 		}
@@ -356,7 +356,7 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 		// Read HTTP request rules from HAProxy
 		httpRequestRuleManager := NewHttpRequestRuleManager(r.client)
 		httpRequestRules, err := httpRequestRuleManager.ReadHttpRequestRules(ctx, "frontend", frontendName)
-	if err != nil {
+		if err != nil {
 			log.Printf("Warning: Failed to read HTTP request rules for frontend %s: %v", frontendName, err)
 			// Continue without HTTP request rules if reading fails
 		} else if len(httpRequestRules) > 0 {

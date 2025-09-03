@@ -8,7 +8,7 @@ import (
 func GetServerSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNestedBlock {
 	// If no schema builder is provided, include all fields for backward compatibility
 	if schemaBuilder == nil {
-		schemaBuilder = NewVersionAwareSchemaBuilder("v2") // Default to v2
+		schemaBuilder = NewVersionAwareSchemaBuilder("v3") // Default to v3
 	}
 	attributes := map[string]schema.Attribute{
 		"name": schema.StringAttribute{
@@ -70,10 +70,6 @@ func GetServerSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNest
 		"cookie": schema.StringAttribute{
 			Optional:    true,
 			Description: "Cookie value for the server.",
-		},
-		"disabled": schema.BoolAttribute{
-			Optional:    true,
-			Description: "Whether the server is disabled.",
 		},
 	}
 
@@ -153,16 +149,13 @@ func GetServerSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNest
 }
 
 // GetServersSchema returns the schema for the servers block (multiple servers)
-func GetServersSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.ListNestedBlock {
+func GetServersSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.MapNestedAttribute {
 	// If no schema builder is provided, include all fields for backward compatibility
 	if schemaBuilder == nil {
-		schemaBuilder = NewVersionAwareSchemaBuilder("v2") // Default to v2
+		schemaBuilder = NewVersionAwareSchemaBuilder("v3") // Default to v3
 	}
 	attributes := map[string]schema.Attribute{
-		"name": schema.StringAttribute{
-			Required:    true,
-			Description: "The name of the server.",
-		},
+		// Note: "name" is now the map key, not a field
 		"address": schema.StringAttribute{
 			Required:    true,
 			Description: "The address of the server.",
@@ -218,10 +211,6 @@ func GetServersSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.ListNeste
 		"cookie": schema.StringAttribute{
 			Optional:    true,
 			Description: "Cookie value for the server.",
-		},
-		"disabled": schema.BoolAttribute{
-			Optional:    true,
-			Description: "Whether the server is disabled.",
 		},
 	}
 
@@ -294,9 +283,10 @@ func GetServersSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.ListNeste
 		Description: "Disable TLSv1.3 for the server (Data Plane API v2 only, deprecated in v3).",
 	}
 
-	return schema.ListNestedBlock{
+	return schema.MapNestedAttribute{
+		Optional:    true,
 		Description: "Multiple server configurations.",
-		NestedObject: schema.NestedBlockObject{
+		NestedObject: schema.NestedAttributeObject{
 			Attributes: attributes,
 		},
 	}

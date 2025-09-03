@@ -29,11 +29,11 @@ type haproxyStackResource struct {
 
 // haproxyStackResourceModel maps the resource schema data.
 type haproxyStackResourceModel struct {
-	Name     types.String          `tfsdk:"name"`
-	Backend  *haproxyBackendModel  `tfsdk:"backend"`
-	Servers  []haproxyServerModel  `tfsdk:"servers"` // Multiple servers
-	Frontend *haproxyFrontendModel `tfsdk:"frontend"`
-	Acls     []haproxyAclModel     `tfsdk:"acls"`
+	Name     types.String                  `tfsdk:"name"`
+	Backend  *haproxyBackendModel          `tfsdk:"backend"`
+	Servers  map[string]haproxyServerModel `tfsdk:"servers"` // Multiple servers
+	Frontend *haproxyFrontendModel         `tfsdk:"frontend"`
+	Acls     []haproxyAclModel             `tfsdk:"acls"`
 }
 
 // haproxyBackendModel maps the backend block schema data.
@@ -98,7 +98,7 @@ type haproxyDefaultServerModel struct {
 
 // haproxyServerModel maps the server block schema data.
 type haproxyServerModel struct {
-	Name      types.String `tfsdk:"name"`
+	// Note: Name is now the map key, not a field
 	Address   types.String `tfsdk:"address"`
 	Port      types.Int64  `tfsdk:"port"`
 	Check     types.String `tfsdk:"check"`
@@ -113,7 +113,7 @@ type haproxyServerModel struct {
 	Ssl       types.String `tfsdk:"ssl"`
 	Verify    types.String `tfsdk:"verify"`
 	Cookie    types.String `tfsdk:"cookie"`
-	Disabled  types.Bool   `tfsdk:"disabled"`
+
 	// SSL/TLS Protocol Control (v3 fields)
 	Sslv3  types.String `tfsdk:"sslv3"`
 	Tlsv10 types.String `tfsdk:"tlsv10"`
@@ -155,7 +155,7 @@ type haproxyFrontendModel struct {
 	Tfo              types.Bool                    `tfsdk:"tfo"`
 	V4v6             types.Bool                    `tfsdk:"v4v6"`
 	V6only           types.Bool                    `tfsdk:"v6only"`
-	Bind             []haproxyBindModel            `tfsdk:"bind"`
+	Binds            map[string]haproxyBindModel   `tfsdk:"binds"`
 	Acls             []haproxyAclModel             `tfsdk:"acls"`
 	HttpRequestRules []haproxyHttpRequestRuleModel `tfsdk:"http_request_rules"`
 	StatsOptions     []haproxyStatsOptionsModel    `tfsdk:"stats_options"`
@@ -273,10 +273,10 @@ func (r *haproxyStackResource) Metadata(_ context.Context, req resource.Metadata
 
 // Schema defines the schema for the resource.
 func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	// Use default v2 if apiVersion is not set (for backward compatibility)
+	// Use default v3 if apiVersion is not set (latest version)
 	apiVersion := r.apiVersion
 	if apiVersion == "" {
-		apiVersion = "v2"
+		apiVersion = "v3"
 	}
 
 	schemaBuilder := NewVersionAwareSchemaBuilder(apiVersion)
@@ -288,10 +288,10 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 				Required:    true,
 				Description: "The name of the HAProxy stack.",
 			},
+			"servers": GetServersSchema(schemaBuilder), // Multiple servers
 		},
 		Blocks: map[string]schema.Block{
 			"backend":  GetBackendSchema(schemaBuilder),
-			"servers":  GetServersSchema(schemaBuilder), // Multiple servers
 			"frontend": GetFrontendSchema(schemaBuilder),
 			"acls":     GetACLSchema(),
 		},
@@ -361,7 +361,7 @@ func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, 
 	// Get the API version from the provider configuration
 	apiVersion := r.apiVersion
 	if apiVersion == "" {
-		apiVersion = "v2" // Default to v2
+		apiVersion = "v3" // Default to v3
 	}
 
 	// Get the configuration data
@@ -386,8 +386,8 @@ func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, 
 		}
 
 		if config.Frontend != nil {
-			for i, bind := range config.Frontend.Bind {
-				validateBindV2ForCreate(ctx, &resp.Diagnostics, bind, fmt.Sprintf("frontend.bind[%d]", i))
+			for bindName, bind := range config.Frontend.Binds {
+				validateBindV2ForCreate(ctx, &resp.Diagnostics, bind, fmt.Sprintf("frontend.binds[%s]", bindName))
 			}
 		}
 	} else if apiVersion == "v3" {
@@ -403,8 +403,8 @@ func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, 
 		}
 
 		if config.Frontend != nil {
-			for i, bind := range config.Frontend.Bind {
-				validateBindV3ForCreate(ctx, &resp.Diagnostics, bind, fmt.Sprintf("frontend.bind[%d]", i))
+			for bindName, bind := range config.Frontend.Binds {
+				validateBindV3ForCreate(ctx, &resp.Diagnostics, bind, fmt.Sprintf("frontend.binds[%s]", bindName))
 			}
 		}
 	}
