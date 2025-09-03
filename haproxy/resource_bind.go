@@ -14,15 +14,12 @@ import (
 )
 
 // GetBindSchema returns the schema for the bind block
-func GetBindSchema() schema.ListNestedBlock {
-	return schema.ListNestedBlock{
+func GetBindSchema() schema.MapNestedAttribute {
+	return schema.MapNestedAttribute{
+		Optional:    true,
 		Description: "Bind configuration blocks for frontend listening addresses and ports.",
-		NestedObject: schema.NestedBlockObject{
+		NestedObject: schema.NestedAttributeObject{
 			Attributes: map[string]schema.Attribute{
-				"name": schema.StringAttribute{
-					Required:    true,
-					Description: "The name of the bind.",
-				},
 				"address": schema.StringAttribute{
 					Required:    true,
 					Description: "The bind address (e.g., 0.0.0.0, ::, or specific IP).",
@@ -304,7 +301,6 @@ func GetBindSchema() schema.ListNestedBlock {
 
 // haproxyBindModel maps the bind block schema data.
 type haproxyBindModel struct {
-	Name                 types.String `tfsdk:"name"`
 	Address              types.String `tfsdk:"address"`
 	Port                 types.Int64  `tfsdk:"port"`
 	PortRangeEnd         types.Int64  `tfsdk:"port_range_end"`
@@ -390,47 +386,41 @@ func NewBindManager(client *HAProxyClient) *BindManager {
 }
 
 // CreateBinds creates binds for a parent resource
-func (r *BindManager) CreateBinds(ctx context.Context, parentType string, parentName string, binds []haproxyBindModel) error {
+func (r *BindManager) CreateBinds(ctx context.Context, parentType string, parentName string, binds map[string]haproxyBindModel) error {
 	if len(binds) == 0 {
 		return nil
 	}
 
-	// Sort binds by name to ensure consistent order
-	sortedBinds := r.processBindsBlock(binds)
-
-	// Create binds in order
-	for _, bind := range sortedBinds {
-		bindPayload := r.convertToBindPayload(&bind)
+	// Create binds using map iteration
+	for bindName, bind := range binds {
+		bindPayload := r.convertToBindPayload(bindName, &bind)
 
 		if err := r.client.CreateBind(ctx, parentType, parentName, bindPayload); err != nil {
-			return fmt.Errorf("failed to create bind '%s': %w", bind.Name.ValueString(), err)
+			return fmt.Errorf("failed to create bind '%s': %w", bindName, err)
 		}
 
-		log.Printf("Created bind '%s' for %s %s", bind.Name.ValueString(), parentType, parentName)
+		log.Printf("Created bind '%s' for %s %s", bindName, parentType, parentName)
 	}
 
 	return nil
 }
 
 // CreateBindsInTransaction creates binds using an existing transaction ID
-func (r *BindManager) CreateBindsInTransaction(ctx context.Context, transactionID, parentType string, parentName string, binds []haproxyBindModel) error {
+func (r *BindManager) CreateBindsInTransaction(ctx context.Context, transactionID, parentType string, parentName string, binds map[string]haproxyBindModel) error {
 	if len(binds) == 0 {
 		return nil
 	}
 
-	// Sort binds by name to ensure consistent order
-	sortedBinds := r.processBindsBlock(binds)
-
-	// Create binds in order using the existing transaction
-	for _, bind := range sortedBinds {
-		bindPayload := r.convertToBindPayload(&bind)
+	// Create binds using map iteration
+	for bindName, bind := range binds {
+		bindPayload := r.convertToBindPayload(bindName, &bind)
 
 		// Debug: Log what we're trying to create
-		log.Printf("DEBUG: Creating bind '%s' with payload: %+v", bind.Name.ValueString(), bindPayload)
+		log.Printf("DEBUG: Creating bind '%s' with payload: %+v", bindName, bindPayload)
 
 		// Debug: Log specific problematic fields
 		log.Printf("DEBUG: Bind '%s' - Process: '%s', Metadata: '%s', Tlsv12: %t, Tlsv13: %t",
-			bind.Name.ValueString(), bindPayload.Process, bindPayload.Metadata, bindPayload.Tlsv12, bindPayload.Tlsv13)
+			bindName, bindPayload.Process, bindPayload.Metadata, bindPayload.Tlsv12, bindPayload.Tlsv13)
 
 		// Debug: Log the JSON payload being sent
 		jsonPayload, _ := json.Marshal(bindPayload)
@@ -438,22 +428,22 @@ func (r *BindManager) CreateBindsInTransaction(ctx context.Context, transactionI
 
 		resp, err := r.client.CreateBindInTransaction(ctx, transactionID, parentType, parentName, bindPayload)
 		if err != nil {
-			return fmt.Errorf("failed to create bind '%s': %w", bind.Name.ValueString(), err)
+			return fmt.Errorf("failed to create bind '%s': %w", bindName, err)
 		}
 		defer resp.Body.Close()
 
 		// Check response status code
 		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 			body, _ := io.ReadAll(resp.Body)
-			return fmt.Errorf("failed to create bind '%s': HTTP %d - %s", bind.Name.ValueString(), resp.StatusCode, string(body))
+			return fmt.Errorf("failed to create bind '%s': HTTP %d - %s", bindName, resp.StatusCode, string(body))
 		}
 
-		log.Printf("Created bind '%s' for %s %s in transaction %s", bind.Name.ValueString(), parentType, parentName, transactionID)
+		log.Printf("Created bind '%s' for %s %s in transaction %s", bindName, parentType, parentName, transactionID)
 
 		// Debug: Log response body to see what HAProxy actually stored
 		if resp.Body != nil {
 			body, _ := io.ReadAll(resp.Body)
-			log.Printf("DEBUG: HAProxy response for bind '%s': %s", bind.Name.ValueString(), string(body))
+			log.Printf("DEBUG: HAProxy response for bind '%s': %s", bindName, string(body))
 		}
 	}
 
@@ -477,7 +467,7 @@ func (r *BindManager) ReadBinds(ctx context.Context, parentType string, parentNa
 }
 
 // UpdateBinds updates binds for a parent resource
-func (r *BindManager) UpdateBinds(ctx context.Context, parentType string, parentName string, newBinds []haproxyBindModel) error {
+func (r *BindManager) UpdateBinds(ctx context.Context, parentType string, parentName string, newBinds map[string]haproxyBindModel) error {
 	if len(newBinds) == 0 {
 		// Delete all existing binds
 		return r.deleteAllBinds(ctx, parentType, parentName)
@@ -499,7 +489,7 @@ func (r *BindManager) DeleteBinds(ctx context.Context, parentType string, parent
 }
 
 // UpdateBindsInTransaction updates binds using an existing transaction ID
-func (r *BindManager) UpdateBindsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, binds []haproxyBindModel) error {
+func (r *BindManager) UpdateBindsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, binds map[string]haproxyBindModel) error {
 	if len(binds) == 0 {
 		// Delete all existing binds
 		return r.deleteAllBindsInTransaction(ctx, transactionID, parentType, parentName)
@@ -539,25 +529,11 @@ func (r *BindManager) DeleteBindsInTransaction(ctx context.Context, transactionI
 }
 
 // Helper methods
-func (r *BindManager) processBindsBlock(binds []haproxyBindModel) []haproxyBindModel {
-	if len(binds) == 0 {
-		return binds
-	}
+// processBindsBlock is no longer needed with map-based binds
 
-	// Sort by name to ensure consistent order
-	sortedBinds := make([]haproxyBindModel, len(binds))
-	copy(sortedBinds, binds)
-
-	sort.Slice(sortedBinds, func(i, j int) bool {
-		return sortedBinds[i].Name.ValueString() < sortedBinds[j].Name.ValueString()
-	})
-
-	return sortedBinds
-}
-
-func (r *BindManager) convertToBindPayload(bind *haproxyBindModel) *BindPayload {
+func (r *BindManager) convertToBindPayload(bindName string, bind *haproxyBindModel) *BindPayload {
 	payload := &BindPayload{
-		Name:    bind.Name.ValueString(),
+		Name:    bindName,
 		Address: bind.Address.ValueString(),
 		Port:    &[]int64{bind.Port.ValueInt64()}[0],
 	}
@@ -566,7 +542,7 @@ func (r *BindManager) convertToBindPayload(bind *haproxyBindModel) *BindPayload 
 	apiVersion := r.client.GetAPIVersion()
 
 	// Debug: Log API version
-	log.Printf("DEBUG: Using API version: %s for bind '%s'", apiVersion, bind.Name.ValueString())
+	log.Printf("DEBUG: Using API version: %s for bind '%s'", apiVersion, bindName)
 
 	// Set optional fields only if they have values
 	if !bind.PortRangeEnd.IsNull() && !bind.PortRangeEnd.IsUnknown() {
@@ -771,10 +747,7 @@ func (r *BindManager) convertToBindPayload(bind *haproxyBindModel) *BindPayload 
 	return payload
 }
 
-func (r *BindManager) updateBindsWithHandlingInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, existingBinds []BindPayload, newBinds []haproxyBindModel) error {
-	// Process new binds with proper handling
-	sortedNewBinds := r.processBindsBlock(newBinds)
-
+func (r *BindManager) updateBindsWithHandlingInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, existingBinds []BindPayload, newBinds map[string]haproxyBindModel) error {
 	// Create maps for efficient lookup
 	existingBindMap := make(map[string]*BindPayload)
 	for i := range existingBinds {
@@ -785,66 +758,64 @@ func (r *BindManager) updateBindsWithHandlingInTransaction(ctx context.Context, 
 	processedBinds := make(map[string]bool)
 
 	// Track binds that need to be recreated due to changes
-	var bindsToRecreate []haproxyBindModel
+	var bindsToRecreate []string
 
 	// First pass: identify binds that need changes and mark them for update or recreation
-	for _, newBind := range sortedNewBinds {
-		newBindName := newBind.Name.ValueString()
+	for bindName, newBind := range newBinds {
 
 		// Check if this bind exists by name
-		if existingBind, exists := existingBindMap[newBindName]; exists {
+		if existingBind, exists := existingBindMap[bindName]; exists {
 			// Bind exists, check if content has changed
 			if r.hasBindChanged(existingBind, &newBind) {
 				// Content has changed, check if it's a simple update or needs recreation
 				if r.canUpdateBind(existingBind, &newBind) {
 					// Simple field change, can update in place
-					log.Printf("Bind '%s' has changed, will update in place", newBindName)
+					log.Printf("Bind '%s' has changed, will update in place", bindName)
 					// Update the bind immediately
-					bindPayload := r.convertToBindPayload(&newBind)
+					bindPayload := r.convertToBindPayload(bindName, &newBind)
 					_, err := r.client.UpdateBindInTransaction(ctx, transactionID, existingBind.Name, parentType, parentName, bindPayload)
 					if err != nil {
-						return fmt.Errorf("failed to update bind '%s': %w", newBindName, err)
+						return fmt.Errorf("failed to update bind '%s': %w", bindName, err)
 					}
-					log.Printf("Bind '%s' updated successfully", newBindName)
+					log.Printf("Bind '%s' updated successfully", bindName)
 				} else {
 					// Complex change, needs recreation
-					log.Printf("Bind '%s' has complex changes, will recreate", newBindName)
-					bindsToRecreate = append(bindsToRecreate, newBind)
+					log.Printf("Bind '%s' has complex changes, will recreate", bindName)
+					bindsToRecreate = append(bindsToRecreate, bindName)
 				}
 			} else {
 				// Bind is identical, no changes needed
-				log.Printf("Bind '%s' is unchanged", newBindName)
+				log.Printf("Bind '%s' is unchanged", bindName)
 			}
 			// Mark this bind as processed
-			processedBinds[newBindName] = true
+			processedBinds[bindName] = true
 		} else {
 			// This is a new bind, mark for creation
-			log.Printf("Bind '%s' is new, will create", newBindName)
+			log.Printf("Bind '%s' is new, will create", bindName)
 		}
 	}
 
 	// Second pass: delete all binds that need to be recreated (due to content changes)
-	for _, newBind := range bindsToRecreate {
-		newBindName := newBind.Name.ValueString()
-		if existingBind, exists := existingBindMap[newBindName]; exists {
-			log.Printf("Deleting bind '%s' for recreation", newBindName)
+	for _, bindName := range bindsToRecreate {
+		if existingBind, exists := existingBindMap[bindName]; exists {
+			log.Printf("Deleting bind '%s' for recreation", bindName)
 			_, err := r.client.DeleteBindInTransaction(ctx, transactionID, existingBind.Name, parentType, parentName)
 			if err != nil {
-				return fmt.Errorf("failed to delete bind '%s': %w", newBindName, err)
+				return fmt.Errorf("failed to delete bind '%s': %w", bindName, err)
 			}
 		}
 	}
 
 	// Third pass: create all binds that need to be recreated at their positions
-	for _, newBind := range bindsToRecreate {
-		newBindName := newBind.Name.ValueString()
+	for _, bindName := range bindsToRecreate {
+		newBind := newBinds[bindName]
 
-		log.Printf("Creating bind '%s'", newBindName)
-		bindPayload := r.convertToBindPayload(&newBind)
+		log.Printf("Creating bind '%s'", bindName)
+		bindPayload := r.convertToBindPayload(bindName, &newBind)
 
 		_, err := r.client.CreateBindInTransaction(ctx, transactionID, parentType, parentName, bindPayload)
 		if err != nil {
-			return fmt.Errorf("failed to create bind '%s': %w", newBindName, err)
+			return fmt.Errorf("failed to create bind '%s': %w", bindName, err)
 		}
 	}
 
@@ -871,16 +842,15 @@ func (r *BindManager) updateBindsWithHandlingInTransaction(ctx context.Context, 
 	}
 
 	// Create new binds that don't exist yet
-	for _, newBind := range sortedNewBinds {
-		newBindName := newBind.Name.ValueString()
-		if !processedBinds[newBindName] {
+	for bindName, newBind := range newBinds {
+		if !processedBinds[bindName] {
 			// This is a new bind, create it
-			log.Printf("Creating new bind '%s'", newBindName)
-			bindPayload := r.convertToBindPayload(&newBind)
+			log.Printf("Creating new bind '%s'", bindName)
+			bindPayload := r.convertToBindPayload(bindName, &newBind)
 
 			_, err := r.client.CreateBindInTransaction(ctx, transactionID, parentType, parentName, bindPayload)
 			if err != nil {
-				return fmt.Errorf("failed to create bind '%s': %w", newBindName, err)
+				return fmt.Errorf("failed to create bind '%s': %w", bindName, err)
 			}
 		}
 	}
@@ -888,10 +858,7 @@ func (r *BindManager) updateBindsWithHandlingInTransaction(ctx context.Context, 
 	return nil
 }
 
-func (r *BindManager) updateBindsWithHandling(ctx context.Context, parentType string, parentName string, existingBinds []BindPayload, newBinds []haproxyBindModel) error {
-	// Process new binds with proper handling
-	sortedNewBinds := r.processBindsBlock(newBinds)
-
+func (r *BindManager) updateBindsWithHandling(ctx context.Context, parentType string, parentName string, existingBinds []BindPayload, newBinds map[string]haproxyBindModel) error {
 	// Create maps for efficient lookup
 	existingBindMap := make(map[string]*BindPayload)
 	for i := range existingBinds {
@@ -902,53 +869,51 @@ func (r *BindManager) updateBindsWithHandling(ctx context.Context, parentType st
 	processedBinds := make(map[string]bool)
 
 	// Track binds that need to be recreated due to changes
-	var bindsToRecreate []haproxyBindModel
+	var bindsToRecreate []string
 
 	// First pass: identify binds that need changes and mark them for recreation
-	for _, newBind := range sortedNewBinds {
-		newBindName := newBind.Name.ValueString()
+	for bindName, newBind := range newBinds {
 
 		// Check if this bind exists by name
-		if existingBind, exists := existingBindMap[newBindName]; exists {
+		if existingBind, exists := existingBindMap[bindName]; exists {
 			// Bind exists, check if content has changed
 			if r.hasBindChanged(existingBind, &newBind) {
 				// Content has changed, mark for recreation
-				log.Printf("Bind '%s' has changed, will recreate", newBindName)
-				bindsToRecreate = append(bindsToRecreate, newBind)
+				log.Printf("Bind '%s' has changed, will recreate", bindName)
+				bindsToRecreate = append(bindsToRecreate, bindName)
 			} else {
 				// Bind is identical, no changes needed
-				log.Printf("Bind '%s' is unchanged", newBindName)
+				log.Printf("Bind '%s' is unchanged", bindName)
 			}
 			// Mark this bind as processed
-			processedBinds[newBindName] = true
+			processedBinds[bindName] = true
 		} else {
 			// This is a new bind, mark for creation
-			log.Printf("Bind '%s' is new, will create", newBindName)
+			log.Printf("Bind '%s' is new, will create", bindName)
 		}
 	}
 
 	// Second pass: delete all binds that need to be recreated (due to content changes)
-	for _, newBind := range bindsToRecreate {
-		newBindName := newBind.Name.ValueString()
-		if existingBind, exists := existingBindMap[newBindName]; exists {
-			log.Printf("Deleting bind '%s' for recreation", newBindName)
+	for _, bindName := range bindsToRecreate {
+		if existingBind, exists := existingBindMap[bindName]; exists {
+			log.Printf("Deleting bind '%s' for recreation", bindName)
 			err := r.client.DeleteBind(ctx, existingBind.Name, parentType, parentName)
 			if err != nil {
-				return fmt.Errorf("failed to delete bind '%s': %w", newBindName, err)
+				return fmt.Errorf("failed to delete bind '%s': %w", bindName, err)
 			}
 		}
 	}
 
 	// Third pass: create all binds that need to be recreated at their positions
-	for _, newBind := range bindsToRecreate {
-		newBindName := newBind.Name.ValueString()
+	for _, bindName := range bindsToRecreate {
+		newBind := newBinds[bindName]
 
-		log.Printf("Creating bind '%s'", newBindName)
-		bindPayload := r.convertToBindPayload(&newBind)
+		log.Printf("Creating bind '%s'", bindName)
+		bindPayload := r.convertToBindPayload(bindName, &newBind)
 
 		err := r.client.CreateBind(ctx, parentType, parentName, bindPayload)
 		if err != nil {
-			return fmt.Errorf("failed to create bind '%s': %w", newBindName, err)
+			return fmt.Errorf("failed to create bind '%s': %w", bindName, err)
 		}
 	}
 
@@ -975,16 +940,15 @@ func (r *BindManager) updateBindsWithHandling(ctx context.Context, parentType st
 	}
 
 	// Create new binds that don't exist yet
-	for _, newBind := range sortedNewBinds {
-		newBindName := newBind.Name.ValueString()
-		if !processedBinds[newBindName] {
+	for bindName, newBind := range newBinds {
+		if !processedBinds[bindName] {
 			// This is a new bind, create it
-			log.Printf("Creating new bind '%s'", newBindName)
-			bindPayload := r.convertToBindPayload(&newBind)
+			log.Printf("Creating new bind '%s'", bindName)
+			bindPayload := r.convertToBindPayload(bindName, &newBind)
 
 			err := r.client.CreateBind(ctx, parentType, parentName, bindPayload)
 			if err != nil {
-				return fmt.Errorf("failed to create bind '%s': %w", newBindName, err)
+				return fmt.Errorf("failed to create bind '%s': %w", bindName, err)
 			}
 		}
 	}

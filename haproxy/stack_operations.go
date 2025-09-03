@@ -2,8 +2,8 @@ package haproxy
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -30,6 +30,238 @@ func NewStackOperations(client *HAProxyClient, aclManager *ACLManager, frontendM
 		httpRequestRuleManager: httpRequestRuleManager,
 		bindManager:            bindManager,
 	}
+}
+
+// equalBoolPtr compares two bool pointers for equality
+func equalBoolPtr(a, b *bool) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+// serverNeedsUpdate checks if a server needs to be updated
+func (o *StackOperations) serverNeedsUpdate(existing ServerPayload, desired ServerPayload) bool {
+	// Check all the fields that can be configured
+	// Note: We don't compare Disabled field since HAProxy doesn't support it
+	return existing.Address != desired.Address ||
+		existing.Port != desired.Port ||
+		existing.Check != desired.Check ||
+		existing.Maxconn != desired.Maxconn ||
+		existing.Weight != desired.Weight ||
+		existing.Backup != desired.Backup ||
+		existing.Cookie != desired.Cookie ||
+		existing.Downinter != desired.Downinter ||
+		existing.Fall != desired.Fall ||
+		existing.Fastinter != desired.Fastinter ||
+		existing.Inter != desired.Inter ||
+		existing.Rise != desired.Rise ||
+		existing.Ssl != desired.Ssl ||
+		existing.Verify != desired.Verify
+}
+
+// convertServerPayloadToModel converts a ServerPayload to haproxyServerModel
+func (o *StackOperations) convertServerPayloadToModel(server ServerPayload) haproxyServerModel {
+	model := haproxyServerModel{
+		// Note: Name is now the map key, not a field
+		Address: types.StringValue(server.Address),
+		Port:    types.Int64Value(server.Port),
+	}
+
+	// Set optional fields if they have values
+	if server.Check != "" {
+		model.Check = types.StringValue(server.Check)
+	}
+	if server.Maxconn != 0 {
+		model.Maxconn = types.Int64Value(server.Maxconn)
+	}
+	if server.Weight != 0 {
+		model.Weight = types.Int64Value(server.Weight)
+	}
+	if server.Backup != "" {
+		model.Backup = types.StringValue(server.Backup)
+	}
+	if server.Rise != 0 {
+		model.Rise = types.Int64Value(server.Rise)
+	}
+	if server.Fall != 0 {
+		model.Fall = types.Int64Value(server.Fall)
+	}
+	if server.Inter != 0 {
+		model.Inter = types.Int64Value(server.Inter)
+	}
+	if server.Fastinter != 0 {
+		model.Fastinter = types.Int64Value(server.Fastinter)
+	}
+	if server.Downinter != 0 {
+		model.Downinter = types.Int64Value(server.Downinter)
+	}
+	if server.Ssl != "" {
+		model.Ssl = types.StringValue(server.Ssl)
+	}
+	if server.Verify != "" {
+		model.Verify = types.StringValue(server.Verify)
+	}
+	if server.Cookie != "" {
+		model.Cookie = types.StringValue(server.Cookie)
+	}
+	// Note: HAProxy doesn't support the 'disabled' field for servers
+	// This field has been removed from the schema
+
+	// SSL/TLS Protocol Control (v3 fields)
+	if server.Sslv3 != "" {
+		model.Sslv3 = types.StringValue(server.Sslv3)
+	}
+	if server.Tlsv10 != "" {
+		model.Tlsv10 = types.StringValue(server.Tlsv10)
+	}
+	if server.Tlsv11 != "" {
+		model.Tlsv11 = types.StringValue(server.Tlsv11)
+	}
+	if server.Tlsv12 != "" {
+		model.Tlsv12 = types.StringValue(server.Tlsv12)
+	}
+	if server.Tlsv13 != "" {
+		model.Tlsv13 = types.StringValue(server.Tlsv13)
+	}
+
+	// SSL/TLS Protocol Control (deprecated v2 fields)
+	if server.NoSslv3 != "" {
+		model.NoSslv3 = types.StringValue(server.NoSslv3)
+	}
+	if server.NoTlsv10 != "" {
+		model.NoTlsv10 = types.StringValue(server.NoTlsv10)
+	}
+	if server.NoTlsv11 != "" {
+		model.NoTlsv11 = types.StringValue(server.NoTlsv11)
+	}
+	if server.NoTlsv12 != "" {
+		model.NoTlsv12 = types.StringValue(server.NoTlsv12)
+	}
+	if server.NoTlsv13 != "" {
+		model.NoTlsv13 = types.StringValue(server.NoTlsv13)
+	}
+	if server.ForceSslv3 != "" {
+		model.ForceSslv3 = types.StringValue(server.ForceSslv3)
+	}
+	if server.ForceTlsv10 != "" {
+		model.ForceTlsv10 = types.StringValue(server.ForceTlsv10)
+	}
+	if server.ForceTlsv11 != "" {
+		model.ForceTlsv11 = types.StringValue(server.ForceTlsv11)
+	}
+	if server.ForceTlsv12 != "" {
+		model.ForceTlsv12 = types.StringValue(server.ForceTlsv12)
+	}
+	if server.ForceTlsv13 != "" {
+		model.ForceTlsv13 = types.StringValue(server.ForceTlsv13)
+	}
+
+	return model
+}
+
+// convertServerModelToPayload converts a haproxyServerModel to ServerPayload
+func (o *StackOperations) convertServerModelToPayload(serverName string, server haproxyServerModel) *ServerPayload {
+	payload := &ServerPayload{
+		Name:    serverName,
+		Address: server.Address.ValueString(),
+		Port:    server.Port.ValueInt64(),
+	}
+
+	// Set optional fields if they have values
+	if !server.Check.IsNull() && !server.Check.IsUnknown() {
+		payload.Check = server.Check.ValueString()
+	}
+	if !server.Backup.IsNull() && !server.Backup.IsUnknown() {
+		payload.Backup = server.Backup.ValueString()
+	}
+	if !server.Maxconn.IsNull() && !server.Maxconn.IsUnknown() {
+		payload.Maxconn = server.Maxconn.ValueInt64()
+	}
+	if !server.Weight.IsNull() && !server.Weight.IsUnknown() {
+		payload.Weight = server.Weight.ValueInt64()
+	}
+	if !server.Rise.IsNull() && !server.Rise.IsUnknown() {
+		payload.Rise = server.Rise.ValueInt64()
+	}
+	if !server.Fall.IsNull() && !server.Fall.IsUnknown() {
+		payload.Fall = server.Fall.ValueInt64()
+	}
+	if !server.Inter.IsNull() && !server.Inter.IsUnknown() {
+		payload.Inter = server.Inter.ValueInt64()
+	}
+	if !server.Fastinter.IsNull() && !server.Fastinter.IsUnknown() {
+		payload.Fastinter = server.Fastinter.ValueInt64()
+	}
+	if !server.Downinter.IsNull() && !server.Downinter.IsUnknown() {
+		payload.Downinter = server.Downinter.ValueInt64()
+	}
+	if !server.Ssl.IsNull() && !server.Ssl.IsUnknown() {
+		payload.Ssl = server.Ssl.ValueString()
+	}
+	if !server.Verify.IsNull() && !server.Verify.IsUnknown() {
+		payload.Verify = server.Verify.ValueString()
+	}
+	if !server.Cookie.IsNull() && !server.Cookie.IsUnknown() {
+		payload.Cookie = server.Cookie.ValueString()
+	}
+	// Note: HAProxy doesn't support the 'disabled' field for servers
+	// We don't send it to HAProxy, but we allow it in the Terraform config
+	// for user convenience. It will always be read as false from HAProxy.
+
+	// SSL/TLS Protocol Control (v3 fields)
+	if !server.Sslv3.IsNull() && !server.Sslv3.IsUnknown() {
+		payload.Sslv3 = server.Sslv3.ValueString()
+	}
+	if !server.Tlsv10.IsNull() && !server.Tlsv10.IsUnknown() {
+		payload.Tlsv10 = server.Tlsv10.ValueString()
+	}
+	if !server.Tlsv11.IsNull() && !server.Tlsv11.IsUnknown() {
+		payload.Tlsv11 = server.Tlsv11.ValueString()
+	}
+	if !server.Tlsv12.IsNull() && !server.Tlsv12.IsUnknown() {
+		payload.Tlsv12 = server.Tlsv12.ValueString()
+	}
+	if !server.Tlsv13.IsNull() && !server.Tlsv13.IsUnknown() {
+		payload.Tlsv13 = server.Tlsv13.ValueString()
+	}
+
+	// SSL/TLS Protocol Control (deprecated v2 fields)
+	if !server.NoSslv3.IsNull() && !server.NoSslv3.IsUnknown() {
+		payload.NoSslv3 = server.NoSslv3.ValueString()
+	}
+	if !server.NoTlsv10.IsNull() && !server.NoTlsv10.IsUnknown() {
+		payload.NoTlsv10 = server.NoTlsv10.ValueString()
+	}
+	if !server.NoTlsv11.IsNull() && !server.NoTlsv11.IsUnknown() {
+		payload.NoTlsv11 = server.NoTlsv11.ValueString()
+	}
+	if !server.NoTlsv12.IsNull() && !server.NoTlsv12.IsUnknown() {
+		payload.NoTlsv12 = server.NoTlsv12.ValueString()
+	}
+	if !server.NoTlsv13.IsNull() && !server.NoTlsv13.IsUnknown() {
+		payload.NoTlsv13 = server.NoTlsv13.ValueString()
+	}
+	if !server.ForceSslv3.IsNull() && !server.ForceSslv3.IsUnknown() {
+		payload.ForceSslv3 = server.ForceSslv3.ValueString()
+	}
+	if !server.ForceTlsv10.IsNull() && !server.ForceTlsv10.IsUnknown() {
+		payload.ForceTlsv10 = server.ForceTlsv10.ValueString()
+	}
+	if !server.ForceTlsv11.IsNull() && !server.ForceTlsv11.IsUnknown() {
+		payload.ForceTlsv11 = server.ForceTlsv11.ValueString()
+	}
+	if !server.ForceTlsv12.IsNull() && !server.ForceTlsv12.IsUnknown() {
+		payload.ForceTlsv12 = server.ForceTlsv12.ValueString()
+	}
+	if !server.ForceTlsv13.IsNull() && !server.ForceTlsv13.IsUnknown() {
+		payload.ForceTlsv13 = server.ForceTlsv13.ValueString()
+	}
+
+	return payload
 }
 
 // Create performs the create operation for the haproxy_stack resource
@@ -66,12 +298,13 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 
 	// Create servers if specified
 	if len(data.Servers) > 0 && data.Backend != nil {
-		for _, server := range data.Servers {
-			if err := o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), &ServerPayload{
-				Name:    server.Name.ValueString(),
-				Address: server.Address.ValueString(),
-				Port:    int64(server.Port.ValueInt64()),
-			}); err != nil {
+		for serverName, server := range data.Servers {
+			serverPayload := o.convertServerModelToPayload(serverName, server)
+			tflog.Info(ctx, "Creating server", map[string]interface{}{
+				"server_name":  serverName,
+				"backend_name": data.Backend.Name.ValueString(),
+			})
+			if err := o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
 				resp.Diagnostics.AddError("Error creating server", err.Error())
 				return err
 			}
@@ -87,8 +320,8 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Create binds for frontend if specified
-	if data.Frontend != nil && data.Frontend.Bind != nil && len(data.Frontend.Bind) > 0 {
-		if err := o.bindManager.CreateBindsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Bind); err != nil {
+	if data.Frontend != nil && data.Frontend.Binds != nil && len(data.Frontend.Binds) > 0 {
+		if err := o.bindManager.CreateBindsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Binds); err != nil {
 			resp.Diagnostics.AddError("Error creating binds", err.Error())
 			return err
 		}
@@ -131,9 +364,30 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Read servers if specified
-	if len(data.Servers) > 0 && data.Backend != nil {
-		// Server reading would need to be implemented
-		tflog.Info(ctx, "Servers reading not yet implemented")
+	if data.Backend != nil {
+		tflog.Info(ctx, "Reading servers from HAProxy", map[string]interface{}{
+			"backend_name":          data.Backend.Name.ValueString(),
+			"current_servers_count": len(data.Servers),
+		})
+
+		servers, err := o.client.ReadServers(ctx, "backend", data.Backend.Name.ValueString())
+		if err != nil {
+			tflog.Warn(ctx, "Could not read servers, preserving existing state", map[string]interface{}{"error": err.Error()})
+			// Don't overwrite data.Servers if we can't read from HAProxy
+			// This preserves the existing state
+		} else {
+			tflog.Info(ctx, "Successfully read servers from HAProxy", map[string]interface{}{
+				"servers_found": len(servers),
+			})
+			// Convert servers to map format
+			data.Servers = make(map[string]haproxyServerModel)
+			for _, server := range servers {
+				data.Servers[server.Name] = o.convertServerPayloadToModel(server)
+				tflog.Info(ctx, "Converted server", map[string]interface{}{
+					"server_name": server.Name,
+				})
+			}
+		}
 	}
 
 	// Read frontend if specified
@@ -169,227 +423,230 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 
 		// Convert binds to model format in the same order as configuration
 		// Store the original configuration binds to preserve order
-		originalConfigBinds := data.Frontend.Bind
-		data.Frontend.Bind = make([]haproxyBindModel, len(originalConfigBinds))
+		originalConfigBinds := data.Frontend.Binds
+		// Convert bind list to map for processing
+		data.Frontend.Binds = make(map[string]haproxyBindModel)
 		log.Printf("DEBUG: Processing %d configuration binds:", len(originalConfigBinds))
-		for i, configBind := range originalConfigBinds {
-			bindName := configBind.Name.ValueString()
+		for bindName, configBind := range originalConfigBinds {
 			log.Printf("DEBUG: Looking for bind '%s' in bind map", bindName)
 			if bind, exists := bindMap[bindName]; exists {
 				log.Printf("DEBUG: Found bind '%s' in HAProxy, mapping fields", bindName)
 
 				// Start with the original configuration values
-				data.Frontend.Bind[i] = configBind
+				data.Frontend.Binds[bindName] = configBind
 
 				// Override only the fields that were explicitly set in the user's configuration
 				// Always update these core fields from HAProxy
-				data.Frontend.Bind[i].Name = types.StringValue(bind.Name)
-				data.Frontend.Bind[i].Address = types.StringValue(bind.Address)
-				data.Frontend.Bind[i].Port = types.Int64Value(*bind.Port)
+				bindModel := data.Frontend.Binds[bindName]
+				bindModel.Address = types.StringValue(bind.Address)
+				bindModel.Port = types.Int64Value(*bind.Port)
+				data.Frontend.Binds[bindName] = bindModel
 
 				// Only override fields that were explicitly set in the user's config
 				if !configBind.PortRangeEnd.IsNull() && bind.PortRangeEnd != nil {
-					data.Frontend.Bind[i].PortRangeEnd = types.Int64Value(*bind.PortRangeEnd)
+					bindModel.PortRangeEnd = types.Int64Value(*bind.PortRangeEnd)
 				}
 				if !configBind.Transparent.IsNull() {
-					data.Frontend.Bind[i].Transparent = types.BoolValue(bind.Transparent)
+					bindModel.Transparent = types.BoolValue(bind.Transparent)
 				}
 				if !configBind.Mode.IsNull() && bind.Mode != "" {
-					data.Frontend.Bind[i].Mode = types.StringValue(bind.Mode)
+					bindModel.Mode = types.StringValue(bind.Mode)
 				}
 				if !configBind.Maxconn.IsNull() {
-					data.Frontend.Bind[i].Maxconn = types.Int64Value(bind.Maxconn)
+					bindModel.Maxconn = types.Int64Value(bind.Maxconn)
 				}
 				if !configBind.Ssl.IsNull() {
-					data.Frontend.Bind[i].Ssl = types.BoolValue(bind.Ssl)
+					bindModel.Ssl = types.BoolValue(bind.Ssl)
 				}
 				if !configBind.SslCafile.IsNull() && bind.SslCafile != "" {
-					data.Frontend.Bind[i].SslCafile = types.StringValue(bind.SslCafile)
+					bindModel.SslCafile = types.StringValue(bind.SslCafile)
 				}
 				if !configBind.SslCertificate.IsNull() && bind.SslCertificate != "" {
-					data.Frontend.Bind[i].SslCertificate = types.StringValue(bind.SslCertificate)
+					bindModel.SslCertificate = types.StringValue(bind.SslCertificate)
 				}
 				if !configBind.SslMaxVer.IsNull() && bind.SslMaxVer != "" {
-					data.Frontend.Bind[i].SslMaxVer = types.StringValue(bind.SslMaxVer)
+					bindModel.SslMaxVer = types.StringValue(bind.SslMaxVer)
 				}
 				if !configBind.SslMinVer.IsNull() && bind.SslMinVer != "" {
-					data.Frontend.Bind[i].SslMinVer = types.StringValue(bind.SslMinVer)
+					bindModel.SslMinVer = types.StringValue(bind.SslMinVer)
 				}
 				if !configBind.Ciphers.IsNull() && bind.Ciphers != "" {
-					data.Frontend.Bind[i].Ciphers = types.StringValue(bind.Ciphers)
+					bindModel.Ciphers = types.StringValue(bind.Ciphers)
 				}
 				if !configBind.Ciphersuites.IsNull() && bind.Ciphersuites != "" {
-					data.Frontend.Bind[i].Ciphersuites = types.StringValue(bind.Ciphersuites)
+					bindModel.Ciphersuites = types.StringValue(bind.Ciphersuites)
 				}
 				if !configBind.Verify.IsNull() && bind.Verify != "" {
-					data.Frontend.Bind[i].Verify = types.StringValue(bind.Verify)
+					bindModel.Verify = types.StringValue(bind.Verify)
 				}
 				if !configBind.AcceptProxy.IsNull() {
-					data.Frontend.Bind[i].AcceptProxy = types.BoolValue(bind.AcceptProxy)
+					bindModel.AcceptProxy = types.BoolValue(bind.AcceptProxy)
 				}
 				if !configBind.Allow0rtt.IsNull() {
-					data.Frontend.Bind[i].Allow0rtt = types.BoolValue(bind.Allow0rtt)
+					bindModel.Allow0rtt = types.BoolValue(bind.Allow0rtt)
 				}
 				if !configBind.Alpn.IsNull() && bind.Alpn != "" {
-					data.Frontend.Bind[i].Alpn = types.StringValue(bind.Alpn)
+					bindModel.Alpn = types.StringValue(bind.Alpn)
 				}
 				if !configBind.Backlog.IsNull() && bind.Backlog != "" {
-					data.Frontend.Bind[i].Backlog = types.StringValue(bind.Backlog)
+					bindModel.Backlog = types.StringValue(bind.Backlog)
 				}
 				if !configBind.DeferAccept.IsNull() {
-					data.Frontend.Bind[i].DeferAccept = types.BoolValue(bind.DeferAccept)
+					bindModel.DeferAccept = types.BoolValue(bind.DeferAccept)
 				}
 				if !configBind.GenerateCertificates.IsNull() {
-					data.Frontend.Bind[i].GenerateCertificates = types.BoolValue(bind.GenerateCertificates)
+					bindModel.GenerateCertificates = types.BoolValue(bind.GenerateCertificates)
 				}
 				if !configBind.Gid.IsNull() {
-					data.Frontend.Bind[i].Gid = types.Int64Value(bind.Gid)
+					bindModel.Gid = types.Int64Value(bind.Gid)
 				}
 				if !configBind.Group.IsNull() && bind.Group != "" {
-					data.Frontend.Bind[i].Group = types.StringValue(bind.Group)
+					bindModel.Group = types.StringValue(bind.Group)
 				}
 				if !configBind.Id.IsNull() && bind.Id != "" {
-					data.Frontend.Bind[i].Id = types.StringValue(bind.Id)
+					bindModel.Id = types.StringValue(bind.Id)
 				}
 				if !configBind.Interface.IsNull() && bind.Interface != "" {
-					data.Frontend.Bind[i].Interface = types.StringValue(bind.Interface)
+					bindModel.Interface = types.StringValue(bind.Interface)
 				}
 				if !configBind.Level.IsNull() && bind.Level != "" {
-					data.Frontend.Bind[i].Level = types.StringValue(bind.Level)
+					bindModel.Level = types.StringValue(bind.Level)
 				}
 				if !configBind.Namespace.IsNull() && bind.Namespace != "" {
-					data.Frontend.Bind[i].Namespace = types.StringValue(bind.Namespace)
+					bindModel.Namespace = types.StringValue(bind.Namespace)
 				}
 				if !configBind.Nice.IsNull() {
-					data.Frontend.Bind[i].Nice = types.Int64Value(bind.Nice)
+					bindModel.Nice = types.Int64Value(bind.Nice)
 				}
 				if !configBind.NoCaNames.IsNull() {
-					data.Frontend.Bind[i].NoCaNames = types.BoolValue(bind.NoCaNames)
+					bindModel.NoCaNames = types.BoolValue(bind.NoCaNames)
 				}
 				if !configBind.Npn.IsNull() && bind.Npn != "" {
-					data.Frontend.Bind[i].Npn = types.StringValue(bind.Npn)
+					bindModel.Npn = types.StringValue(bind.Npn)
 				}
 				if !configBind.PreferClientCiphers.IsNull() {
-					data.Frontend.Bind[i].PreferClientCiphers = types.BoolValue(bind.PreferClientCiphers)
+					bindModel.PreferClientCiphers = types.BoolValue(bind.PreferClientCiphers)
 				}
 				// Process field - only supported in v2, not v3
 				if apiVersion == "v2" && !configBind.Process.IsNull() {
-					data.Frontend.Bind[i].Process = types.StringValue(bind.Process)
+					bindModel.Process = types.StringValue(bind.Process)
 				}
 				if !configBind.Proto.IsNull() && bind.Proto != "" {
-					data.Frontend.Bind[i].Proto = types.StringValue(bind.Proto)
+					bindModel.Proto = types.StringValue(bind.Proto)
 				}
 				if !configBind.SeverityOutput.IsNull() && bind.SeverityOutput != "" {
-					data.Frontend.Bind[i].SeverityOutput = types.StringValue(bind.SeverityOutput)
+					bindModel.SeverityOutput = types.StringValue(bind.SeverityOutput)
 				}
 				if !configBind.StrictSni.IsNull() {
-					data.Frontend.Bind[i].StrictSni = types.BoolValue(bind.StrictSni)
+					bindModel.StrictSni = types.BoolValue(bind.StrictSni)
 				}
 				if !configBind.TcpUserTimeout.IsNull() {
-					data.Frontend.Bind[i].TcpUserTimeout = types.Int64Value(bind.TcpUserTimeout)
+					bindModel.TcpUserTimeout = types.Int64Value(bind.TcpUserTimeout)
 				}
 				if !configBind.Tfo.IsNull() {
-					data.Frontend.Bind[i].Tfo = types.BoolValue(bind.Tfo)
+					bindModel.Tfo = types.BoolValue(bind.Tfo)
 				}
 				if !configBind.TlsTicketKeys.IsNull() && bind.TlsTicketKeys != "" {
-					data.Frontend.Bind[i].TlsTicketKeys = types.StringValue(bind.TlsTicketKeys)
+					bindModel.TlsTicketKeys = types.StringValue(bind.TlsTicketKeys)
 				}
 				if !configBind.Uid.IsNull() && bind.Uid != "" {
-					data.Frontend.Bind[i].Uid = types.StringValue(bind.Uid)
+					bindModel.Uid = types.StringValue(bind.Uid)
 				}
 				if !configBind.User.IsNull() && bind.User != "" {
-					data.Frontend.Bind[i].User = types.StringValue(bind.User)
+					bindModel.User = types.StringValue(bind.User)
 				}
 				if !configBind.V4v6.IsNull() {
-					data.Frontend.Bind[i].V4v6 = types.BoolValue(bind.V4v6)
+					bindModel.V4v6 = types.BoolValue(bind.V4v6)
 				}
 				if !configBind.V6only.IsNull() {
-					data.Frontend.Bind[i].V6only = types.BoolValue(bind.V6only)
+					bindModel.V6only = types.BoolValue(bind.V6only)
 				}
 
 				// v3 fields - only override if explicitly set in config
 				if !configBind.Sslv3.IsNull() {
-					data.Frontend.Bind[i].Sslv3 = types.BoolValue(bind.Sslv3)
+					bindModel.Sslv3 = types.BoolValue(bind.Sslv3)
 				}
 				if !configBind.Tlsv10.IsNull() {
-					data.Frontend.Bind[i].Tlsv10 = types.BoolValue(bind.Tlsv10)
+					bindModel.Tlsv10 = types.BoolValue(bind.Tlsv10)
 				}
 				if !configBind.Tlsv11.IsNull() {
-					data.Frontend.Bind[i].Tlsv11 = types.BoolValue(bind.Tlsv11)
+					bindModel.Tlsv11 = types.BoolValue(bind.Tlsv11)
 				}
 				// TLS version fields - not supported in either v2 or v3 for binds
 				// (HAProxy doesn't store these fields, so keep original config values)
 				if !configBind.TlsTickets.IsNull() && bind.TlsTickets != "" {
-					data.Frontend.Bind[i].TlsTickets = types.StringValue(bind.TlsTickets)
+					bindModel.TlsTickets = types.StringValue(bind.TlsTickets)
 				}
 				if !configBind.ForceStrictSni.IsNull() && bind.ForceStrictSni != "" {
-					data.Frontend.Bind[i].ForceStrictSni = types.StringValue(bind.ForceStrictSni)
+					bindModel.ForceStrictSni = types.StringValue(bind.ForceStrictSni)
 				}
 				if !configBind.NoStrictSni.IsNull() {
-					data.Frontend.Bind[i].NoStrictSni = types.BoolValue(bind.NoStrictSni)
+					bindModel.NoStrictSni = types.BoolValue(bind.NoStrictSni)
 				}
 				if !configBind.GuidPrefix.IsNull() && bind.GuidPrefix != "" {
-					data.Frontend.Bind[i].GuidPrefix = types.StringValue(bind.GuidPrefix)
+					bindModel.GuidPrefix = types.StringValue(bind.GuidPrefix)
 				}
 				if !configBind.IdlePing.IsNull() && bind.IdlePing != nil {
-					data.Frontend.Bind[i].IdlePing = types.Int64Value(*bind.IdlePing)
+					bindModel.IdlePing = types.Int64Value(*bind.IdlePing)
 				}
 				if !configBind.QuicCcAlgo.IsNull() && bind.QuicCcAlgo != "" {
-					data.Frontend.Bind[i].QuicCcAlgo = types.StringValue(bind.QuicCcAlgo)
+					bindModel.QuicCcAlgo = types.StringValue(bind.QuicCcAlgo)
 				}
 				if !configBind.QuicForceRetry.IsNull() {
-					data.Frontend.Bind[i].QuicForceRetry = types.BoolValue(bind.QuicForceRetry)
+					bindModel.QuicForceRetry = types.BoolValue(bind.QuicForceRetry)
 				}
 				if !configBind.QuicSocket.IsNull() && bind.QuicSocket != "" {
-					data.Frontend.Bind[i].QuicSocket = types.StringValue(bind.QuicSocket)
+					bindModel.QuicSocket = types.StringValue(bind.QuicSocket)
 				}
 				if !configBind.QuicCcAlgoBurstSize.IsNull() && bind.QuicCcAlgoBurstSize != nil {
-					data.Frontend.Bind[i].QuicCcAlgoBurstSize = types.Int64Value(*bind.QuicCcAlgoBurstSize)
+					bindModel.QuicCcAlgoBurstSize = types.Int64Value(*bind.QuicCcAlgoBurstSize)
 				}
 				if !configBind.QuicCcAlgoMaxWindow.IsNull() && bind.QuicCcAlgoMaxWindow != nil {
-					data.Frontend.Bind[i].QuicCcAlgoMaxWindow = types.Int64Value(*bind.QuicCcAlgoMaxWindow)
+					bindModel.QuicCcAlgoMaxWindow = types.Int64Value(*bind.QuicCcAlgoMaxWindow)
 				}
 				// Metadata field - not supported in either v2 or v3 for binds
 				// (HAProxy doesn't store this field, so keep original config value)
 
 				// v2 fields (deprecated in v3) - only override if explicitly set in config
 				if !configBind.NoSslv3.IsNull() && bind.NoSslv3 {
-					data.Frontend.Bind[i].NoSslv3 = types.BoolValue(bind.NoSslv3)
+					bindModel.NoSslv3 = types.BoolValue(bind.NoSslv3)
 				}
 				if !configBind.ForceSslv3.IsNull() && bind.ForceSslv3 {
-					data.Frontend.Bind[i].ForceSslv3 = types.BoolValue(bind.ForceSslv3)
+					bindModel.ForceSslv3 = types.BoolValue(bind.ForceSslv3)
 				}
 				if !configBind.ForceTlsv10.IsNull() && bind.ForceTlsv10 {
-					data.Frontend.Bind[i].ForceTlsv10 = types.BoolValue(bind.ForceTlsv10)
+					bindModel.ForceTlsv10 = types.BoolValue(bind.ForceTlsv10)
 				}
 				if !configBind.ForceTlsv11.IsNull() && bind.ForceTlsv11 {
-					data.Frontend.Bind[i].ForceTlsv11 = types.BoolValue(bind.ForceTlsv11)
+					bindModel.ForceTlsv11 = types.BoolValue(bind.ForceTlsv11)
 				}
 				if !configBind.ForceTlsv12.IsNull() && bind.ForceTlsv12 {
-					data.Frontend.Bind[i].ForceTlsv12 = types.BoolValue(bind.ForceTlsv12)
+					bindModel.ForceTlsv12 = types.BoolValue(bind.ForceTlsv12)
 				}
 				if !configBind.ForceTlsv13.IsNull() && bind.ForceTlsv13 {
-					data.Frontend.Bind[i].ForceTlsv13 = types.BoolValue(bind.ForceTlsv13)
+					bindModel.ForceTlsv13 = types.BoolValue(bind.ForceTlsv13)
 				}
 				if !configBind.NoTlsv10.IsNull() && bind.NoTlsv10 {
-					data.Frontend.Bind[i].NoTlsv10 = types.BoolValue(bind.NoTlsv10)
+					bindModel.NoTlsv10 = types.BoolValue(bind.NoTlsv10)
 				}
 				if !configBind.NoTlsv11.IsNull() && bind.NoTlsv11 {
-					data.Frontend.Bind[i].NoTlsv11 = types.BoolValue(bind.NoTlsv11)
+					bindModel.NoTlsv11 = types.BoolValue(bind.NoTlsv11)
 				}
 				if !configBind.NoTlsv12.IsNull() && bind.NoTlsv12 {
-					data.Frontend.Bind[i].NoTlsv12 = types.BoolValue(bind.NoTlsv12)
+					bindModel.NoTlsv12 = types.BoolValue(bind.NoTlsv12)
 				}
 				if !configBind.NoTlsv13.IsNull() && bind.NoTlsv13 {
-					data.Frontend.Bind[i].NoTlsv13 = types.BoolValue(bind.NoTlsv13)
+					bindModel.NoTlsv13 = types.BoolValue(bind.NoTlsv13)
 				}
 				if !configBind.NoTlsTickets.IsNull() && bind.NoTlsTickets {
-					data.Frontend.Bind[i].NoTlsTickets = types.BoolValue(bind.NoTlsTickets)
+					bindModel.NoTlsTickets = types.BoolValue(bind.NoTlsTickets)
 				}
+				// Assign the updated bind model back to the map
+				data.Frontend.Binds[bindName] = bindModel
 			} else {
 				// Bind not found in HAProxy, keep the configuration values
 				log.Printf("DEBUG: Bind '%s' not found in HAProxy, keeping configuration values", bindName)
-				data.Frontend.Bind[i] = configBind
+				data.Frontend.Binds[bindName] = configBind
 			}
 		}
 	}
@@ -434,32 +691,78 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	// Update servers if specified
+	// Update servers if specified - use name-based management
 	if len(data.Servers) > 0 && data.Backend != nil {
-		for _, server := range data.Servers {
-			serverName := server.Name.ValueString()
-			tflog.Info(ctx, "Managing server", map[string]interface{}{"server_name": serverName})
+		tflog.Info(ctx, "Updating servers", map[string]interface{}{
+			"backend_name":          data.Backend.Name.ValueString(),
+			"desired_servers_count": len(data.Servers),
+		})
 
-			// Try to update first, if it fails with 404, create it
-			serverPayload := &ServerPayload{
-				Name:    server.Name.ValueString(),
-				Address: server.Address.ValueString(),
-				Port:    server.Port.ValueInt64(),
-				Check:   server.Check.ValueString(),
-				Maxconn: server.Maxconn.ValueInt64(),
-				Weight:  server.Weight.ValueInt64(),
+		// First, read existing servers to get current state
+		existingServers, err := o.client.ReadServers(ctx, "backend", data.Backend.Name.ValueString())
+		if err != nil {
+			tflog.Warn(ctx, "Could not read existing servers, proceeding with create/update", map[string]interface{}{"error": err.Error()})
+			existingServers = []ServerPayload{}
+		} else {
+			tflog.Info(ctx, "Read existing servers from HAProxy", map[string]interface{}{
+				"existing_servers_count": len(existingServers),
+			})
+		}
+
+		// Create a map of existing servers by name
+		existingServerMap := make(map[string]ServerPayload)
+		for _, existingServer := range existingServers {
+			existingServerMap[existingServer.Name] = existingServer
+		}
+
+		// Create a map of desired servers by name (data.Servers is already a map)
+		desiredServerMap := data.Servers
+
+		// Delete servers that are no longer in the desired state
+		for serverName := range existingServerMap {
+			if _, exists := desiredServerMap[serverName]; !exists {
+				tflog.Info(ctx, "Deleting server", map[string]interface{}{"server_name": serverName})
+				if err = o.client.DeleteServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverName); err != nil {
+					resp.Diagnostics.AddError("Error deleting server", err.Error())
+					return err
+				}
 			}
+		}
 
-			if err = o.client.UpdateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
-				// If update fails with 404, try to create the server
-				if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "does not exist") {
-					tflog.Info(ctx, "Server not found, creating new server", map[string]interface{}{"server_name": serverName})
-					if err = o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
-						resp.Diagnostics.AddError("Error creating server", err.Error())
+		// Create or update servers in the desired state
+		for serverName, server := range desiredServerMap {
+			// Use the full conversion function to get all fields
+			serverPayload := o.convertServerModelToPayload(serverName, server)
+
+			// Debug logging for the payload being sent
+			disabledStr := "nil"
+			if serverPayload.Disabled != nil {
+				disabledStr = fmt.Sprintf("%t", *serverPayload.Disabled)
+			}
+			tflog.Info(ctx, "Server payload for update", map[string]interface{}{
+				"server_name": serverName,
+				"disabled":    disabledStr,
+				"check":       serverPayload.Check,
+				"maxconn":     serverPayload.Maxconn,
+				"weight":      serverPayload.Weight,
+			})
+
+			if existingServer, exists := existingServerMap[serverName]; exists {
+				// Server exists, check if it needs updating
+				if o.serverNeedsUpdate(existingServer, *serverPayload) {
+					tflog.Info(ctx, "Updating server", map[string]interface{}{"server_name": serverName})
+					if err = o.client.UpdateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
+						resp.Diagnostics.AddError("Error updating server", err.Error())
 						return err
 					}
 				} else {
-					resp.Diagnostics.AddError("Error updating server", err.Error())
+					tflog.Info(ctx, "Server unchanged", map[string]interface{}{"server_name": serverName})
+				}
+			} else {
+				// Server doesn't exist, create it
+				tflog.Info(ctx, "Creating new server", map[string]interface{}{"server_name": serverName})
+				if err = o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
+					resp.Diagnostics.AddError("Error creating server", err.Error())
 					return err
 				}
 			}
@@ -476,9 +779,9 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	// Update binds for frontend if specified
-	if data.Frontend != nil && data.Frontend.Bind != nil {
+	if data.Frontend != nil && data.Frontend.Binds != nil {
 		tflog.Info(ctx, "Updating binds", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
-		if err = o.bindManager.UpdateBindsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Bind); err != nil {
+		if err = o.bindManager.UpdateBindsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Binds); err != nil {
 			resp.Diagnostics.AddError("Error updating binds", err.Error())
 			return err
 		}
@@ -537,7 +840,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	}
 
 	// Delete binds for frontend if specified
-	if data.Frontend != nil && data.Frontend.Bind != nil && len(data.Frontend.Bind) > 0 {
+	if data.Frontend != nil && data.Frontend.Binds != nil && len(data.Frontend.Binds) > 0 {
 		tflog.Info(ctx, "Deleting binds", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.bindManager.DeleteBindsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
 			resp.Diagnostics.AddError("Error deleting binds", err.Error())
@@ -554,13 +857,29 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 		}
 	}
 
-	// Delete servers if specified
+	// Delete servers if specified - use name-based management
 	if len(data.Servers) > 0 && data.Backend != nil {
-		for _, server := range data.Servers {
-			tflog.Info(ctx, "Deleting server", map[string]interface{}{"server_name": server.Name.ValueString()})
-			if err = o.client.DeleteServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), server.Name.ValueString()); err != nil {
-				resp.Diagnostics.AddError("Error deleting server", err.Error())
-				return err
+		// Read existing servers to get current state
+		existingServers, err := o.client.ReadServers(ctx, "backend", data.Backend.Name.ValueString())
+		if err != nil {
+			tflog.Warn(ctx, "Could not read existing servers for deletion", map[string]interface{}{"error": err.Error()})
+			existingServers = []ServerPayload{}
+		}
+
+		// Create a map of desired servers by name (data.Servers is already a map)
+		desiredServerMap := make(map[string]bool)
+		for serverName := range data.Servers {
+			desiredServerMap[serverName] = true
+		}
+
+		// Delete servers that are not in the desired state
+		for _, existingServer := range existingServers {
+			if !desiredServerMap[existingServer.Name] {
+				tflog.Info(ctx, "Deleting server", map[string]interface{}{"server_name": existingServer.Name})
+				if err = o.client.DeleteServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), existingServer.Name); err != nil {
+					resp.Diagnostics.AddError("Error deleting server", err.Error())
+					return err
+				}
 			}
 		}
 	}

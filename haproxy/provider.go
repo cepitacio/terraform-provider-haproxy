@@ -91,7 +91,7 @@ func (p *haproxyProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 	apiVersion := config.APIVersion.ValueString()
 	if apiVersion == "" {
-		apiVersion = "v2"
+		apiVersion = "v3"
 	}
 
 	client := NewHAProxyClient(httpClient, config.URL.ValueString(), config.Username.ValueString(), config.Password.ValueString(), apiVersion)

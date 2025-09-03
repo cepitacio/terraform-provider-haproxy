@@ -12,7 +12,7 @@ type VersionAwareSchemaBuilder struct {
 // NewVersionAwareSchemaBuilder creates a new schema builder for the specified API version
 func NewVersionAwareSchemaBuilder(apiVersion string) *VersionAwareSchemaBuilder {
 	if apiVersion == "" {
-		apiVersion = "v2" // Default to v2 for backward compatibility
+		apiVersion = "v3" // Default to v3 (latest version)
 	}
 	return &VersionAwareSchemaBuilder{apiVersion: apiVersion}
 }
