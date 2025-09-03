@@ -3,6 +3,7 @@ package haproxy
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -63,16 +64,17 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 		tflog.Info(ctx, "Backend created successfully in transaction", map[string]interface{}{"transaction_id": transactionID})
 	}
 
-	// Create server if specified
-	if data.Server != nil && data.Backend != nil {
-		// Server needs parent backend
-		if err := o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), &ServerPayload{
-			Name:    data.Server.Name.ValueString(),
-			Address: data.Server.Address.ValueString(),
-			Port:    int64(data.Server.Port.ValueInt64()),
-		}); err != nil {
-			resp.Diagnostics.AddError("Error creating server", err.Error())
-			return err
+	// Create servers if specified
+	if len(data.Servers) > 0 && data.Backend != nil {
+		for _, server := range data.Servers {
+			if err := o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), &ServerPayload{
+				Name:    server.Name.ValueString(),
+				Address: server.Address.ValueString(),
+				Port:    int64(server.Port.ValueInt64()),
+			}); err != nil {
+				resp.Diagnostics.AddError("Error creating server", err.Error())
+				return err
+			}
 		}
 	}
 
@@ -128,10 +130,10 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 		}
 	}
 
-	// Read server if specified
-	if data.Server != nil && data.Backend != nil {
+	// Read servers if specified
+	if len(data.Servers) > 0 && data.Backend != nil {
 		// Server reading would need to be implemented
-		tflog.Info(ctx, "Server reading not yet implemented")
+		tflog.Info(ctx, "Servers reading not yet implemented")
 	}
 
 	// Read frontend if specified
@@ -432,19 +434,35 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	// Update server if specified
-	if data.Server != nil && data.Backend != nil {
-		tflog.Info(ctx, "Updating server", map[string]interface{}{"server_name": data.Server.Name.ValueString()})
-		if err = o.client.UpdateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), &ServerPayload{
-			Name:    data.Server.Name.ValueString(),
-			Address: data.Server.Address.ValueString(),
-			Port:    data.Server.Port.ValueInt64(),
-			Check:   data.Server.Check.ValueString(),
-			Maxconn: data.Server.Maxconn.ValueInt64(),
-			Weight:  data.Server.Weight.ValueInt64(),
-		}); err != nil {
-			resp.Diagnostics.AddError("Error updating server", err.Error())
-			return err
+	// Update servers if specified
+	if len(data.Servers) > 0 && data.Backend != nil {
+		for _, server := range data.Servers {
+			serverName := server.Name.ValueString()
+			tflog.Info(ctx, "Managing server", map[string]interface{}{"server_name": serverName})
+
+			// Try to update first, if it fails with 404, create it
+			serverPayload := &ServerPayload{
+				Name:    server.Name.ValueString(),
+				Address: server.Address.ValueString(),
+				Port:    server.Port.ValueInt64(),
+				Check:   server.Check.ValueString(),
+				Maxconn: server.Maxconn.ValueInt64(),
+				Weight:  server.Weight.ValueInt64(),
+			}
+
+			if err = o.client.UpdateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
+				// If update fails with 404, try to create the server
+				if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "does not exist") {
+					tflog.Info(ctx, "Server not found, creating new server", map[string]interface{}{"server_name": serverName})
+					if err = o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
+						resp.Diagnostics.AddError("Error creating server", err.Error())
+						return err
+					}
+				} else {
+					resp.Diagnostics.AddError("Error updating server", err.Error())
+					return err
+				}
+			}
 		}
 	}
 
@@ -536,12 +554,14 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 		}
 	}
 
-	// Delete server if specified
-	if data.Server != nil && data.Backend != nil {
-		tflog.Info(ctx, "Deleting server", map[string]interface{}{"server_name": data.Server.Name.ValueString()})
-		if err = o.client.DeleteServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Server.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting server", err.Error())
-			return err
+	// Delete servers if specified
+	if len(data.Servers) > 0 && data.Backend != nil {
+		for _, server := range data.Servers {
+			tflog.Info(ctx, "Deleting server", map[string]interface{}{"server_name": server.Name.ValueString()})
+			if err = o.client.DeleteServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), server.Name.ValueString()); err != nil {
+				resp.Diagnostics.AddError("Error deleting server", err.Error())
+				return err
+			}
 		}
 	}
 

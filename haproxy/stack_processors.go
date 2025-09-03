@@ -102,10 +102,10 @@ func (p *StackProcessors) processStackData(ctx context.Context, data *haproxySta
 		}
 	}
 
-	// Process server data if present
-	if data.Server != nil {
-		if err := p.processServerData(ctx, data.Server); err != nil {
-			return fmt.Errorf("failed to process server data: %w", err)
+	// Process servers data if present
+	if len(data.Servers) > 0 {
+		if err := p.processServersData(ctx, data.Servers); err != nil {
+			return fmt.Errorf("failed to process servers data: %w", err)
 		}
 	}
 
@@ -165,6 +165,16 @@ func (p *StackProcessors) processServerData(ctx context.Context, server *haproxy
 		return fmt.Errorf("server port must be between 1 and 65535, got: %d", port)
 	}
 
+	return nil
+}
+
+// processServersData processes multiple servers data
+func (p *StackProcessors) processServersData(ctx context.Context, servers []haproxyServerModel) error {
+	for i, server := range servers {
+		if err := p.processServerData(ctx, &server); err != nil {
+			return fmt.Errorf("server[%d]: %w", i, err)
+		}
+	}
 	return nil
 }
 
