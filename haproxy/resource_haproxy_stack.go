@@ -159,6 +159,7 @@ type haproxyFrontendModel struct {
 	Acls             []haproxyAclModel             `tfsdk:"acls"`
 	HttpRequestRules []haproxyHttpRequestRuleModel `tfsdk:"http_request_rules"`
 	StatsOptions     []haproxyStatsOptionsModel    `tfsdk:"stats_options"`
+	MonitorFail      []haproxyMonitorFailModel     `tfsdk:"monitor_fail"`
 }
 
 // haproxyBalanceModel maps the balance block schema data.
@@ -264,6 +265,12 @@ type haproxyStatsOptionsModel struct {
 	StatsUri    types.String `tfsdk:"stats_uri"`
 	StatsRealm  types.String `tfsdk:"stats_realm"`
 	StatsAuth   types.String `tfsdk:"stats_auth"`
+}
+
+// haproxyMonitorFailModel maps the monitor_fail block schema data.
+type haproxyMonitorFailModel struct {
+	Cond     types.String `tfsdk:"cond"`
+	CondTest types.String `tfsdk:"cond_test"`
 }
 
 // Metadata returns the resource type name.

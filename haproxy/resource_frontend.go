@@ -6,7 +6,9 @@ import (
 	"log"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -183,6 +185,24 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 					},
 				},
 			},
+			"monitor_fail": schema.ListNestedBlock{
+				Description: "Monitor fail configuration for the frontend.",
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"cond": schema.StringAttribute{
+							Required:    true,
+							Description: "The condition for monitor fail (if, unless).",
+							Validators: []validator.String{
+								stringvalidator.OneOf("if", "unless"),
+							},
+						},
+						"cond_test": schema.StringAttribute{
+							Required:    true,
+							Description: "The condition test for monitor fail.",
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -202,13 +222,7 @@ func NewFrontendManager(client *HAProxyClient) *FrontendManager {
 // CreateFrontend creates a frontend with all its components
 func (r *FrontendManager) CreateFrontend(ctx context.Context, plan *haproxyFrontendModel) (*FrontendPayload, error) {
 	// Create the frontend payload
-	frontendPayload := &FrontendPayload{
-		Name:           plan.Name.ValueString(),
-		Mode:           plan.Mode.ValueString(),
-		DefaultBackend: plan.DefaultBackend.ValueString(),
-		MaxConn:        plan.Maxconn.ValueInt64(),
-		Backlog:        plan.Backlog.ValueInt64(),
-	}
+	frontendPayload := r.processFrontendBlock(plan)
 
 	// Create frontend in HAProxy
 	err := r.client.CreateFrontend(ctx, frontendPayload)
@@ -222,13 +236,7 @@ func (r *FrontendManager) CreateFrontend(ctx context.Context, plan *haproxyFront
 // CreateFrontendInTransaction creates a frontend using an existing transaction ID
 func (r *FrontendManager) CreateFrontendInTransaction(ctx context.Context, transactionID string, plan *haproxyFrontendModel) error {
 	// Create the frontend payload
-	frontendPayload := &FrontendPayload{
-		Name:           plan.Name.ValueString(),
-		Mode:           plan.Mode.ValueString(),
-		DefaultBackend: plan.DefaultBackend.ValueString(),
-		MaxConn:        plan.Maxconn.ValueInt64(),
-		Backlog:        plan.Backlog.ValueInt64(),
-	}
+	frontendPayload := r.processFrontendBlock(plan)
 
 	// Create frontend in HAProxy using the existing transaction
 	if err := r.client.CreateFrontendInTransaction(ctx, transactionID, frontendPayload); err != nil {
@@ -250,13 +258,7 @@ func (r *FrontendManager) CreateFrontendInTransaction(ctx context.Context, trans
 // UpdateFrontendInTransaction updates a frontend using an existing transaction ID
 func (r *FrontendManager) UpdateFrontendInTransaction(ctx context.Context, transactionID string, plan *haproxyFrontendModel) error {
 	// Update frontend payload
-	frontendPayload := &FrontendPayload{
-		Name:           plan.Name.ValueString(),
-		Mode:           plan.Mode.ValueString(),
-		DefaultBackend: plan.DefaultBackend.ValueString(),
-		MaxConn:        plan.Maxconn.ValueInt64(),
-		Backlog:        plan.Backlog.ValueInt64(),
-	}
+	frontendPayload := r.processFrontendBlock(plan)
 
 	// Update frontend in HAProxy using the existing transaction
 	err := r.client.UpdateFrontendInTransaction(ctx, transactionID, frontendPayload)
@@ -320,6 +322,7 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 		DefaultBackend: types.StringValue(frontend.DefaultBackend),
 		Maxconn:        types.Int64Value(frontend.MaxConn),
 		Backlog:        types.Int64Value(frontend.Backlog),
+		MonitorFail:    r.convertMonitorFailFromPayload(frontend.MonitorFail),
 	}
 
 	// Handle ACLs - prioritize existing state to preserve user's exact order
@@ -376,13 +379,7 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 // UpdateFrontend updates a frontend and its components
 func (r *FrontendManager) UpdateFrontend(ctx context.Context, plan *haproxyFrontendModel) error {
 	// Update frontend payload
-	frontendPayload := &FrontendPayload{
-		Name:           plan.Name.ValueString(),
-		Mode:           plan.Mode.ValueString(),
-		DefaultBackend: plan.DefaultBackend.ValueString(),
-		MaxConn:        plan.Maxconn.ValueInt64(),
-		Backlog:        plan.Backlog.ValueInt64(),
-	}
+	frontendPayload := r.processFrontendBlock(plan)
 
 	// Update frontend in HAProxy
 	err := r.client.UpdateFrontend(ctx, plan.Name.ValueString(), frontendPayload)
@@ -440,12 +437,50 @@ func (r *FrontendManager) processFrontendBlock(frontend *haproxyFrontendModel) *
 		return nil
 	}
 
-	return &FrontendPayload{
+	log.Printf("DEBUG: processFrontendBlock - Frontend model MonitorFail field: %+v (length: %d)", frontend.MonitorFail, len(frontend.MonitorFail))
+	monitorFail := r.processMonitorFailBlock(frontend.MonitorFail)
+	log.Printf("DEBUG: processFrontendBlock - MonitorFail result: %+v", monitorFail)
+
+	payload := &FrontendPayload{
 		Name:           frontend.Name.ValueString(),
 		Mode:           frontend.Mode.ValueString(),
 		DefaultBackend: frontend.DefaultBackend.ValueString(),
 		MaxConn:        frontend.Maxconn.ValueInt64(),
 		Backlog:        frontend.Backlog.ValueInt64(),
+		MonitorFail:    monitorFail,
+	}
+
+	log.Printf("DEBUG: processFrontendBlock - Final payload MonitorFail: %+v", payload.MonitorFail)
+	return payload
+}
+
+// processMonitorFailBlock processes the monitor_fail block configuration
+func (r *FrontendManager) processMonitorFailBlock(monitorFail []haproxyMonitorFailModel) *MonitorFailPayload {
+	log.Printf("DEBUG: processMonitorFailBlock called with %d monitor_fail blocks", len(monitorFail))
+	if len(monitorFail) == 0 {
+		log.Printf("DEBUG: No monitor_fail blocks, returning nil")
+		return nil
+	}
+	// Use the first monitor_fail block (should only be one due to SizeAtMost(1) validator)
+	mf := monitorFail[0]
+	payload := &MonitorFailPayload{
+		Cond:     mf.Cond.ValueString(),
+		CondTest: mf.CondTest.ValueString(),
+	}
+	log.Printf("DEBUG: Created MonitorFailPayload: %+v", payload)
+	return payload
+}
+
+// convertMonitorFailFromPayload converts MonitorFailPayload to haproxyMonitorFailModel
+func (r *FrontendManager) convertMonitorFailFromPayload(monitorFail *MonitorFailPayload) []haproxyMonitorFailModel {
+	if monitorFail == nil {
+		return nil
+	}
+	return []haproxyMonitorFailModel{
+		{
+			Cond:     types.StringValue(monitorFail.Cond),
+			CondTest: types.StringValue(monitorFail.CondTest),
+		},
 	}
 }
 
