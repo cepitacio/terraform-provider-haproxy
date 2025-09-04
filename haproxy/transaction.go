@@ -154,7 +154,7 @@ func (c *HAProxyClient) Transaction(fn func(transactionID string) (*http.Respons
 		// Log the commit response body for debugging
 		if resp != nil && resp.Body != nil {
 			commitBody, _ := io.ReadAll(resp.Body)
-			log.Printf("Transaction %s commit response body content: %s", id, string(commitBody))
+			log.Printf("Transaction %s commit response body content: %s", id, sanitizeResponseBody(string(commitBody)))
 		}
 
 		return resp, nil
@@ -268,7 +268,7 @@ func (c *HAProxyClient) getCurrentConfigurationVersion() (string, error) {
 		if err != nil {
 			log.Printf("Failed to read response body: %v", err)
 		} else {
-			log.Printf("Response body: %s", string(body))
+			log.Printf("Response body: %s", sanitizeResponseBody(string(body)))
 		}
 		return "", fmt.Errorf("failed to get configuration version: unexpected status code: %d", resp.StatusCode)
 	}
