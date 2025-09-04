@@ -14,7 +14,7 @@ import (
 func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNestedBlock {
 	// If no schema builder is provided, include all fields for backward compatibility
 	if schemaBuilder == nil {
-		schemaBuilder = NewVersionAwareSchemaBuilder("v2") // Default to v2
+		schemaBuilder = NewVersionAwareSchemaBuilder("v3") // Default to v3
 	}
 	return schema.SingleNestedBlock{
 		Description: "Backend configuration.",

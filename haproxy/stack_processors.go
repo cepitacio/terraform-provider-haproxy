@@ -147,9 +147,7 @@ func (p *StackProcessors) processBackendData(ctx context.Context, backend *hapro
 
 // processServerData processes server-specific data
 func (p *StackProcessors) processServerData(ctx context.Context, server *haproxyServerModel) error {
-	if server.Name.IsNull() || server.Name.IsUnknown() {
-		return fmt.Errorf("server name is required")
-	}
+	// Note: server name is now the map key, not a field
 
 	if server.Address.IsNull() || server.Address.IsUnknown() {
 		return fmt.Errorf("server address is required")
@@ -169,10 +167,10 @@ func (p *StackProcessors) processServerData(ctx context.Context, server *haproxy
 }
 
 // processServersData processes multiple servers data
-func (p *StackProcessors) processServersData(ctx context.Context, servers []haproxyServerModel) error {
-	for i, server := range servers {
+func (p *StackProcessors) processServersData(ctx context.Context, servers map[string]haproxyServerModel) error {
+	for serverName, server := range servers {
 		if err := p.processServerData(ctx, &server); err != nil {
-			return fmt.Errorf("server[%d]: %w", i, err)
+			return fmt.Errorf("server[%s]: %w", serverName, err)
 		}
 	}
 	return nil

@@ -1027,10 +1027,33 @@ func (c *HAProxyClient) CreateServer(ctx context.Context, parentType, parentName
 
 // ReadServers reads all servers for a given parent.
 func (c *HAProxyClient) ReadServers(ctx context.Context, parentType, parentName string) ([]ServerPayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/servers?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	// Use version-aware URL construction
+	apiVersion := c.GetAPIVersion()
+	var url string
+	if apiVersion == "v3" {
+		// For v3, use the correct endpoint structure: /services/haproxy/configuration/backends/{parent_name}/servers
+		// Note: newRequest() already adds the /v3 prefix, so we don't include it here
+		if parentType == "backend" {
+			url = fmt.Sprintf("/services/haproxy/configuration/backends/%s/servers", parentName)
+		} else {
+			// For other parent types, use the generic endpoint
+			url = fmt.Sprintf("/services/haproxy/configuration/servers?parent_type=%s&parent_name=%s", parentType, parentName)
+		}
+	} else {
+		url = fmt.Sprintf("/services/haproxy/configuration/servers?parent_type=%s&parent_name=%s", parentType, parentName)
+	}
+	log.Printf("DEBUG: ReadServers URL: %s (API version: %s)", url, apiVersion)
+	log.Printf("DEBUG: ReadServers parentType: %s, parentName: %s", parentType, parentName)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	// Log the full request details
+	log.Printf("DEBUG: ReadServers full request URL: %s", req.URL.String())
+	log.Printf("DEBUG: ReadServers request method: %s", req.Method)
+	log.Printf("DEBUG: ReadServers request headers: %v", req.Header)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -1038,7 +1061,17 @@ func (c *HAProxyClient) ReadServers(ctx context.Context, parentType, parentName 
 	}
 	defer resp.Body.Close()
 
+	log.Printf("DEBUG: ReadServers response status: %d", resp.StatusCode)
+
+	// Read response body for debugging
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("DEBUG: ReadServers response body: %s", string(bodyBytes))
+
 	if resp.StatusCode == http.StatusNotFound {
+		log.Printf("DEBUG: ReadServers - no servers found (404)")
 		return []ServerPayload{}, nil // No servers found is not an error
 	}
 
@@ -1046,14 +1079,30 @@ func (c *HAProxyClient) ReadServers(ctx context.Context, parentType, parentName 
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var serversWrapper struct {
-		Data []ServerPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&serversWrapper); err != nil {
-		return nil, err
+	// Try to parse as direct array first (HAProxy v3 format)
+	var servers []ServerPayload
+	if err := json.Unmarshal(bodyBytes, &servers); err != nil {
+		// If that fails, try to parse as wrapper object (HAProxy v2 format)
+		var serversWrapper struct {
+			Data []ServerPayload `json:"data"`
+		}
+		if err := json.Unmarshal(bodyBytes, &serversWrapper); err != nil {
+			return nil, err
+		}
+		servers = serversWrapper.Data
 	}
 
-	return serversWrapper.Data, nil
+	log.Printf("DEBUG: ReadServers found %d servers", len(servers))
+	for i, server := range servers {
+		disabledStr := "nil"
+		if server.Disabled != nil {
+			disabledStr = fmt.Sprintf("%t", *server.Disabled)
+		}
+		log.Printf("DEBUG: Server %d: %s (%s:%d) - Check:'%s' Maxconn:%d Weight:%d Disabled:%s",
+			i, server.Name, server.Address, server.Port, server.Check, server.Maxconn, server.Weight, disabledStr)
+	}
+
+	return servers, nil
 }
 
 // CreateServerInTransaction creates a new server using an existing transaction ID.
