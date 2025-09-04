@@ -8,11 +8,32 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
 	"terraform-provider-haproxy/haproxy/utils"
 )
+
+// sanitizeResponseBody removes sensitive information from response bodies before logging
+func sanitizeResponseBody(body string) string {
+	// Remove password from error messages
+	passwordRegex := regexp.MustCompile(`"password":\s*"[^"]*"`)
+	body = passwordRegex.ReplaceAllString(body, `"password": "***"`)
+
+	// Remove password from "invalid password" messages
+	invalidPasswordRegex := regexp.MustCompile(`invalid password:\s*[^\s"]*`)
+	body = invalidPasswordRegex.ReplaceAllString(body, `invalid password: ***`)
+
+	// Remove any other potential sensitive fields
+	sensitiveFields := []string{"token", "secret", "key", "auth"}
+	for _, field := range sensitiveFields {
+		fieldRegex := regexp.MustCompile(fmt.Sprintf(`"%s":\s*"[^"]*"`, field))
+		body = fieldRegex.ReplaceAllString(body, fmt.Sprintf(`"%s": "***"`, field))
+	}
+
+	return body
+}
 
 // HAProxyClient is the client for the HAProxy Data Plane API.
 type HAProxyClient struct {
@@ -1068,7 +1089,7 @@ func (c *HAProxyClient) ReadServers(ctx context.Context, parentType, parentName 
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("DEBUG: ReadServers response body: %s", string(bodyBytes))
+	log.Printf("DEBUG: ReadServers response body: %s", sanitizeResponseBody(string(bodyBytes)))
 
 	if resp.StatusCode == http.StatusNotFound {
 		log.Printf("DEBUG: ReadServers - no servers found (404)")
@@ -1484,7 +1505,7 @@ func (c *HAProxyClient) ReadBinds(ctx context.Context, parentType, parentName st
 	if resp.StatusCode != http.StatusOK {
 		// Debug: Log error response body
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		log.Printf("DEBUG: ReadBinds error response body: %s", string(bodyBytes))
+		log.Printf("DEBUG: ReadBinds error response body: %s", sanitizeResponseBody(string(bodyBytes)))
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
