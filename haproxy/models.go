@@ -266,7 +266,7 @@ type ServerPayload struct {
 	Track            string         `json:"track,omitempty"`
 	Verify           string         `json:"verify,omitempty"`
 	Weight           int64          `json:"weight,omitempty"`
-	Disabled         bool           `json:"disabled,omitempty"`
+	Disabled         *bool          `json:"disabled,omitempty"`
 	LogProto         string         `json:"log-proto,omitempty"`
 	Observe          string         `json:"observe,omitempty"`
 	VerifyHost       string         `json:"verifyhost,omitempty"`
