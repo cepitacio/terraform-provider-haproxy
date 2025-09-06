@@ -95,32 +95,10 @@ func (r *ACLManager) CreateACLsInTransaction(ctx context.Context, transactionID 
 	// Process ACLs with proper indexing
 	sortedAcls := r.processAclsBlock(acls)
 
-	// For consistency with HTTP request rules, use the same "create all at once" approach
+	// Use the same "create all at once" approach for both v2 and v3
 	// This ensures consistent formatting from HAProxy API
-	if r.client.apiVersion == "v3" {
-		// Convert all ACLs to payloads
-		var allPayloads []ACLPayload
-		for i, acl := range sortedAcls {
-			aclPayload := ACLPayload{
-				AclName:   acl.AclName.ValueString(),
-				Criterion: acl.Criterion.ValueString(),
-				Value:     acl.Value.ValueString(),
-				Index:     int64(i), // Use array position instead of index field
-			}
-			allPayloads = append(allPayloads, aclPayload)
-		}
-
-		// Send all ACLs in one request (same as HTTP request rules)
-		if err := r.client.CreateAllACLsInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
-			return fmt.Errorf("failed to create all ACLs for %s %s: %w", parentType, parentName, err)
-		}
-
-		log.Printf("Created all %d ACLs for %s %s in transaction %s", len(allPayloads), parentType, parentName, transactionID)
-		return nil
-	}
-
-	// Fallback to individual operations for v2
-	// Create ACLs in order using the existing transaction and array position
+	// Convert all ACLs to payloads
+	var allPayloads []ACLPayload
 	for i, acl := range sortedAcls {
 		aclPayload := ACLPayload{
 			AclName:   acl.AclName.ValueString(),
@@ -128,13 +106,15 @@ func (r *ACLManager) CreateACLsInTransaction(ctx context.Context, transactionID 
 			Value:     acl.Value.ValueString(),
 			Index:     int64(i), // Use array position instead of index field
 		}
-
-		log.Printf("Creating ACL '%s' at index %d for %s '%s' in transaction %s", aclPayload.AclName, aclPayload.Index, parentType, parentName, transactionID)
-		err := r.client.CreateACLInTransaction(ctx, transactionID, parentType, parentName, &aclPayload)
-		if err != nil {
-			return fmt.Errorf("failed to create ACL '%s': %w", aclPayload.AclName, err)
-		}
+		allPayloads = append(allPayloads, aclPayload)
 	}
+
+	// Send all ACLs in one request (same for both v2 and v3)
+	if err := r.client.CreateAllACLsInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
+		return fmt.Errorf("failed to create all ACLs for %s %s: %w", parentType, parentName, err)
+	}
+
+	log.Printf("Created all %d ACLs for %s %s in transaction %s", len(allPayloads), parentType, parentName, transactionID)
 
 	return nil
 }
@@ -170,121 +150,77 @@ func (r *ACLManager) UpdateACLsInTransaction(ctx context.Context, transactionID 
 	return r.updateAclsWithIndexingInTransaction(ctx, transactionID, parentType, parentName, acls)
 }
 
-// updateAclsWithIndexingInTransaction performs smart ACL updates by comparing content rather than just deleting/recreating
+// updateAclsWithIndexingInTransaction performs smart ACL updates by comparing existing vs desired
 func (r *ACLManager) updateAclsWithIndexingInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, desiredAcls []haproxyAclModel) error {
-	// For consistency with HTTP request rules, use the same "create all at once" approach
-	// This ensures consistent formatting from HAProxy API
-	if r.client.apiVersion == "v3" {
-		// Process ACLs with proper indexing and deduplication
-		sortedAcls := r.processAclsBlock(desiredAcls)
+	// Read existing ACLs to compare with desired ones
+	existingAcls, err := r.client.ReadACLs(ctx, parentType, parentName)
+	if err != nil {
+		return fmt.Errorf("failed to read existing ACLs for %s %s: %w", parentType, parentName, err)
+	}
 
-		// Convert all ACLs to payloads
-		var allPayloads []ACLPayload
-		for i, acl := range sortedAcls {
-			aclPayload := ACLPayload{
-				AclName:   acl.AclName.ValueString(),
-				Criterion: acl.Criterion.ValueString(),
-				Value:     acl.Value.ValueString(),
-				Index:     int64(i), // Use array position instead of index field
-			}
-			allPayloads = append(allPayloads, aclPayload)
+	// Use the smart comparison logic to only update what changed
+	return r.updateAclsWithIndexingInTransactionSmart(ctx, transactionID, parentType, parentName, existingAcls, desiredAcls)
+}
+
+// updateAclsWithIndexingInTransactionSmart performs smart ACL updates by comparing existing vs desired
+func (r *ACLManager) updateAclsWithIndexingInTransactionSmart(ctx context.Context, transactionID string, parentType string, parentName string, existingAcls []ACLPayload, desiredAcls []haproxyAclModel) error {
+	// Process desired ACLs with proper indexing and deduplication
+	sortedDesiredAcls := r.processAclsBlock(desiredAcls)
+
+	// Create a map of existing ACLs by index for quick lookup
+	existingAclMap := make(map[int64]*ACLPayload)
+	for i := range existingAcls {
+		existingAclMap[existingAcls[i].Index] = &existingAcls[i]
+	}
+
+	// Check if any ACLs actually changed
+	hasChanges := false
+	var aclsToRecreate []haproxyAclModel
+
+	for i, desiredAcl := range sortedDesiredAcls {
+		desiredIndex := int64(i)
+		existingAcl, exists := existingAclMap[desiredIndex]
+
+		if !exists || r.hasAclChanged(existingAcl, &desiredAcl) {
+			hasChanges = true
+			aclsToRecreate = append(aclsToRecreate, desiredAcl)
 		}
+	}
 
-		// Send all ACLs in one request (same as HTTP request rules)
-		if err := r.client.CreateAllACLsInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
-			return fmt.Errorf("failed to update all ACLs for %s %s: %w", parentType, parentName, err)
-		}
-
-		log.Printf("Updated all %d ACLs for %s %s in transaction %s", len(allPayloads), parentType, parentName, transactionID)
+	// If no changes detected, skip the update
+	if !hasChanges {
+		log.Printf("No ACL changes detected for %s %s, skipping update", parentType, parentName)
 		return nil
 	}
 
-	// Fallback to individual operations for v2
-	// Read existing ACLs from HAProxy
-	existingAcls, err := r.client.ReadACLs(ctx, parentType, parentName)
-	if err != nil {
-		return fmt.Errorf("failed to read existing ACLs: %w", err)
+	// First, delete all existing ACLs to avoid duplicates
+	if err := r.DeleteACLsInTransaction(ctx, transactionID, parentType, parentName); err != nil {
+		return fmt.Errorf("failed to delete existing ACLs for %s %s: %w", parentType, parentName, err)
 	}
 
-	// Convert desired ACLs to map for easier comparison
-	desiredMap := make(map[string]ACLPayload)
-	for i, acl := range desiredAcls {
-		aclName := acl.AclName.ValueString()
-		log.Printf("DEBUG: Desired ACL: %s (array position: %d)", aclName, i)
-		desiredMap[aclName] = ACLPayload{
-			AclName:   aclName,
+	// Then create all desired ACLs using the same "create all at once" approach for both v2 and v3
+	// This ensures consistent formatting from HAProxy API
+	// Process ACLs with proper indexing and deduplication
+	sortedRules := r.processAclsBlock(desiredAcls)
+
+	// Convert all ACLs to payloads
+	var allPayloads []ACLPayload
+	for i, acl := range sortedRules {
+		aclPayload := ACLPayload{
+			AclName:   acl.AclName.ValueString(),
 			Criterion: acl.Criterion.ValueString(),
 			Value:     acl.Value.ValueString(),
 			Index:     int64(i), // Use array position instead of index field
 		}
+		allPayloads = append(allPayloads, aclPayload)
 	}
 
-	// Convert existing ACLs to map for easier comparison
-	existingMap := make(map[string]ACLPayload)
-	for i, acl := range existingAcls {
-		// Use array position instead of API index since HAProxy API returns wrong indices
-		acl.Index = int64(i)
-		log.Printf("DEBUG: Found existing ACL: %s (corrected index: %d)", acl.AclName, acl.Index)
-		existingMap[acl.AclName] = acl
+	// Send all ACLs in one request (same for both v2 and v3)
+	if err := r.client.CreateAllACLsInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
+		return fmt.Errorf("failed to create new ACLs for %s %s: %w", parentType, parentName, err)
 	}
 
-	// Find ACLs to delete (exist in HAProxy but not in desired state)
-	var aclsToDelete []ACLPayload
-	for name, existingAcl := range existingMap {
-		if _, exists := desiredMap[name]; !exists {
-			aclsToDelete = append(aclsToDelete, existingAcl)
-		}
-	}
-
-	// Find ACLs to create (exist in desired state but not in HAProxy)
-	var aclsToCreate []ACLPayload
-	for name, desiredAcl := range desiredMap {
-		if _, exists := existingMap[name]; !exists {
-			aclsToCreate = append(aclsToCreate, desiredAcl)
-		}
-	}
-
-	// Find ACLs to update (exist in both but have different content or position)
-	var aclsToUpdate []ACLPayload
-	for name, desiredAcl := range desiredMap {
-		if existingAcl, exists := existingMap[name]; exists {
-			if hasAclChanged(existingAcl, desiredAcl) {
-				log.Printf("DEBUG: ACL '%s' content changed, will update", name)
-				aclsToUpdate = append(aclsToUpdate, desiredAcl)
-			} else if existingAcl.Index != desiredAcl.Index {
-				log.Printf("DEBUG: ACL '%s' position changed from %d to %d, will reorder", name, existingAcl.Index, desiredAcl.Index)
-				aclsToUpdate = append(aclsToUpdate, desiredAcl)
-			}
-		}
-	}
-
-	// Delete ACLs that are no longer needed
-	for _, acl := range aclsToDelete {
-		log.Printf("Deleting ACL '%s' at index %d in transaction %s", acl.AclName, acl.Index, transactionID)
-		if err := r.client.DeleteACLInTransaction(ctx, transactionID, parentType, parentName, acl.Index); err != nil {
-			return fmt.Errorf("failed to delete ACL %s: %w", acl.AclName, err)
-		}
-	}
-
-	// Update ACLs that have changed
-	for _, acl := range aclsToUpdate {
-		log.Printf("Updating ACL '%s' at index %d in transaction %s", acl.AclName, acl.Index, transactionID)
-		if err := r.client.UpdateACLInTransaction(ctx, transactionID, parentType, parentName, acl.Index, &acl); err != nil {
-			return fmt.Errorf("failed to update ACL %s: %w", acl.AclName, err)
-		}
-	}
-
-	// Create new ACLs
-	for _, acl := range aclsToCreate {
-		log.Printf("Creating ACL '%s' at index %d for %s '%s' in transaction %s", acl.AclName, acl.Index, parentType, parentName, transactionID)
-		if err := r.client.CreateACLInTransaction(ctx, transactionID, parentType, parentName, &acl); err != nil {
-			return fmt.Errorf("failed to create ACL %s: %w", acl.AclName, err)
-		}
-	}
-
-	// Note: Reordering is not necessary for simple ACL updates
-	// The ACLs will maintain their existing order unless explicitly changed
-
+	log.Printf("Updated %d ACLs for %s %s in transaction %s (delete-then-create)", len(allPayloads), parentType, parentName, transactionID)
 	return nil
 }
 
@@ -339,17 +275,41 @@ func (r *ACLManager) DeleteACLs(ctx context.Context, parentType string, parentNa
 	return nil
 }
 
-// processAclsBlock processes the ACLs block configuration using array position for ordering
+// processAclsBlock processes the ACLs block configuration using array position for ordering and deduplication
 func (r *ACLManager) processAclsBlock(acls []haproxyAclModel) []haproxyAclModel {
 	if len(acls) == 0 {
-		return nil
+		return acls
 	}
 
-	// Return ACLs as-is, using array position for ordering
-	// The order in the configuration determines the order in HAProxy
-	log.Printf("ACL order based on array position: %s", r.formatAclOrder(acls))
+	// Deduplicate ACLs by creating a map with unique keys based on ACL name
+	// This ensures consistent behavior like HTTP request rules
+	aclMap := make(map[string]haproxyAclModel)
 
-	return acls
+	for i, acl := range acls {
+		// Use ACL name as the unique key (like HTTP request rules use content-based keys)
+		key := acl.AclName.ValueString()
+
+		// If an ACL with the same name already exists, keep the last one
+		aclMap[key] = acl
+		log.Printf("ACL %d: key='%s', criterion='%s', value='%s'", i, key, acl.Criterion.ValueString(), acl.Value.ValueString())
+	}
+
+	// Convert map back to slice, maintaining the original order for the first occurrence of each unique ACL
+	var deduplicatedAcls []haproxyAclModel
+	seenKeys := make(map[string]bool)
+
+	for _, acl := range acls {
+		key := acl.AclName.ValueString()
+		if !seenKeys[key] {
+			deduplicatedAcls = append(deduplicatedAcls, acl)
+			seenKeys[key] = true
+		}
+	}
+
+	log.Printf("Deduplicated ACLs: %d original -> %d unique", len(acls), len(deduplicatedAcls))
+	log.Printf("ACL order based on array position: %s", r.formatAclOrder(deduplicatedAcls))
+
+	return deduplicatedAcls
 }
 
 // formatAclOrder creates a readable string showing ACL order for logging

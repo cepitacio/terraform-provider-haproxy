@@ -243,13 +243,7 @@ func (r *FrontendManager) CreateFrontendInTransaction(ctx context.Context, trans
 		return fmt.Errorf("failed to create frontend: %w", err)
 	}
 
-	// Create ACLs AFTER frontend exists
-	if plan.Acls != nil && len(plan.Acls) > 0 {
-		aclManager := NewACLManager(r.client)
-		if err := aclManager.CreateACLsInTransaction(ctx, transactionID, "frontend", plan.Name.ValueString(), plan.Acls); err != nil {
-			return fmt.Errorf("failed to create frontend ACLs: %w", err)
-		}
-	}
+	// ACLs handled at stack level for coordinated operations
 
 	// HTTP request rules handled at stack level for coordinated operations
 	return nil
@@ -266,13 +260,7 @@ func (r *FrontendManager) UpdateFrontendInTransaction(ctx context.Context, trans
 		return fmt.Errorf("failed to update frontend: %w", err)
 	}
 
-	// Update ACLs if specified
-	if plan.Acls != nil && len(plan.Acls) > 0 {
-		aclManager := NewACLManager(r.client)
-		if err := aclManager.UpdateACLsInTransaction(ctx, transactionID, "frontend", plan.Name.ValueString(), plan.Acls); err != nil {
-			return fmt.Errorf("failed to update frontend ACLs: %w", err)
-		}
-	}
+	// ACLs handled at stack level for coordinated operations
 
 	// HTTP request rules handled at stack level for coordinated operations
 	return nil

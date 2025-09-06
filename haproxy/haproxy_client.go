@@ -218,38 +218,87 @@ func (c *HAProxyClient) CreateACLInTransaction(ctx context.Context, transactionI
 
 // CreateAllACLsInTransaction creates all ACLs at once using an existing transaction ID
 func (c *HAProxyClient) CreateAllACLsInTransaction(ctx context.Context, transactionID, parentType, parentName string, payloads []ACLPayload) error {
-	if c.apiVersion != "v3" {
-		return fmt.Errorf("CreateAllACLsInTransaction is only supported for v3")
-	}
+	var url string
+	var method string
 
-	// v3: Use nested endpoint under frontends/backends
-	parentTypePlural := parentType + "s"
-	url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/acls?transaction_id=%s",
-		parentTypePlural, parentName, transactionID)
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends - send all at once
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/acls?transaction_id=%s",
+			parentTypePlural, parentName, transactionID)
+		method = "PUT"
 
-	log.Printf("DEBUG: Creating all ACLs at once using endpoint: %s for API version %s", url, c.apiVersion)
+		// Debug logging for v3
+		payloadJSON, _ := json.Marshal(payloads)
+		log.Printf("DEBUG: API %s - Creating all ACLs at once:", c.apiVersion)
+		log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+		log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
+		log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
 
-	req, err := c.newRequest(ctx, "PUT", url, payloads)
-	if err != nil {
-		return err
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		body, err := io.ReadAll(resp.Body)
+		req, err := c.newRequest(ctx, method, url, payloads)
 		if err != nil {
-			return fmt.Errorf("ACLs creation failed with status %d", resp.StatusCode)
+			return err
 		}
-		return fmt.Errorf("ACLs creation failed with status %d: %s", resp.StatusCode, string(body))
-	}
 
-	log.Printf("All ACLs created successfully in transaction: %s", transactionID)
-	return nil
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("ACLs creation failed with status %d", resp.StatusCode)
+			}
+			return fmt.Errorf("ACLs creation failed with status %d: %s", resp.StatusCode, string(body))
+		}
+
+		log.Printf("All ACLs created successfully in transaction: %s", transactionID)
+		return nil
+	} else {
+		// v2: Create ACLs individually (v2 doesn't support bulk creation)
+		log.Printf("DEBUG: API %s - Creating ACLs individually (v2 limitation):", c.apiVersion)
+		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
+
+		for i, payload := range payloads {
+			url := fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s&transaction_id=%s",
+				parentType, parentName, transactionID)
+			method := "POST"
+
+			// Debug logging for each individual ACL
+			payloadJSON, _ := json.Marshal(payload)
+			log.Printf("DEBUG: API %s - Creating ACL %d/%d:", c.apiVersion, i+1, len(payloads))
+			log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+			req, err := c.newRequest(ctx, method, url, payload)
+			if err != nil {
+				return err
+			}
+
+			resp, err := c.httpClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("ACL %d creation failed with status %d", i+1, resp.StatusCode)
+				}
+				return fmt.Errorf("ACL %d creation failed with status %d: %s", i+1, resp.StatusCode, string(body))
+			}
+
+			log.Printf("ACL %d/%d created successfully in transaction: %s", i+1, len(payloads), transactionID)
+		}
+
+		log.Printf("All %d ACLs created successfully in transaction: %s", len(payloads), transactionID)
+		return nil
+	}
 }
 
 // UpdateACLInTransaction updates an existing ACL rule using an existing transaction ID.
@@ -2873,38 +2922,87 @@ func (c *HAProxyClient) CreateHttpRequestRuleInTransaction(ctx context.Context, 
 
 // CreateAllHttpRequestRulesInTransaction creates all HTTP request rules at once using an existing transaction ID
 func (c *HAProxyClient) CreateAllHttpRequestRulesInTransaction(ctx context.Context, transactionID, parentType, parentName string, payloads []HttpRequestRulePayload) error {
-	if c.apiVersion != "v3" {
-		return fmt.Errorf("CreateAllHttpRequestRulesInTransaction is only supported for v3")
-	}
+	var url string
+	var method string
 
-	// v3: Use nested endpoint under frontends/backends
-	parentTypePlural := parentType + "s"
-	url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_request_rules?transaction_id=%s",
-		parentTypePlural, parentName, transactionID)
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends - send all at once
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_request_rules?transaction_id=%s",
+			parentTypePlural, parentName, transactionID)
+		method = "PUT"
 
-	log.Printf("DEBUG: Creating all HTTP request rules at once using endpoint: %s for API version %s", url, c.apiVersion)
+		// Debug logging for v3
+		payloadJSON, _ := json.Marshal(payloads)
+		log.Printf("DEBUG: API %s - Creating all HTTP request rules at once:", c.apiVersion)
+		log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+		log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
+		log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
 
-	req, err := c.newRequest(ctx, "PUT", url, payloads)
-	if err != nil {
-		return err
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		body, err := io.ReadAll(resp.Body)
+		req, err := c.newRequest(ctx, method, url, payloads)
 		if err != nil {
-			return fmt.Errorf("HTTP request rules creation failed with status %d", resp.StatusCode)
+			return err
 		}
-		return fmt.Errorf("HTTP request rules creation failed with status %d: %s", resp.StatusCode, string(body))
-	}
 
-	log.Printf("All HTTP request rules created successfully in transaction: %s", transactionID)
-	return nil
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("HTTP request rules creation failed with status %d", resp.StatusCode)
+			}
+			return fmt.Errorf("HTTP request rules creation failed with status %d: %s", resp.StatusCode, string(body))
+		}
+
+		log.Printf("All HTTP request rules created successfully in transaction: %s", transactionID)
+		return nil
+	} else {
+		// v2: Create HTTP request rules individually (v2 doesn't support bulk creation)
+		log.Printf("DEBUG: API %s - Creating HTTP request rules individually (v2 limitation):", c.apiVersion)
+		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
+
+		for i, payload := range payloads {
+			url := fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
+				parentType, parentName, transactionID)
+			method := "POST"
+
+			// Debug logging for each individual HTTP request rule
+			payloadJSON, _ := json.Marshal(payload)
+			log.Printf("DEBUG: API %s - Creating HTTP request rule %d/%d:", c.apiVersion, i+1, len(payloads))
+			log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+			req, err := c.newRequest(ctx, method, url, payload)
+			if err != nil {
+				return err
+			}
+
+			resp, err := c.httpClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("HTTP request rule %d creation failed with status %d", i+1, resp.StatusCode)
+				}
+				return fmt.Errorf("HTTP request rule %d creation failed with status %d: %s", i+1, resp.StatusCode, string(body))
+			}
+
+			log.Printf("HTTP request rule %d/%d created successfully in transaction: %s", i+1, len(payloads), transactionID)
+		}
+
+		log.Printf("All %d HTTP request rules created successfully in transaction: %s", len(payloads), transactionID)
+		return nil
+	}
 }
 
 // DeleteHttpRequestRuleInTransaction deletes an existing httprequestrule using an existing transaction ID.
