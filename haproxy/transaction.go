@@ -19,7 +19,7 @@ const retryDelay = 2 * time.Second
 var configMutex sync.Mutex
 
 // Transaction executes a function within a transaction, with retry logic.
-// This is the old behavior for backward compatibility.
+// DEPRECATED: This method is no longer used. Use BeginTransaction/CommitTransaction instead.
 func (c *HAProxyClient) Transaction(fn func(transactionID string) (*http.Response, error)) (*http.Response, error) {
 	retryCount := 0
 	for {

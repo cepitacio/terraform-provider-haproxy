@@ -46,7 +46,7 @@ func equalBoolPtr(a, b *bool) bool {
 // serverNeedsUpdate checks if a server needs to be updated
 func (o *StackOperations) serverNeedsUpdate(existing ServerPayload, desired ServerPayload) bool {
 	// Check all the fields that can be configured
-	// Note: We don't compare Disabled field since HAProxy doesn't support it
+	// Disabled field comparison skipped - HAProxy doesn't support server disabling
 	return existing.Address != desired.Address ||
 		existing.Port != desired.Port ||
 		existing.Check != desired.Check ||
@@ -66,7 +66,7 @@ func (o *StackOperations) serverNeedsUpdate(existing ServerPayload, desired Serv
 // convertServerPayloadToModel converts a ServerPayload to haproxyServerModel
 func (o *StackOperations) convertServerPayloadToModel(server ServerPayload) haproxyServerModel {
 	model := haproxyServerModel{
-		// Note: Name is now the map key, not a field
+		// Server name is the map key, not a field in the payload
 		Address: types.StringValue(server.Address),
 		Port:    types.Int64Value(server.Port),
 	}
@@ -108,7 +108,7 @@ func (o *StackOperations) convertServerPayloadToModel(server ServerPayload) hapr
 	if server.Cookie != "" {
 		model.Cookie = types.StringValue(server.Cookie)
 	}
-	// Note: HAProxy doesn't support the 'disabled' field for servers
+	// HAProxy doesn't support server disabling - field ignored
 	// This field has been removed from the schema
 
 	// SSL/TLS Protocol Control (v3 fields)
@@ -208,7 +208,7 @@ func (o *StackOperations) convertServerModelToPayload(serverName string, server 
 	if !server.Cookie.IsNull() && !server.Cookie.IsUnknown() {
 		payload.Cookie = server.Cookie.ValueString()
 	}
-	// Note: HAProxy doesn't support the 'disabled' field for servers
+	// HAProxy doesn't support server disabling - field ignored
 	// We don't send it to HAProxy, but we allow it in the Terraform config
 	// for user convenience. It will always be read as false from HAProxy.
 
@@ -327,12 +327,35 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
-	// Note: ACLs are now handled within frontend/backend creation, not here
+	// Create ACLs if specified - handle both frontend and backend ACLs
+	if data.Frontend != nil && data.Frontend.Acls != nil && len(data.Frontend.Acls) > 0 {
+		tflog.Info(ctx, "Creating frontend ACLs in transaction", map[string]interface{}{"transaction_id": transactionID})
+		if err := o.aclManager.CreateACLsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Acls); err != nil {
+			resp.Diagnostics.AddError("Error creating frontend ACLs", err.Error())
+			return err
+		}
+	}
+
+	if data.Backend != nil && data.Backend.Acls != nil && len(data.Backend.Acls) > 0 {
+		tflog.Info(ctx, "Creating backend ACLs in transaction", map[string]interface{}{"transaction_id": transactionID})
+		if err := o.aclManager.CreateACLsInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.Acls); err != nil {
+			resp.Diagnostics.AddError("Error creating backend ACLs", err.Error())
+			return err
+		}
+	}
 
 	// Create HTTP Request Rules AFTER ACLs (so they can reference existing ACLs)
 	if data.Frontend != nil && data.Frontend.HttpRequestRules != nil && len(data.Frontend.HttpRequestRules) > 0 {
 		if err := o.httpRequestRuleManager.CreateHttpRequestRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpRequestRules); err != nil {
 			resp.Diagnostics.AddError("Error creating HTTP request rules", err.Error())
+			return err
+		}
+	}
+
+	// Create Backend HTTP Request Rules AFTER ACLs (so they can reference existing ACLs)
+	if data.Backend != nil && data.Backend.HttpRequestRule != nil && len(data.Backend.HttpRequestRule) > 0 {
+		if err := o.httpRequestRuleManager.CreateHttpRequestRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpRequestRule); err != nil {
+			resp.Diagnostics.AddError("Error creating backend HTTP request rules", err.Error())
 			return err
 		}
 	}
@@ -787,6 +810,23 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
+	// Update ACLs if specified - handle both frontend and backend ACLs
+	if data.Frontend != nil && data.Frontend.Acls != nil && len(data.Frontend.Acls) > 0 {
+		tflog.Info(ctx, "Updating frontend ACLs", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		if err = o.aclManager.UpdateACLsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Acls); err != nil {
+			resp.Diagnostics.AddError("Error updating frontend ACLs", err.Error())
+			return err
+		}
+	}
+
+	if data.Backend != nil && data.Backend.Acls != nil && len(data.Backend.Acls) > 0 {
+		tflog.Info(ctx, "Updating backend ACLs", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.aclManager.UpdateACLsInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.Acls); err != nil {
+			resp.Diagnostics.AddError("Error updating backend ACLs", err.Error())
+			return err
+		}
+	}
+
 	// Update HTTP Request Rules if specified
 	if data.Frontend != nil && data.Frontend.HttpRequestRules != nil && len(data.Frontend.HttpRequestRules) > 0 {
 		tflog.Info(ctx, "Updating HTTP request rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
@@ -829,6 +869,23 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 			}
 		}
 	}()
+
+	// Delete ACLs if specified - handle both frontend and backend ACLs
+	if data.Frontend != nil && data.Frontend.Acls != nil && len(data.Frontend.Acls) > 0 {
+		tflog.Info(ctx, "Deleting frontend ACLs", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		if err = o.aclManager.DeleteACLsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting frontend ACLs", err.Error())
+			return err
+		}
+	}
+
+	if data.Backend != nil && data.Backend.Acls != nil && len(data.Backend.Acls) > 0 {
+		tflog.Info(ctx, "Deleting backend ACLs", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.aclManager.DeleteACLsInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend ACLs", err.Error())
+			return err
+		}
+	}
 
 	// Delete HTTP Request Rules if specified
 	if data.Frontend != nil && data.Frontend.HttpRequestRules != nil && len(data.Frontend.HttpRequestRules) > 0 {

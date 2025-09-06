@@ -61,15 +61,19 @@ func NewHAProxyClient(httpClient *http.Client, baseURL, username, password, apiV
 }
 
 // CreateFrontend creates a new frontend.
+// DEPRECATED: Use CreateFrontendInTransaction for new code
 func (c *HAProxyClient) CreateFrontend(ctx context.Context, payload *FrontendPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
-		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/frontends?transaction_id=%s", transactionID), payload)
-		if err != nil {
-			return nil, err
-		}
-		return c.httpClient.Do(req)
-	})
-	return err
+	transactionID, err := c.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer c.RollbackTransaction(transactionID)
+
+	if err := c.CreateFrontendInTransaction(ctx, transactionID, payload); err != nil {
+		return err
+	}
+
+	return c.CommitTransaction(transactionID)
 }
 
 // CreateFrontendInTransaction creates a new frontend using an existing transaction ID.
@@ -151,21 +155,19 @@ func (c *HAProxyClient) DeleteFrontendInTransaction(ctx context.Context, transac
 }
 
 // CreateACL creates a new ACL rule for a frontend.
+// DEPRECATED: Use CreateACLInTransaction for new code
 func (c *HAProxyClient) CreateACL(ctx context.Context, parentType, parentName string, payload *ACLPayload) error {
-	// Debug: Log the ACL payload being sent
-	payloadJSON, _ := json.Marshal(payload)
-	log.Printf("DEBUG: Creating ACL with payload: %s", string(payloadJSON))
+	transactionID, err := c.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer c.RollbackTransaction(transactionID)
 
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
-		url := fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s&transaction_id=%s",
-			parentType, parentName, transactionID)
-		req, err := c.newRequest(ctx, "POST", url, payload)
-		if err != nil {
-			return nil, err
-		}
-		return c.httpClient.Do(req)
-	})
-	return err
+	if err := c.CreateACLInTransaction(ctx, transactionID, parentType, parentName, payload); err != nil {
+		return err
+	}
+
+	return c.CommitTransaction(transactionID)
 }
 
 // CreateACLInTransaction creates a new ACL rule using an existing transaction ID.
@@ -211,6 +213,42 @@ func (c *HAProxyClient) CreateACLInTransaction(ctx context.Context, transactionI
 
 	log.Printf("ACL created successfully in transaction: %s", transactionID)
 
+	return nil
+}
+
+// CreateAllACLsInTransaction creates all ACLs at once using an existing transaction ID
+func (c *HAProxyClient) CreateAllACLsInTransaction(ctx context.Context, transactionID, parentType, parentName string, payloads []ACLPayload) error {
+	if c.apiVersion != "v3" {
+		return fmt.Errorf("CreateAllACLsInTransaction is only supported for v3")
+	}
+
+	// v3: Use nested endpoint under frontends/backends
+	parentTypePlural := parentType + "s"
+	url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/acls?transaction_id=%s",
+		parentTypePlural, parentName, transactionID)
+
+	log.Printf("DEBUG: Creating all ACLs at once using endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "PUT", url, payloads)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("ACLs creation failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("ACLs creation failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("All ACLs created successfully in transaction: %s", transactionID)
 	return nil
 }
 
@@ -338,6 +376,7 @@ func (c *HAProxyClient) ReadACLs(ctx context.Context, parentType, parentName str
 		if err := json.NewDecoder(resp.Body).Decode(&acls); err != nil {
 			return nil, fmt.Errorf("failed to decode v3 ACL response: %w", err)
 		}
+		log.Printf("DEBUG: Raw ACL response from HAProxy: %+v", acls)
 	} else {
 		// v2: Response has a data wrapper
 		var response struct {
@@ -347,37 +386,42 @@ func (c *HAProxyClient) ReadACLs(ctx context.Context, parentType, parentName str
 			return nil, fmt.Errorf("failed to decode v2 ACL response: %w", err)
 		}
 		acls = response.Data
+		log.Printf("DEBUG: Raw ACL response from HAProxy: %+v", acls)
 	}
 
 	return acls, nil
 }
 
 // UpdateACL updates an existing ACL rule by index.
+// DEPRECATED: Use UpdateACLInTransaction for new code
 func (c *HAProxyClient) UpdateACL(ctx context.Context, parentType, parentName string, index int64, payload *ACLPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
-		url := fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
-			index, parentType, parentName, transactionID)
-		req, err := c.newRequest(ctx, "PUT", url, payload)
-		if err != nil {
-			return nil, err
-		}
-		return c.httpClient.Do(req)
-	})
-	return err
+	transactionID, err := c.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer c.RollbackTransaction(transactionID)
+
+	if err := c.UpdateACLInTransaction(ctx, transactionID, parentType, parentName, index, payload); err != nil {
+		return err
+	}
+
+	return c.CommitTransaction(transactionID)
 }
 
 // DeleteACL deletes an ACL rule by index.
+// DEPRECATED: Use DeleteACLInTransaction for new code
 func (c *HAProxyClient) DeleteACL(ctx context.Context, parentType, parentName string, index int64) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
-		url := fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
-			index, parentType, parentName, transactionID)
-		req, err := c.newRequest(ctx, "DELETE", url, nil)
-		if err != nil {
-			return nil, err
-		}
-		return c.httpClient.Do(req)
-	})
-	return err
+	transactionID, err := c.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer c.RollbackTransaction(transactionID)
+
+	if err := c.DeleteACLInTransaction(ctx, transactionID, parentType, parentName, index); err != nil {
+		return err
+	}
+
+	return c.CommitTransaction(transactionID)
 }
 
 // CreateAllResourcesInSingleTransaction creates all resources in a single transaction.
@@ -1603,48 +1647,19 @@ func (c *HAProxyClient) DeleteAcl(ctx context.Context, index int64, parentType, 
 }
 
 // CreateHttpRequestRule creates a new httprequestrule.
+// DEPRECATED: Use CreateHttpRequestRuleInTransaction for new code
 func (c *HAProxyClient) CreateHttpRequestRule(ctx context.Context, parentType, parentName string, payload *HttpRequestRulePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
-		var url string
-		var method string
-		var requestPayload interface{}
+	transactionID, err := c.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer c.RollbackTransaction(transactionID)
 
-		if c.apiVersion == "v3" {
-			// v3: Use nested endpoint under frontends/backends
-			// v3 doesn't support POST for individual rules - only PUT to replace entire list
-			// v3 expects an array of rules, not a single rule
-			parentTypePlural := parentType + "s"
-			url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_request_rules?transaction_id=%s",
-				parentTypePlural, parentName, transactionID)
-			method = "PUT"
+	if err := c.CreateHttpRequestRuleInTransaction(ctx, transactionID, parentType, parentName, payload); err != nil {
+		return err
+	}
 
-			// For v3, we need to read existing rules first, then add the new one
-			// This is a limitation of v3 - we can't create individual rules
-			existingRules, err := c.ReadHttpRequestRules(ctx, parentType, parentName)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read existing HTTP request rules for v3: %w", err)
-			}
-
-			// Add the new rule to existing rules
-			allRules := append(existingRules, *payload)
-			requestPayload = allRules
-		} else {
-			// v2: Use query parameter approach with POST
-			url = fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
-				parentType, parentName, transactionID)
-			method = "POST"
-			requestPayload = payload
-		}
-
-		log.Printf("DEBUG: Using HTTP request rule endpoint: %s with method %s for API version %s", url, method, c.apiVersion)
-
-		req, err := c.newRequest(ctx, method, url, requestPayload)
-		if err != nil {
-			return nil, err
-		}
-		return c.httpClient.Do(req)
-	})
-	return err
+	return c.CommitTransaction(transactionID)
 }
 
 // ReadHttpRequestRules reads all httprequestrules for a given parent.
@@ -1704,6 +1719,7 @@ func (c *HAProxyClient) ReadHttpRequestRules(ctx context.Context, parentType, pa
 }
 
 // UpdateHttpRequestRule updates a httprequestrule.
+// DEPRECATED: Use individual resource management for new code
 func (c *HAProxyClient) UpdateHttpRequestRule(ctx context.Context, index int64, parentType, parentName string, payload *HttpRequestRulePayload) error {
 	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/http_request_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
@@ -1716,15 +1732,19 @@ func (c *HAProxyClient) UpdateHttpRequestRule(ctx context.Context, index int64, 
 }
 
 // DeleteHttpRequestRule deletes a httprequestrule.
+// DEPRECATED: Use DeleteHttpRequestRuleInTransaction for new code
 func (c *HAProxyClient) DeleteHttpRequestRule(ctx context.Context, index int64, parentType, parentName string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
-		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/http_request_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), nil)
-		if err != nil {
-			return nil, err
-		}
-		return c.httpClient.Do(req)
-	})
-	return err
+	transactionID, err := c.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer c.RollbackTransaction(transactionID)
+
+	if err := c.DeleteHttpRequestRuleInTransaction(ctx, transactionID, index, parentType, parentName); err != nil {
+		return err
+	}
+
+	return c.CommitTransaction(transactionID)
 }
 
 // CreateHttpResponseRule creates a new httpresponserule.

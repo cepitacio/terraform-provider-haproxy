@@ -199,10 +199,6 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 				Description: "HTTP request rule configuration for the backend.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index of the http-request rule.",
-						},
 						"type": schema.StringAttribute{
 							Required:    true,
 							Description: "The type of the http-request rule.",
@@ -230,6 +226,10 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 						"redir_value": schema.StringAttribute{
 							Optional:    true,
 							Description: "The redirection value of the http-request rule.",
+						},
+						"index": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The index of the http-request rule (for backward compatibility).",
 						},
 					},
 				},
@@ -544,14 +544,7 @@ func (r *BackendManager) CreateBackend(ctx context.Context, plan *haproxyBackend
 		return nil, fmt.Errorf("failed to create backend: %w", err)
 	}
 
-	// Create ACLs if specified
-	if plan.Acls != nil && len(plan.Acls) > 0 {
-		// Use ACLManager to create ACLs
-		aclManager := NewACLManager(r.client)
-		if err := aclManager.CreateACLs(ctx, "backend", plan.Name.ValueString(), plan.Acls); err != nil {
-			return nil, fmt.Errorf("failed to create backend ACLs: %w", err)
-		}
-	}
+	// ACLs handled at stack level for coordinated operations
 
 	return backendPayload, nil
 }
@@ -808,7 +801,6 @@ func (r *BackendManager) ReadBackend(ctx context.Context, backendName string, ex
 				AclName:   types.StringValue(acl.AclName),
 				Criterion: types.StringValue(acl.Criterion),
 				Value:     types.StringValue(acl.Value),
-				Index:     types.Int64Value(acl.Index),
 			})
 		}
 		backendModel.Acls = aclModels
@@ -938,7 +930,7 @@ func (r *BackendManager) formatAclOrder(acls []haproxyAclModel) string {
 
 	var order []string
 	for _, acl := range acls {
-		order = append(order, fmt.Sprintf("%s(index:%d)", acl.AclName.ValueString(), acl.Index.ValueInt64()))
+		order = append(order, acl.AclName.ValueString())
 	}
 	return strings.Join(order, " → ")
 }

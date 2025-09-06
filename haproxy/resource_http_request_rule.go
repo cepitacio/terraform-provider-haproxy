@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -247,12 +248,24 @@ func (r *HttpRequestRuleResource) Create(ctx context.Context, req resource.Creat
 		StatusReason: plan.ReturnContent.ValueString(),
 	}
 
-	// Create the HTTP request rule
-	if err := r.client.CreateHttpRequestRule(ctx, plan.ParentType.ValueString(), plan.ParentName.ValueString(), payload); err != nil {
+	// Create the HTTP request rule using single transaction approach
+	transactionID, err := r.client.BeginTransaction()
+	if err != nil {
+		resp.Diagnostics.AddError("Error beginning transaction", err.Error())
+		return
+	}
+	defer r.client.RollbackTransaction(transactionID)
+
+	if err := r.client.CreateHttpRequestRuleInTransaction(ctx, transactionID, plan.ParentType.ValueString(), plan.ParentName.ValueString(), payload); err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating HTTP request rule",
 			fmt.Sprintf("Could not create HTTP request rule: %s", err),
 		)
+		return
+	}
+
+	if err := r.client.CommitTransaction(transactionID); err != nil {
+		resp.Diagnostics.AddError("Error committing transaction", err.Error())
 		return
 	}
 
@@ -285,8 +298,8 @@ func (r *HttpRequestRuleResource) Read(ctx context.Context, req resource.ReadReq
 
 	// Find the specific rule by index
 	var foundRule *HttpRequestRulePayload
-	for _, rule := range rules {
-		if rule.Index == state.Index.ValueInt64() {
+	for i, rule := range rules {
+		if int64(i) == state.Index.ValueInt64() {
 			foundRule = &rule
 			break
 		}
@@ -338,12 +351,33 @@ func (r *HttpRequestRuleResource) Update(ctx context.Context, req resource.Updat
 		StatusReason: plan.ReturnContent.ValueString(),
 	}
 
-	// Update the HTTP request rule
-	if err := r.client.UpdateHttpRequestRule(ctx, plan.Index.ValueInt64(), plan.ParentType.ValueString(), plan.ParentName.ValueString(), payload); err != nil {
+	// Update the HTTP request rule using single transaction approach
+	transactionID, err := r.client.BeginTransaction()
+	if err != nil {
+		resp.Diagnostics.AddError("Error beginning transaction", err.Error())
+		return
+	}
+	defer r.client.RollbackTransaction(transactionID)
+
+	// For HTTP request rules, we need to delete and recreate since there's no direct update
+	if err := r.client.DeleteHttpRequestRuleInTransaction(ctx, transactionID, plan.Index.ValueInt64(), plan.ParentType.ValueString(), plan.ParentName.ValueString()); err != nil {
 		resp.Diagnostics.AddError(
-			"Error updating HTTP request rule",
-			fmt.Sprintf("Could not update HTTP request rule: %s", err),
+			"Error deleting HTTP request rule for update",
+			fmt.Sprintf("Could not delete HTTP request rule: %s", err),
 		)
+		return
+	}
+
+	if err := r.client.CreateHttpRequestRuleInTransaction(ctx, transactionID, plan.ParentType.ValueString(), plan.ParentName.ValueString(), payload); err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating HTTP request rule for update",
+			fmt.Sprintf("Could not create HTTP request rule: %s", err),
+		)
+		return
+	}
+
+	if err := r.client.CommitTransaction(transactionID); err != nil {
+		resp.Diagnostics.AddError("Error committing transaction", err.Error())
 		return
 	}
 
@@ -361,12 +395,24 @@ func (r *HttpRequestRuleResource) Delete(ctx context.Context, req resource.Delet
 		return
 	}
 
-	// Delete the HTTP request rule
-	if err := r.client.DeleteHttpRequestRule(ctx, state.Index.ValueInt64(), state.ParentType.ValueString(), state.ParentName.ValueString()); err != nil {
+	// Delete the HTTP request rule using single transaction approach
+	transactionID, err := r.client.BeginTransaction()
+	if err != nil {
+		resp.Diagnostics.AddError("Error beginning transaction", err.Error())
+		return
+	}
+	defer r.client.RollbackTransaction(transactionID)
+
+	if err := r.client.DeleteHttpRequestRuleInTransaction(ctx, transactionID, state.Index.ValueInt64(), state.ParentType.ValueString(), state.ParentName.ValueString()); err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting HTTP request rule",
 			fmt.Sprintf("Could not delete HTTP request rule: %s", err),
 		)
+		return
+	}
+
+	if err := r.client.CommitTransaction(transactionID); err != nil {
+		resp.Diagnostics.AddError("Error committing transaction", err.Error())
 		return
 	}
 }
@@ -404,7 +450,7 @@ func (r *HttpRequestRuleResource) ImportState(ctx context.Context, req resource.
 
 // haproxyHttpRequestRuleModel maps the http_request_rule block schema data.
 type haproxyHttpRequestRuleModel struct {
-	Index      types.Int64  `tfsdk:"index"`
+	Index      types.Int64  `tfsdk:"index"` // For backward compatibility with existing state
 	Type       types.String `tfsdk:"type"`
 	RedirType  types.String `tfsdk:"redir_type"`
 	RedirValue types.String `tfsdk:"redir_value"`
@@ -436,14 +482,14 @@ func (r *HttpRequestRuleManager) CreateHttpRequestRules(ctx context.Context, par
 	sortedRules := r.processHttpRequestRulesBlock(rules)
 
 	// Create rules in order
-	for _, rule := range sortedRules {
-		rulePayload := r.convertToHttpRequestRulePayload(&rule)
+	for i, rule := range sortedRules {
+		rulePayload := r.convertToHttpRequestRulePayload(&rule, i)
 
 		if err := r.client.CreateHttpRequestRule(ctx, parentType, parentName, rulePayload); err != nil {
-			return fmt.Errorf("failed to create HTTP request rule at index %d: %w", rule.Index.ValueInt64(), err)
+			return fmt.Errorf("failed to create HTTP request rule at index %d: %w", i, err)
 		}
 
-		log.Printf("Created HTTP request rule at index %d for %s %s", rule.Index.ValueInt64(), parentType, parentName)
+		log.Printf("Created HTTP request rule at index %d for %s %s", i, parentType, parentName)
 	}
 
 	return nil
@@ -462,8 +508,8 @@ func (r *HttpRequestRuleManager) CreateHttpRequestRulesInTransaction(ctx context
 	if r.client.apiVersion == "v3" {
 		// Convert all rules to payloads
 		var allPayloads []HttpRequestRulePayload
-		for _, rule := range sortedRules {
-			rulePayload := r.convertToHttpRequestRulePayload(&rule)
+		for i, rule := range sortedRules {
+			rulePayload := r.convertToHttpRequestRulePayload(&rule, i)
 			allPayloads = append(allPayloads, *rulePayload)
 		}
 
@@ -477,14 +523,14 @@ func (r *HttpRequestRuleManager) CreateHttpRequestRulesInTransaction(ctx context
 	}
 
 	// v2: Create rules one by one (original logic)
-	for _, rule := range sortedRules {
-		rulePayload := r.convertToHttpRequestRulePayload(&rule)
+	for i, rule := range sortedRules {
+		rulePayload := r.convertToHttpRequestRulePayload(&rule, i)
 
 		if err := r.client.CreateHttpRequestRuleInTransaction(ctx, transactionID, parentType, parentName, rulePayload); err != nil {
-			return fmt.Errorf("failed to create HTTP request rule at index %d: %w", rule.Index.ValueInt64(), err)
+			return fmt.Errorf("failed to create HTTP request rule at index %d: %w", i, err)
 		}
 
-		log.Printf("Created HTTP request rule at index %d for %s %s in transaction %s", rule.Index.ValueInt64(), parentType, parentName, transactionID)
+		log.Printf("Created HTTP request rule at index %d for %s %s in transaction %s", i, parentType, parentName, transactionID)
 	}
 
 	return nil
@@ -521,48 +567,90 @@ func (r *HttpRequestRuleManager) DeleteHttpRequestRules(ctx context.Context, par
 	return r.deleteAllHttpRequestRules(ctx, parentType, parentName)
 }
 
-// processHttpRequestRulesBlock processes and sorts HTTP request rules by index
+// processHttpRequestRulesBlock processes HTTP request rules using array position for ordering and deduplication
 func (r *HttpRequestRuleManager) processHttpRequestRulesBlock(rules []haproxyHttpRequestRuleModel) []haproxyHttpRequestRuleModel {
 	if len(rules) == 0 {
 		return rules
 	}
 
-	// Sort by index to ensure proper order
-	sortedRules := make([]haproxyHttpRequestRuleModel, len(rules))
-	copy(sortedRules, rules)
+	// Deduplicate rules by creating a map with unique keys
+	// Similar to how ACLs are deduplicated by ACL name
+	ruleMap := make(map[string]haproxyHttpRequestRuleModel)
 
-	sort.Slice(sortedRules, func(i, j int) bool {
-		return sortedRules[i].Index.ValueInt64() < sortedRules[j].Index.ValueInt64()
-	})
+	for i, rule := range rules {
+		// Generate a unique key based on rule content
+		key := r.generateRuleKey(&rule)
 
-	return sortedRules
+		// If a rule with the same key already exists, keep the last one (like ACLs)
+		ruleMap[key] = rule
+		log.Printf("HTTP request rule %d: key='%s', type='%s', cond='%s'", i, key, rule.Type.ValueString(), rule.Cond.ValueString())
+	}
+
+	// Convert map back to slice, maintaining the original order for the first occurrence of each unique rule
+	var deduplicatedRules []haproxyHttpRequestRuleModel
+	seenKeys := make(map[string]bool)
+
+	for _, rule := range rules {
+		key := r.generateRuleKey(&rule)
+		if !seenKeys[key] {
+			deduplicatedRules = append(deduplicatedRules, rule)
+			seenKeys[key] = true
+		}
+	}
+
+	log.Printf("Deduplicated HTTP request rules: %d original -> %d unique", len(rules), len(deduplicatedRules))
+	return deduplicatedRules
+}
+
+// generateRuleKey creates a unique key for an HTTP request rule based on its content
+func (r *HttpRequestRuleManager) generateRuleKey(rule *haproxyHttpRequestRuleModel) string {
+	// Create a key based on the most important fields that would make rules duplicates
+	// This is similar to how ACLs use the ACL name as the key
+	key := fmt.Sprintf("%s|%s|%s|%s|%s|%s",
+		rule.Type.ValueString(),
+		rule.RedirType.ValueString(),
+		rule.RedirValue.ValueString(),
+		rule.Cond.ValueString(),
+		rule.CondTest.ValueString(),
+		rule.HdrName.ValueString(),
+	)
+	return key
 }
 
 // convertToHttpRequestRulePayload converts the Terraform model to HAProxy API payload
-func (r *HttpRequestRuleManager) convertToHttpRequestRulePayload(rule *haproxyHttpRequestRuleModel) *HttpRequestRulePayload {
+func (r *HttpRequestRuleManager) convertToHttpRequestRulePayload(rule *haproxyHttpRequestRuleModel, position int) *HttpRequestRulePayload {
 	payload := &HttpRequestRulePayload{
-		Index: rule.Index.ValueInt64(),
+		Index: int64(position), // Use array position instead of index field
 		Type:  rule.Type.ValueString(),
 	}
 
-	// Set optional fields only if they have values
-	if !rule.Cond.IsNull() && !rule.Cond.IsUnknown() {
+	// Set optional fields only if they have values and are not empty
+	if !rule.Cond.IsNull() && !rule.Cond.IsUnknown() && rule.Cond.ValueString() != "" {
 		payload.Cond = rule.Cond.ValueString()
 	}
-	if !rule.CondTest.IsNull() && !rule.CondTest.IsUnknown() {
+	if !rule.CondTest.IsNull() && !rule.CondTest.IsUnknown() && rule.CondTest.ValueString() != "" {
 		payload.CondTest = rule.CondTest.ValueString()
 	}
-	if !rule.HdrName.IsNull() && !rule.HdrName.IsUnknown() {
+	if !rule.HdrName.IsNull() && !rule.HdrName.IsUnknown() && rule.HdrName.ValueString() != "" {
 		payload.HdrName = rule.HdrName.ValueString()
 	}
-	if !rule.HdrFormat.IsNull() && !rule.HdrFormat.IsUnknown() {
+	if !rule.HdrFormat.IsNull() && !rule.HdrFormat.IsUnknown() && rule.HdrFormat.ValueString() != "" {
 		payload.HdrFormat = rule.HdrFormat.ValueString()
 	}
-	if !rule.RedirType.IsNull() && !rule.RedirType.IsUnknown() {
+	if !rule.RedirType.IsNull() && !rule.RedirType.IsUnknown() && rule.RedirType.ValueString() != "" {
 		payload.RedirType = rule.RedirType.ValueString()
 	}
-	if !rule.RedirValue.IsNull() && !rule.RedirValue.IsUnknown() {
+	if !rule.RedirValue.IsNull() && !rule.RedirValue.IsUnknown() && rule.RedirValue.ValueString() != "" {
 		payload.RedirValue = rule.RedirValue.ValueString()
+	}
+
+	// Debug logging to see what's being sent
+	log.Printf("DEBUG: HTTP request rule payload: Type=%s, Cond=%s, CondTest=%s, HdrName=%s, HdrFormat=%s",
+		payload.Type, payload.Cond, payload.CondTest, payload.HdrName, payload.HdrFormat)
+
+	// Validate that required fields are present for specific rule types
+	if payload.Type == "set-header" && (payload.HdrName == "" || payload.HdrFormat == "") {
+		log.Printf("WARNING: set-header rule at position %d is missing hdr_name or hdr_format, this may cause formatting issues", position)
 	}
 
 	return payload
@@ -570,179 +658,154 @@ func (r *HttpRequestRuleManager) convertToHttpRequestRulePayload(rule *haproxyHt
 
 // updateHttpRequestRulesWithIndexing handles the complex logic of updating HTTP request rules while maintaining order
 func (r *HttpRequestRuleManager) updateHttpRequestRulesWithIndexing(ctx context.Context, parentType string, parentName string, existingRules []HttpRequestRulePayload, newRules []haproxyHttpRequestRuleModel) error {
-	// Process new rules with proper indexing
+	// Process new rules with proper indexing and deduplication
 	sortedNewRules := r.processHttpRequestRulesBlock(newRules)
 
-	// Create maps for efficient lookup
-	existingRuleMap := make(map[int64]*HttpRequestRulePayload)
-	for i := range existingRules {
-		existingRuleMap[existingRules[i].Index] = &existingRules[i]
-	}
-
-	// Track which rules we've processed to avoid duplicates
-	processedRules := make(map[int64]bool)
-
-	// Track rules that need to be recreated due to index changes
-	var rulesToRecreate []haproxyHttpRequestRuleModel
-
-	// First pass: identify rules that need index changes and mark them for recreation
-	for _, newRule := range sortedNewRules {
-		newRuleIndex := newRule.Index.ValueInt64()
-
-		// Check if this rule exists by index
-		if existingRule, exists := existingRuleMap[newRuleIndex]; exists {
-			// Index exists, check if content has changed
-			if r.hasRuleChanged(existingRule, &newRule) {
-				// Content has changed, mark for recreation
-				log.Printf("HTTP request rule at index %d has changed, will recreate", newRuleIndex)
-				rulesToRecreate = append(rulesToRecreate, newRule)
-			} else {
-				// Rule is identical, no changes needed
-				log.Printf("HTTP request rule at index %d is unchanged", newRuleIndex)
-			}
-			// Mark this rule as processed
-			processedRules[newRuleIndex] = true
-		} else {
-			// This is a new rule, mark for creation
-			log.Printf("HTTP request rule at index %d is new, will create", newRuleIndex)
+	// For consistency with create operations, use the same "create all at once" approach
+	// This ensures consistent formatting from HAProxy API
+	if r.client.apiVersion == "v3" {
+		// Convert all rules to payloads
+		var allPayloads []HttpRequestRulePayload
+		for i, rule := range sortedNewRules {
+			rulePayload := r.convertToHttpRequestRulePayload(&rule, i)
+			allPayloads = append(allPayloads, *rulePayload)
 		}
-	}
 
-	// Second pass: delete all rules that need to be recreated (due to content changes)
-	// Delete in reverse order (highest index first) to avoid shifting issues
-	for _, newRule := range rulesToRecreate {
-		newRuleIndex := newRule.Index.ValueInt64()
-		if existingRule, exists := existingRuleMap[newRuleIndex]; exists {
-			log.Printf("Deleting HTTP request rule at index %d for recreation", newRuleIndex)
-			err := r.client.DeleteHttpRequestRule(ctx, existingRule.Index, parentType, parentName)
-			if err != nil {
-				return fmt.Errorf("failed to delete HTTP request rule at index %d: %w", newRuleIndex, err)
+		// Use transaction to get consistent formatting
+		_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
+			// Send all rules in one request (same as create)
+			if err := r.client.CreateAllHttpRequestRulesInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
+				return nil, fmt.Errorf("failed to update all HTTP request rules for %s %s: %w", parentType, parentName, err)
 			}
-		}
-	}
-
-	// Third pass: create all rules that need to be recreated at their positions
-	for _, newRule := range rulesToRecreate {
-		newRuleIndex := newRule.Index.ValueInt64()
-
-		log.Printf("Creating HTTP request rule at index %d", newRuleIndex)
-		rulePayload := r.convertToHttpRequestRulePayload(&newRule)
-
-		err := r.client.CreateHttpRequestRule(ctx, parentType, parentName, rulePayload)
+			return nil, nil
+		})
 		if err != nil {
-			return fmt.Errorf("failed to create HTTP request rule at index %d: %w", newRuleIndex, err)
+			return err
+		}
+
+		log.Printf("Updated all %d HTTP request rules for %s %s", len(allPayloads), parentType, parentName)
+		return nil
+	}
+
+	// Fallback to individual operations for v2
+	// Convert desired rules to map for easier comparison (similar to ACLs)
+	desiredMap := make(map[string]HttpRequestRulePayload)
+	for i, rule := range sortedNewRules {
+		ruleKey := r.generateRuleKey(&rule)
+		log.Printf("DEBUG: Desired HTTP request rule: %s (array position: %d)", ruleKey, i)
+		desiredMap[ruleKey] = HttpRequestRulePayload{
+			Index:      int64(i), // Use array position instead of index field
+			Type:       rule.Type.ValueString(),
+			Cond:       rule.Cond.ValueString(),
+			CondTest:   rule.CondTest.ValueString(),
+			HdrName:    rule.HdrName.ValueString(),
+			HdrFormat:  rule.HdrFormat.ValueString(),
+			RedirType:  rule.RedirType.ValueString(),
+			RedirValue: rule.RedirValue.ValueString(),
 		}
 	}
 
-	// Delete rules that are no longer needed (not in the new configuration)
-	// Delete in reverse order (highest index first) to avoid shifting issues
+	// Convert existing rules to map for easier comparison
+	existingMap := make(map[string]HttpRequestRulePayload)
+	for i, rule := range existingRules {
+		// Use array position instead of API index since HAProxy API returns wrong indices
+		rule.Index = int64(i)
+		ruleKey := r.generateRuleKeyFromPayload(&rule)
+		log.Printf("DEBUG: Found existing HTTP request rule: %s (corrected index: %d)", ruleKey, rule.Index)
+		existingMap[ruleKey] = rule
+	}
+
+	// Find rules to delete (exist in HAProxy but not in desired state)
 	var rulesToDelete []HttpRequestRulePayload
-	for _, existingRule := range existingRules {
-		if !processedRules[existingRule.Index] {
+	for key, existingRule := range existingMap {
+		if _, exists := desiredMap[key]; !exists {
 			rulesToDelete = append(rulesToDelete, existingRule)
 		}
 	}
 
-	// Sort by index in descending order (highest first)
-	sort.Slice(rulesToDelete, func(i, j int) bool {
-		return rulesToDelete[i].Index > rulesToDelete[j].Index
-	})
-
-	// Delete rules in reverse order
-	for _, ruleToDelete := range rulesToDelete {
-		log.Printf("Deleting HTTP request rule at index %d (no longer needed)", ruleToDelete.Index)
-		err := r.client.DeleteHttpRequestRule(ctx, ruleToDelete.Index, parentType, parentName)
-		if err != nil {
-			return fmt.Errorf("failed to delete HTTP request rule: %w", err)
+	// Find rules to create (exist in desired state but not in HAProxy)
+	var rulesToCreate []HttpRequestRulePayload
+	for key, desiredRule := range desiredMap {
+		if _, exists := existingMap[key]; !exists {
+			rulesToCreate = append(rulesToCreate, desiredRule)
 		}
 	}
 
-	// Create new rules that don't exist yet
-	for _, newRule := range sortedNewRules {
-		newRuleIndex := newRule.Index.ValueInt64()
-		if !processedRules[newRuleIndex] {
-			// This is a new rule, create it with the user-specified index
-			log.Printf("Creating new HTTP request rule at index %d", newRuleIndex)
-			rulePayload := r.convertToHttpRequestRulePayload(&newRule)
-
-			err := r.client.CreateHttpRequestRule(ctx, parentType, parentName, rulePayload)
-			if err != nil {
-				return fmt.Errorf("failed to create HTTP request rule: %w", err)
+	// Find rules to update (exist in both but have different content or position)
+	var rulesToUpdate []HttpRequestRulePayload
+	for key, desiredRule := range desiredMap {
+		if existingRule, exists := existingMap[key]; exists {
+			if r.hasRuleChangedFromPayload(&existingRule, &desiredRule) {
+				log.Printf("DEBUG: HTTP request rule '%s' content changed, will update", key)
+				rulesToUpdate = append(rulesToUpdate, desiredRule)
+			} else if existingRule.Index != desiredRule.Index {
+				log.Printf("DEBUG: HTTP request rule '%s' position changed from %d to %d, will reorder", key, existingRule.Index, desiredRule.Index)
+				rulesToUpdate = append(rulesToUpdate, desiredRule)
 			}
 		}
 	}
 
-	return nil
-}
-
-// UpdateHttpRequestRulesInTransaction updates HTTP request rules using an existing transaction ID
-func (r *HttpRequestRuleManager) UpdateHttpRequestRulesInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, rules []haproxyHttpRequestRuleModel) error {
-	// For now, we'll use the existing UpdateHttpRequestRules logic but with transaction support
-	// This is a simplified version that creates a new transaction for rule updates
-	// In a more sophisticated implementation, we could reuse the existing transaction
-
-	// Delete existing rules first
-	if err := r.deleteAllHttpRequestRulesInTransaction(ctx, transactionID, parentType, parentName); err != nil {
-		return fmt.Errorf("failed to delete existing HTTP request rules: %w", err)
+	// Delete rules that are no longer needed
+	for _, rule := range rulesToDelete {
+		log.Printf("Deleting HTTP request rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
+		if err := r.client.DeleteHttpRequestRule(ctx, rule.Index, parentType, parentName); err != nil {
+			return fmt.Errorf("failed to delete HTTP request rule: %w", err)
+		}
 	}
 
-	// Create new rules with the transaction
-	if err := r.CreateHttpRequestRulesInTransaction(ctx, transactionID, parentType, parentName, rules); err != nil {
-		return fmt.Errorf("failed to create new HTTP request rules: %w", err)
+	// Update rules that have changed
+	for _, rule := range rulesToUpdate {
+		log.Printf("Updating HTTP request rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
+		if err := r.client.UpdateHttpRequestRule(ctx, rule.Index, parentType, parentName, &rule); err != nil {
+			return fmt.Errorf("failed to update HTTP request rule: %w", err)
+		}
 	}
 
-	return nil
-}
-
-// hasRuleChanged checks if an existing rule has changed compared to a new rule
-func (r *HttpRequestRuleManager) hasRuleChanged(existing *HttpRequestRulePayload, new *haproxyHttpRequestRuleModel) bool {
-	// Compare the most important fields
-	if existing.Type != new.Type.ValueString() {
-		return true
-	}
-	if existing.Cond != new.Cond.ValueString() {
-		return true
-	}
-	if existing.CondTest != new.CondTest.ValueString() {
-		return true
-	}
-	if existing.HdrName != new.HdrName.ValueString() {
-		return true
-	}
-	if existing.HdrFormat != new.HdrFormat.ValueString() {
-		return true
-	}
-	if existing.RedirType != new.RedirType.ValueString() {
-		return true
-	}
-	if existing.RedirValue != new.RedirValue.ValueString() {
-		return true
-	}
-	// Add more field comparisons as needed
-	return false
-}
-
-// deleteAllHttpRequestRulesInTransaction deletes all HTTP request rules for a parent resource using an existing transaction ID
-func (r *HttpRequestRuleManager) deleteAllHttpRequestRulesInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
-	rules, err := r.ReadHttpRequestRules(ctx, parentType, parentName)
-	if err != nil {
-		return fmt.Errorf("failed to read HTTP request rules for deletion: %w", err)
-	}
-
-	// Delete in reverse order (highest index first) to avoid shifting issues
-	sort.Slice(rules, func(i, j int) bool {
-		return rules[i].Index > rules[j].Index
-	})
-
-	for _, rule := range rules {
-		log.Printf("Deleting HTTP request rule at index %d in transaction %s", rule.Index, transactionID)
-		err := r.client.DeleteHttpRequestRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName)
-		if err != nil {
-			return fmt.Errorf("failed to delete HTTP request rule at index %d: %w", rule.Index, err)
+	// Create new rules
+	for _, rule := range rulesToCreate {
+		log.Printf("Creating HTTP request rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
+		if err := r.client.CreateHttpRequestRule(ctx, parentType, parentName, &rule); err != nil {
+			return fmt.Errorf("failed to create HTTP request rule: %w", err)
 		}
 	}
 
 	return nil
+}
+
+// generateRuleKeyFromPayload creates a unique key for an HTTP request rule payload based on its content
+func (r *HttpRequestRuleManager) generateRuleKeyFromPayload(rule *HttpRequestRulePayload) string {
+	// Create a key based on the most important fields that would make rules duplicates
+	key := fmt.Sprintf("%s|%s|%s|%s|%s|%s",
+		rule.Type,
+		rule.RedirType,
+		rule.RedirValue,
+		rule.Cond,
+		rule.CondTest,
+		rule.HdrName,
+	)
+	return key
+}
+
+// hasRuleChangedFromPayload compares two HTTP request rule payloads to determine if they have different content
+func (r *HttpRequestRuleManager) hasRuleChangedFromPayload(existing, desired *HttpRequestRulePayload) bool {
+	return existing.Type != desired.Type ||
+		existing.Cond != desired.Cond ||
+		existing.CondTest != desired.CondTest ||
+		existing.HdrName != desired.HdrName ||
+		existing.HdrFormat != desired.HdrFormat ||
+		existing.RedirType != desired.RedirType ||
+		existing.RedirValue != desired.RedirValue
+}
+
+// hasRuleChanged checks if an HTTP request rule has changed between existing and new configurations
+func (r *HttpRequestRuleManager) hasRuleChanged(existing *HttpRequestRulePayload, new *haproxyHttpRequestRuleModel) bool {
+	return existing.Type != new.Type.ValueString() ||
+		existing.Cond != new.Cond.ValueString() ||
+		existing.CondTest != new.CondTest.ValueString() ||
+		existing.HdrName != new.HdrName.ValueString() ||
+		existing.HdrFormat != new.HdrFormat.ValueString() ||
+		existing.RedirType != new.RedirType.ValueString() ||
+		existing.RedirValue != new.RedirValue.ValueString()
 }
 
 // deleteAllHttpRequestRules deletes all HTTP request rules for a parent resource
@@ -760,6 +823,164 @@ func (r *HttpRequestRuleManager) deleteAllHttpRequestRules(ctx context.Context, 
 	for _, rule := range rules {
 		log.Printf("Deleting HTTP request rule at index %d", rule.Index)
 		err := r.client.DeleteHttpRequestRule(ctx, rule.Index, parentType, parentName)
+		if err != nil {
+			return fmt.Errorf("failed to delete HTTP request rule: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// UpdateHttpRequestRulesInTransaction updates HTTP request rules using an existing transaction ID with smart comparison
+func (r *HttpRequestRuleManager) UpdateHttpRequestRulesInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, rules []haproxyHttpRequestRuleModel) error {
+	return r.updateHttpRequestRulesWithIndexingInTransaction(ctx, transactionID, parentType, parentName, rules)
+}
+
+// updateHttpRequestRulesWithIndexingInTransaction performs smart HTTP request rule updates by comparing content rather than just deleting/recreating
+func (r *HttpRequestRuleManager) updateHttpRequestRulesWithIndexingInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, desiredRules []haproxyHttpRequestRuleModel) error {
+	log.Printf("DEBUG: Starting HTTP request rule update for %s '%s' with %d desired rules", parentType, parentName, len(desiredRules))
+
+	// For consistency with create operations, use the same "create all at once" approach
+	// This ensures consistent formatting from HAProxy API
+	if r.client.apiVersion == "v3" {
+		// Process rules with proper indexing and deduplication
+		sortedRules := r.processHttpRequestRulesBlock(desiredRules)
+
+		// Convert all rules to payloads
+		var allPayloads []HttpRequestRulePayload
+		for i, rule := range sortedRules {
+			rulePayload := r.convertToHttpRequestRulePayload(&rule, i)
+			allPayloads = append(allPayloads, *rulePayload)
+		}
+
+		// Send all rules in one request (same as create)
+		if err := r.client.CreateAllHttpRequestRulesInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
+			return fmt.Errorf("failed to update all HTTP request rules for %s %s: %w", parentType, parentName, err)
+		}
+
+		log.Printf("Updated all %d HTTP request rules for %s %s in transaction %s", len(allPayloads), parentType, parentName, transactionID)
+		return nil
+	}
+
+	// Fallback to individual operations for v2
+	// Read existing HTTP request rules from HAProxy
+	existingRules, err := r.client.ReadHttpRequestRules(ctx, parentType, parentName)
+	if err != nil {
+		return fmt.Errorf("failed to read existing HTTP request rules: %w", err)
+	}
+
+	log.Printf("DEBUG: Found %d existing HTTP request rules", len(existingRules))
+
+	// Convert desired rules to map for easier comparison
+	desiredMap := make(map[string]HttpRequestRulePayload)
+	for i, rule := range desiredRules {
+		// Use type + cond + cond_test as key for better matching
+		ruleKey := fmt.Sprintf("%s_%s_%s", rule.Type.ValueString(), rule.Cond.ValueString(), rule.CondTest.ValueString())
+		log.Printf("DEBUG: Desired HTTP request rule: %s (key: %s)", rule.Type.ValueString(), ruleKey)
+		desiredMap[ruleKey] = HttpRequestRulePayload{
+			Type:     rule.Type.ValueString(),
+			Cond:     rule.Cond.ValueString(),
+			CondTest: rule.CondTest.ValueString(),
+			Index:    int64(i),
+		}
+	}
+
+	// Convert existing rules to map for easier comparison
+	existingMap := make(map[string]HttpRequestRulePayload)
+	for _, rule := range existingRules {
+		// Use type + cond + cond_test as key for better matching
+		ruleKey := fmt.Sprintf("%s_%s_%s", rule.Type, rule.Cond, rule.CondTest)
+		log.Printf("DEBUG: Found existing HTTP request rule: %s (key: %s)", rule.Type, ruleKey)
+		existingMap[ruleKey] = rule
+	}
+
+	// Find rules to delete (exist in HAProxy but not in desired state)
+	var rulesToDelete []HttpRequestRulePayload
+	for key, existingRule := range existingMap {
+		if _, exists := desiredMap[key]; !exists {
+			log.Printf("DEBUG: HTTP request rule to delete: %s (key: %s)", existingRule.Type, key)
+			rulesToDelete = append(rulesToDelete, existingRule)
+		}
+	}
+
+	// Find rules to create (exist in desired state but not in HAProxy)
+	var rulesToCreate []HttpRequestRulePayload
+	for key, desiredRule := range desiredMap {
+		if _, exists := existingMap[key]; !exists {
+			log.Printf("DEBUG: HTTP request rule to create: %s (key: %s)", desiredRule.Type, key)
+			rulesToCreate = append(rulesToCreate, desiredRule)
+		}
+	}
+
+	// Find rules to update (exist in both but have different content)
+	var rulesToUpdate []HttpRequestRulePayload
+	for key, desiredRule := range desiredMap {
+		if existingRule, exists := existingMap[key]; exists {
+			if hasHttpRequestRuleChanged(existingRule, desiredRule) {
+				log.Printf("DEBUG: HTTP request rule to update: %s (key: %s)", desiredRule.Type, key)
+				rulesToUpdate = append(rulesToUpdate, desiredRule)
+			} else {
+				log.Printf("DEBUG: HTTP request rule unchanged: %s (key: %s)", desiredRule.Type, key)
+			}
+		}
+	}
+
+	log.Printf("DEBUG: HTTP request rule comparison results - Delete: %d, Create: %d, Update: %d", len(rulesToDelete), len(rulesToCreate), len(rulesToUpdate))
+
+	// Delete rules that are no longer needed
+	for _, rule := range rulesToDelete {
+		log.Printf("Deleting HTTP request rule at index %d in transaction %s", rule.Index, transactionID)
+		if err := r.client.DeleteHttpRequestRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName); err != nil {
+			return fmt.Errorf("failed to delete HTTP request rule at index %d: %w", rule.Index, err)
+		}
+	}
+
+	// Update rules that have changed
+	for _, rule := range rulesToUpdate {
+		log.Printf("Updating HTTP request rule at index %d in transaction %s", rule.Index, transactionID)
+		// For now, delete and recreate since there's no update method
+		if err := r.client.DeleteHttpRequestRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName); err != nil {
+			return fmt.Errorf("failed to delete HTTP request rule at index %d for update: %w", rule.Index, err)
+		}
+		if err := r.client.CreateHttpRequestRuleInTransaction(ctx, transactionID, parentType, parentName, &rule); err != nil {
+			return fmt.Errorf("failed to recreate HTTP request rule at index %d: %w", rule.Index, err)
+		}
+	}
+
+	// Create new rules
+	for _, rule := range rulesToCreate {
+		log.Printf("Creating HTTP request rule at index %d for %s '%s' in transaction %s", rule.Index, parentType, parentName, transactionID)
+		if err := r.client.CreateHttpRequestRuleInTransaction(ctx, transactionID, parentType, parentName, &rule); err != nil {
+			return fmt.Errorf("failed to create HTTP request rule at index %d: %w", rule.Index, err)
+		}
+	}
+
+	// Note: Reordering is not necessary for simple HTTP request rule updates
+	// The rules will maintain their existing order unless explicitly changed
+
+	return nil
+}
+
+// hasHttpRequestRuleChanged compares two HTTP request rules to determine if they have different content
+func hasHttpRequestRuleChanged(existing, desired HttpRequestRulePayload) bool {
+	return existing.Type != desired.Type || existing.Cond != desired.Cond || existing.CondTest != desired.CondTest
+}
+
+// deleteAllHttpRequestRulesInTransaction deletes all HTTP request rules for a parent resource using an existing transaction ID
+func (r *HttpRequestRuleManager) deleteAllHttpRequestRulesInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+	rules, err := r.ReadHttpRequestRules(ctx, parentType, parentName)
+	if err != nil {
+		return fmt.Errorf("failed to read HTTP request rules for deletion: %w", err)
+	}
+
+	// Delete in reverse order (highest index first) to avoid shifting issues
+	sort.Slice(rules, func(i, j int) bool {
+		return rules[i].Index > rules[j].Index
+	})
+
+	for _, rule := range rules {
+		log.Printf("Deleting HTTP request rule at index %d in transaction %s", rule.Index, transactionID)
+		err := r.client.DeleteHttpRequestRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName)
 		if err != nil {
 			return fmt.Errorf("failed to delete HTTP request rule at index %d: %w", rule.Index, err)
 		}
@@ -799,7 +1020,7 @@ func (r *HttpRequestRuleManager) formatHttpRequestRuleOrder(rules []haproxyHttpR
 
 	var order []string
 	for _, rule := range rules {
-		order = append(order, fmt.Sprintf("%d", rule.Index.ValueInt64()))
+		order = append(order, rule.Type.ValueString())
 	}
 	return fmt.Sprintf("[%s]", strings.Join(order, ", "))
 }

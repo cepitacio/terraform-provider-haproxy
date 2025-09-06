@@ -210,14 +210,7 @@ func (p *StackProcessors) processACLsData(ctx context.Context, acls []haproxyAcl
 			return fmt.Errorf("ACL %d: value is required", i)
 		}
 
-		if acl.Index.IsNull() || acl.Index.IsUnknown() {
-			return fmt.Errorf("ACL %d: index is required", i)
-		}
-
-		// Validate index is non-negative
-		if acl.Index.ValueInt64() < 0 {
-			return fmt.Errorf("ACL %d: index must be non-negative, got: %d", i, acl.Index.ValueInt64())
-		}
+		// Index is now handled by array position, no validation needed
 	}
 
 	return nil

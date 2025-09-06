@@ -127,10 +127,6 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 				Description: "HTTP request rule configuration for the frontend.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index/order of the HTTP request rule.",
-						},
 						"type": schema.StringAttribute{
 							Required:    true,
 							Description: "The type of the HTTP request rule.",
@@ -158,6 +154,10 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 						"redir_value": schema.StringAttribute{
 							Optional:    true,
 							Description: "The redirection value.",
+						},
+						"index": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The index/order of the HTTP request rule (for backward compatibility).",
 						},
 					},
 				},
@@ -251,7 +251,7 @@ func (r *FrontendManager) CreateFrontendInTransaction(ctx context.Context, trans
 		}
 	}
 
-	// Note: HTTP request rules are now handled at the stack level, not here
+	// HTTP request rules handled at stack level for coordinated operations
 	return nil
 }
 
@@ -274,7 +274,7 @@ func (r *FrontendManager) UpdateFrontendInTransaction(ctx context.Context, trans
 		}
 	}
 
-	// Note: HTTP request rules are now handled at the stack level, not here
+	// HTTP request rules handled at stack level for coordinated operations
 	return nil
 }
 
@@ -338,7 +338,6 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 				AclName:   types.StringValue(acl.AclName),
 				Criterion: types.StringValue(acl.Criterion),
 				Value:     types.StringValue(acl.Value),
-				Index:     types.Int64Value(acl.Index),
 			})
 		}
 		frontendModel.Acls = aclModels
@@ -492,7 +491,7 @@ func (r *FrontendManager) formatAclOrder(acls []haproxyAclModel) string {
 
 	var order []string
 	for _, acl := range acls {
-		order = append(order, fmt.Sprintf("%s(index:%d)", acl.AclName.ValueString(), acl.Index.ValueInt64()))
+		order = append(order, acl.AclName.ValueString())
 	}
 	return strings.Join(order, " → ")
 }
@@ -505,7 +504,7 @@ func (r *FrontendManager) formatHttpRequestRuleOrder(rules []haproxyHttpRequestR
 
 	var order []string
 	for _, rule := range rules {
-		order = append(order, fmt.Sprintf("%s(%d)", rule.Type.ValueString(), rule.Index.ValueInt64()))
+		order = append(order, rule.Type.ValueString())
 	}
 	return fmt.Sprintf("[%s]", strings.Join(order, ", "))
 }
@@ -513,8 +512,7 @@ func (r *FrontendManager) formatHttpRequestRuleOrder(rules []haproxyHttpRequestR
 // convertHttpRequestRulePayloadToModel converts HAProxy API payload to Terraform model
 func (r *FrontendManager) convertHttpRequestRulePayloadToModel(payload *HttpRequestRulePayload) haproxyHttpRequestRuleModel {
 	model := haproxyHttpRequestRuleModel{
-		Index: types.Int64Value(payload.Index),
-		Type:  types.StringValue(payload.Type),
+		Type: types.StringValue(payload.Type),
 	}
 
 	// Set optional fields only if they have values
