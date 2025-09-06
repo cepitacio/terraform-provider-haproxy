@@ -578,13 +578,7 @@ func (r *BackendManager) CreateBackendInTransaction(ctx context.Context, transac
 		return fmt.Errorf("failed to create backend: %w", err)
 	}
 
-	// Create backend ACLs AFTER backend exists
-	if plan.Acls != nil && len(plan.Acls) > 0 {
-		aclManager := NewACLManager(r.client)
-		if err := aclManager.CreateACLsInTransaction(ctx, transactionID, "backend", plan.Name.ValueString(), plan.Acls); err != nil {
-			return fmt.Errorf("failed to create backend ACLs: %w", err)
-		}
-	}
+	// ACLs handled at stack level for coordinated operations
 
 	return nil
 }
@@ -619,13 +613,7 @@ func (r *BackendManager) UpdateBackendInTransaction(ctx context.Context, transac
 		return fmt.Errorf("failed to update backend: %w", err)
 	}
 
-	// Update ACLs if specified
-	if plan.Acls != nil && len(plan.Acls) > 0 {
-		aclManager := NewACLManager(r.client)
-		if err := aclManager.UpdateACLsInTransaction(ctx, transactionID, "backend", plan.Name.ValueString(), plan.Acls); err != nil {
-			return fmt.Errorf("failed to update backend ACLs: %w", err)
-		}
-	}
+	// ACLs handled at stack level for coordinated operations
 
 	return nil
 }
