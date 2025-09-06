@@ -2,7 +2,6 @@ package haproxy
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -52,20 +51,7 @@ func (v *StackValidation) ValidateResourceConfig(ctx context.Context, req resour
 		return
 	}
 
-	// Validate ACL indices are unique within their parent
-	if len(data.Acls) > 0 {
-		indices := make(map[int64]bool)
-		for _, acl := range data.Acls {
-			if indices[acl.Index.ValueInt64()] {
-				resp.Diagnostics.AddError(
-					"Invalid Configuration",
-					fmt.Sprintf("Duplicate ACL index %d found", acl.Index.ValueInt64()),
-				)
-				return
-			}
-			indices[acl.Index.ValueInt64()] = true
-		}
-	}
+	// ACL indices are now handled by array position, no validation needed
 
 	tflog.Info(ctx, "Resource configuration validation passed")
 }
