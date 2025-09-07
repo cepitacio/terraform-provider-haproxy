@@ -29,6 +29,10 @@ type httpResponseRuleItemModel struct {
 	CondTest     types.String `tfsdk:"cond_test"`
 	HdrName      types.String `tfsdk:"hdr_name"`
 	HdrFormat    types.String `tfsdk:"hdr_format"`
+	HdrMatch     types.String `tfsdk:"hdr_match"`
+	HdrMethod    types.String `tfsdk:"hdr_method"`
+	RedirType    types.String `tfsdk:"redir_type"`
+	RedirValue   types.String `tfsdk:"redir_value"`
 	StatusCode   types.Int64  `tfsdk:"status_code"`
 	StatusReason types.String `tfsdk:"status_reason"`
 }
@@ -71,6 +75,22 @@ func (d *httpResponseRuleDataSource) Schema(_ context.Context, _ datasource.Sche
 						"hdr_format": schema.StringAttribute{
 							Computed:    true,
 							Description: "The header format of the HTTP response rule.",
+						},
+						"hdr_match": schema.StringAttribute{
+							Computed:    true,
+							Description: "The header match of the HTTP response rule.",
+						},
+						"hdr_method": schema.StringAttribute{
+							Computed:    true,
+							Description: "The header method of the HTTP response rule.",
+						},
+						"redir_type": schema.StringAttribute{
+							Computed:    true,
+							Description: "The redirect type of the HTTP response rule.",
+						},
+						"redir_value": schema.StringAttribute{
+							Computed:    true,
+							Description: "The redirect value of the HTTP response rule.",
 						},
 						"status_code": schema.Int64Attribute{
 							Computed:    true,
@@ -146,6 +166,10 @@ func (d *httpResponseRuleDataSource) Read(ctx context.Context, req datasource.Re
 			CondTest:     types.StringValue(rule.CondTest),
 			HdrName:      types.StringValue(rule.HdrName),
 			HdrFormat:    types.StringValue(rule.HdrFormat),
+			HdrMatch:     types.StringValue(rule.HdrMatch),
+			HdrMethod:    types.StringValue(rule.HdrMethod),
+			RedirType:    types.StringValue(rule.RedirType),
+			RedirValue:   types.StringValue(rule.RedirValue),
 			StatusCode:   types.Int64Value(rule.StatusCode),
 			StatusReason: types.StringValue(rule.StatusReason),
 		})

@@ -167,25 +167,88 @@ func (r *ACLManager) updateAclsWithIndexingInTransactionSmart(ctx context.Contex
 	// Process desired ACLs with proper indexing and deduplication
 	sortedDesiredAcls := r.processAclsBlock(desiredAcls)
 
-	// Create a map of existing ACLs by index for quick lookup
-	existingAclMap := make(map[int64]*ACLPayload)
+	// Create a map of existing ACLs by name for quick lookup (since HAProxy API v3 returns all with index 0)
+	existingAclMap := make(map[string]*ACLPayload)
 	for i := range existingAcls {
-		existingAclMap[existingAcls[i].Index] = &existingAcls[i]
+		existingAclMap[existingAcls[i].AclName] = &existingAcls[i]
 	}
 
-	// Check if any ACLs actually changed
+	// Check if any ACLs actually changed (content OR order)
 	hasChanges := false
 	var aclsToRecreate []haproxyAclModel
 
-	for i, desiredAcl := range sortedDesiredAcls {
-		desiredIndex := int64(i)
-		existingAcl, exists := existingAclMap[desiredIndex]
+	log.Printf("DEBUG: Comparing %d existing ACLs with %d desired ACLs for %s %s", len(existingAcls), len(sortedDesiredAcls), parentType, parentName)
 
-		if !exists || r.hasAclChanged(existingAcl, &desiredAcl) {
-			hasChanges = true
-			aclsToRecreate = append(aclsToRecreate, desiredAcl)
+	// First, check if the number of ACLs changed
+	if len(existingAcls) != len(sortedDesiredAcls) {
+		log.Printf("DEBUG: ACL count changed from %d to %d, marking for recreation", len(existingAcls), len(sortedDesiredAcls))
+		hasChanges = true
+		aclsToRecreate = sortedDesiredAcls
+	} else {
+		// Check if ACLs have changed content OR order
+		for i, desiredAcl := range sortedDesiredAcls {
+			desiredName := desiredAcl.AclName.ValueString()
+			existingAcl, exists := existingAclMap[desiredName]
+
+			log.Printf("DEBUG: ACL %d - desired: name='%s', criterion='%s', value='%s'", i, desiredName, desiredAcl.Criterion.ValueString(), desiredAcl.Value.ValueString())
+
+			if !exists {
+				log.Printf("DEBUG: ACL %d - no existing ACL with name '%s', marking for recreation", i, desiredName)
+				hasChanges = true
+				aclsToRecreate = sortedDesiredAcls
+				break
+			} else {
+				log.Printf("DEBUG: ACL %d - existing: name='%s', criterion='%s', value='%s'", i, existingAcl.AclName, existingAcl.Criterion, existingAcl.Value)
+				changed := r.hasAclChanged(existingAcl, &desiredAcl)
+				log.Printf("DEBUG: ACL %d - hasAclChanged returned: %t", i, changed)
+				if changed {
+					log.Printf("DEBUG: ACL %d - marked for recreation due to content changes", i)
+					hasChanges = true
+					aclsToRecreate = sortedDesiredAcls
+					break
+				}
+			}
+		}
+
+		// If no content changes detected, check for order changes by comparing the sequence
+		if !hasChanges {
+			log.Printf("DEBUG: No content changes detected, checking for order changes...")
+			for i, desiredAcl := range sortedDesiredAcls {
+				desiredName := desiredAcl.AclName.ValueString()
+				// Check if the ACL at position i has the same name as the existing ACL at position i
+				if i < len(existingAcls) {
+					existingName := existingAcls[i].AclName
+					if desiredName != existingName {
+						log.Printf("DEBUG: Order change detected at position %d - desired: '%s', existing: '%s'", i, desiredName, existingName)
+						hasChanges = true
+						aclsToRecreate = sortedDesiredAcls
+						break
+					}
+				}
+			}
 		}
 	}
+
+	// Also check if any existing ACLs need to be removed (not in desired list)
+	if !hasChanges {
+		for existingName := range existingAclMap {
+			found := false
+			for _, desiredAcl := range sortedDesiredAcls {
+				if desiredAcl.AclName.ValueString() == existingName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				log.Printf("DEBUG: Existing ACL '%s' not in desired list, marking for removal", existingName)
+				hasChanges = true
+				aclsToRecreate = sortedDesiredAcls
+				break
+			}
+		}
+	}
+
+	log.Printf("DEBUG: Final hasChanges result: %t, ACLs to recreate: %d", hasChanges, len(aclsToRecreate))
 
 	// If no changes detected, skip the update
 	if !hasChanges {
@@ -222,11 +285,6 @@ func (r *ACLManager) updateAclsWithIndexingInTransactionSmart(ctx context.Contex
 
 	log.Printf("Updated %d ACLs for %s %s in transaction %s (delete-then-create)", len(allPayloads), parentType, parentName, transactionID)
 	return nil
-}
-
-// hasAclChanged compares two ACLs to determine if they have different content
-func hasAclChanged(existing, desired ACLPayload) bool {
-	return existing.Criterion != desired.Criterion || existing.Value != desired.Value
 }
 
 // DeleteACLsInTransaction deletes all ACLs for a given parent using an existing transaction ID
