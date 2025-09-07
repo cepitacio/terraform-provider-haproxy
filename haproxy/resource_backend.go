@@ -238,10 +238,6 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 				Description: "HTTP response rule configuration for the backend.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
-						"index": schema.Int64Attribute{
-							Required:    true,
-							Description: "The index of the http-response rule.",
-						},
 						"type": schema.StringAttribute{
 							Required:    true,
 							Description: "The type of the http-response rule.",
@@ -261,6 +257,22 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 						"hdr_format": schema.StringAttribute{
 							Optional:    true,
 							Description: "The header format of the http-response rule.",
+						},
+						"hdr_method": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header method of the http-response rule.",
+						},
+						"redir_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection type of the http-response rule.",
+						},
+						"redir_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection value of the http-response rule.",
+						},
+						"index": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The index of the http-response rule (for backward compatibility).",
 						},
 					},
 				},

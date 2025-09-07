@@ -12,23 +12,25 @@ import (
 
 // StackOperations handles all CRUD operations for the haproxy_stack resource
 type StackOperations struct {
-	client                 *HAProxyClient
-	aclManager             *ACLManager
-	frontendManager        *FrontendManager
-	backendManager         *BackendManager
-	httpRequestRuleManager *HttpRequestRuleManager
-	bindManager            *BindManager
+	client                  *HAProxyClient
+	aclManager              *ACLManager
+	frontendManager         *FrontendManager
+	backendManager          *BackendManager
+	httpRequestRuleManager  *HttpRequestRuleManager
+	httpResponseRuleManager *HttpResponseRuleManager
+	bindManager             *BindManager
 }
 
 // NewStackOperations creates a new StackOperations instance
-func NewStackOperations(client *HAProxyClient, aclManager *ACLManager, frontendManager *FrontendManager, backendManager *BackendManager, httpRequestRuleManager *HttpRequestRuleManager, bindManager *BindManager) *StackOperations {
+func NewStackOperations(client *HAProxyClient, aclManager *ACLManager, frontendManager *FrontendManager, backendManager *BackendManager, httpRequestRuleManager *HttpRequestRuleManager, httpResponseRuleManager *HttpResponseRuleManager, bindManager *BindManager) *StackOperations {
 	return &StackOperations{
-		client:                 client,
-		aclManager:             aclManager,
-		backendManager:         backendManager,
-		frontendManager:        frontendManager,
-		httpRequestRuleManager: httpRequestRuleManager,
-		bindManager:            bindManager,
+		client:                  client,
+		aclManager:              aclManager,
+		backendManager:          backendManager,
+		frontendManager:         frontendManager,
+		httpRequestRuleManager:  httpRequestRuleManager,
+		httpResponseRuleManager: httpResponseRuleManager,
+		bindManager:             bindManager,
 	}
 }
 
@@ -158,6 +160,67 @@ func (o *StackOperations) convertServerPayloadToModel(server ServerPayload) hapr
 	}
 	if server.ForceTlsv13 != "" {
 		model.ForceTlsv13 = types.StringValue(server.ForceTlsv13)
+	}
+
+	return model
+}
+
+// convertHttpRequestRulePayloadToModel converts an HttpRequestRulePayload to haproxyHttpRequestRuleModel
+func (o *StackOperations) convertHttpRequestRulePayloadToModel(rule HttpRequestRulePayload) haproxyHttpRequestRuleModel {
+	model := haproxyHttpRequestRuleModel{
+		Type: types.StringValue(rule.Type),
+	}
+
+	// Set optional fields if they have values
+	if rule.Cond != "" {
+		model.Cond = types.StringValue(rule.Cond)
+	}
+	if rule.CondTest != "" {
+		model.CondTest = types.StringValue(rule.CondTest)
+	}
+	if rule.HdrName != "" {
+		model.HdrName = types.StringValue(rule.HdrName)
+	}
+	if rule.HdrFormat != "" {
+		model.HdrFormat = types.StringValue(rule.HdrFormat)
+	}
+	if rule.RedirType != "" {
+		model.RedirType = types.StringValue(rule.RedirType)
+	}
+	if rule.RedirValue != "" {
+		model.RedirValue = types.StringValue(rule.RedirValue)
+	}
+
+	return model
+}
+
+// convertHttpResponseRulePayloadToModel converts an HttpResponseRulePayload to haproxyHttpResponseRuleModel
+func (o *StackOperations) convertHttpResponseRulePayloadToModel(rule HttpResponseRulePayload) haproxyHttpResponseRuleModel {
+	model := haproxyHttpResponseRuleModel{
+		Type: types.StringValue(rule.Type),
+	}
+
+	// Set optional fields if they have values
+	if rule.Cond != "" {
+		model.Cond = types.StringValue(rule.Cond)
+	}
+	if rule.CondTest != "" {
+		model.CondTest = types.StringValue(rule.CondTest)
+	}
+	if rule.HdrName != "" {
+		model.HdrName = types.StringValue(rule.HdrName)
+	}
+	if rule.HdrFormat != "" {
+		model.HdrFormat = types.StringValue(rule.HdrFormat)
+	}
+	if rule.HdrMethod != "" {
+		model.HdrMethod = types.StringValue(rule.HdrMethod)
+	}
+	if rule.RedirType != "" {
+		model.RedirType = types.StringValue(rule.RedirType)
+	}
+	if rule.RedirValue != "" {
+		model.RedirValue = types.StringValue(rule.RedirValue)
 	}
 
 	return model
@@ -356,6 +419,22 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	if data.Backend != nil && data.Backend.HttpRequestRule != nil && len(data.Backend.HttpRequestRule) > 0 {
 		if err := o.httpRequestRuleManager.CreateHttpRequestRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpRequestRule); err != nil {
 			resp.Diagnostics.AddError("Error creating backend HTTP request rules", err.Error())
+			return err
+		}
+	}
+
+	// Create HTTP Response Rules AFTER HTTP Request Rules
+	if data.Frontend != nil && data.Frontend.HttpResponseRules != nil && len(data.Frontend.HttpResponseRules) > 0 {
+		if err := o.httpResponseRuleManager.CreateHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpResponseRules); err != nil {
+			resp.Diagnostics.AddError("Error creating HTTP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Create Backend HTTP Response Rules AFTER HTTP Request Rules
+	if data.Backend != nil && data.Backend.HttpResponseRule != nil && len(data.Backend.HttpResponseRule) > 0 {
+		if err := o.httpResponseRuleManager.CreateHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpResponseRule); err != nil {
+			resp.Diagnostics.AddError("Error creating backend HTTP response rules", err.Error())
 			return err
 		}
 	}
@@ -680,12 +759,22 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 		tflog.Info(ctx, "ACLs reading not yet implemented")
 	}
 
+	// HTTP Request and Response Rules are managed by Terraform state
+	// We don't read them from HAProxy to avoid state drift issues
+	// The Terraform state is the source of truth for these rules
+
 	tflog.Info(ctx, "HAProxy stack read successfully")
 	return nil
 }
 
 // Update performs the update operation for the haproxy_stack resource
 func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse, data *haproxyStackResourceModel) error {
+	// Get the previous state to compare with the plan
+	var state haproxyStackResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return fmt.Errorf("failed to get state data")
+	}
 	tflog.Info(ctx, "Updating HAProxy stack")
 
 	// Begin transaction for all updates
@@ -705,134 +794,192 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}()
 
-	// Update backend if specified
+	// Update backend only if it changed in the plan
 	if data.Backend != nil {
-		tflog.Info(ctx, "Updating backend", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
-		if err = o.backendManager.UpdateBackendInTransaction(ctx, transactionID, data.Backend); err != nil {
-			resp.Diagnostics.AddError("Error updating backend", err.Error())
-			return err
+		// Check if backend changed by comparing plan vs state
+		backendChanged := o.backendChanged(ctx, data.Backend, state.Backend)
+		if backendChanged {
+			tflog.Info(ctx, "Backend changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+			if err = o.backendManager.UpdateBackendInTransaction(ctx, transactionID, data.Backend); err != nil {
+				resp.Diagnostics.AddError("Error updating backend", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Backend unchanged, skipping update")
 		}
 	}
 
-	// Update servers if specified - use name-based management
+	// Update servers only if they changed in the plan
 	if len(data.Servers) > 0 && data.Backend != nil {
-		tflog.Info(ctx, "Updating servers", map[string]interface{}{
-			"backend_name":          data.Backend.Name.ValueString(),
-			"desired_servers_count": len(data.Servers),
-		})
-
-		// First, read existing servers to get current state
-		existingServers, err := o.client.ReadServers(ctx, "backend", data.Backend.Name.ValueString())
-		if err != nil {
-			tflog.Warn(ctx, "Could not read existing servers, proceeding with create/update", map[string]interface{}{"error": err.Error()})
-			existingServers = []ServerPayload{}
-		} else {
-			tflog.Info(ctx, "Read existing servers from HAProxy", map[string]interface{}{
-				"existing_servers_count": len(existingServers),
-			})
-		}
-
-		// Create a map of existing servers by name
-		existingServerMap := make(map[string]ServerPayload)
-		for _, existingServer := range existingServers {
-			existingServerMap[existingServer.Name] = existingServer
-		}
-
-		// Create a map of desired servers by name (data.Servers is already a map)
-		desiredServerMap := data.Servers
-
-		// Delete servers that are no longer in the desired state
-		for serverName := range existingServerMap {
-			if _, exists := desiredServerMap[serverName]; !exists {
-				tflog.Info(ctx, "Deleting server", map[string]interface{}{"server_name": serverName})
-				if err = o.client.DeleteServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverName); err != nil {
-					resp.Diagnostics.AddError("Error deleting server", err.Error())
-					return err
-				}
-			}
-		}
-
-		// Create or update servers in the desired state
-		for serverName, server := range desiredServerMap {
-			// Use the full conversion function to get all fields
-			serverPayload := o.convertServerModelToPayload(serverName, server)
-
-			// Debug logging for the payload being sent
-			disabledStr := "nil"
-			if serverPayload.Disabled != nil {
-				disabledStr = fmt.Sprintf("%t", *serverPayload.Disabled)
-			}
-			tflog.Info(ctx, "Server payload for update", map[string]interface{}{
-				"server_name": serverName,
-				"disabled":    disabledStr,
-				"check":       serverPayload.Check,
-				"maxconn":     serverPayload.Maxconn,
-				"weight":      serverPayload.Weight,
+		// Check if servers changed by comparing plan vs state
+		serversChanged := o.serversChanged(ctx, data.Servers, state.Servers)
+		if serversChanged {
+			tflog.Info(ctx, "Servers changed, updating", map[string]interface{}{
+				"backend_name":          data.Backend.Name.ValueString(),
+				"desired_servers_count": len(data.Servers),
 			})
 
-			if existingServer, exists := existingServerMap[serverName]; exists {
-				// Server exists, check if it needs updating
-				if o.serverNeedsUpdate(existingServer, *serverPayload) {
-					tflog.Info(ctx, "Updating server", map[string]interface{}{"server_name": serverName})
-					if err = o.client.UpdateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
-						resp.Diagnostics.AddError("Error updating server", err.Error())
+			// First, read existing servers to get current state
+			existingServers, err := o.client.ReadServers(ctx, "backend", data.Backend.Name.ValueString())
+			if err != nil {
+				tflog.Warn(ctx, "Could not read existing servers, proceeding with create/update", map[string]interface{}{"error": err.Error()})
+				existingServers = []ServerPayload{}
+			} else {
+				tflog.Info(ctx, "Read existing servers from HAProxy", map[string]interface{}{
+					"existing_servers_count": len(existingServers),
+				})
+			}
+
+			// Create a map of existing servers by name
+			existingServerMap := make(map[string]ServerPayload)
+			for _, existingServer := range existingServers {
+				existingServerMap[existingServer.Name] = existingServer
+			}
+
+			// Create a map of desired servers by name (data.Servers is already a map)
+			desiredServerMap := data.Servers
+
+			// Delete servers that are no longer in the desired state
+			for serverName := range existingServerMap {
+				if _, exists := desiredServerMap[serverName]; !exists {
+					tflog.Info(ctx, "Deleting server", map[string]interface{}{"server_name": serverName})
+					if err = o.client.DeleteServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverName); err != nil {
+						resp.Diagnostics.AddError("Error deleting server", err.Error())
 						return err
 					}
-				} else {
-					tflog.Info(ctx, "Server unchanged", map[string]interface{}{"server_name": serverName})
-				}
-			} else {
-				// Server doesn't exist, create it
-				tflog.Info(ctx, "Creating new server", map[string]interface{}{"server_name": serverName})
-				if err = o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
-					resp.Diagnostics.AddError("Error creating server", err.Error())
-					return err
 				}
 			}
+
+			// Create or update servers in the desired state
+			for serverName, server := range desiredServerMap {
+				// Use the full conversion function to get all fields
+				serverPayload := o.convertServerModelToPayload(serverName, server)
+
+				// Debug logging for the payload being sent
+				disabledStr := "nil"
+				if serverPayload.Disabled != nil {
+					disabledStr = fmt.Sprintf("%t", *serverPayload.Disabled)
+				}
+				tflog.Info(ctx, "Server payload for update", map[string]interface{}{
+					"server_name": serverName,
+					"disabled":    disabledStr,
+					"check":       serverPayload.Check,
+					"maxconn":     serverPayload.Maxconn,
+					"weight":      serverPayload.Weight,
+				})
+
+				if existingServer, exists := existingServerMap[serverName]; exists {
+					// Server exists, check if it needs updating
+					if o.serverNeedsUpdate(existingServer, *serverPayload) {
+						tflog.Info(ctx, "Updating server", map[string]interface{}{"server_name": serverName})
+						if err = o.client.UpdateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
+							resp.Diagnostics.AddError("Error updating server", err.Error())
+							return err
+						}
+					} else {
+						tflog.Info(ctx, "Server unchanged", map[string]interface{}{"server_name": serverName})
+					}
+				} else {
+					// Server doesn't exist, create it
+					tflog.Info(ctx, "Creating new server", map[string]interface{}{"server_name": serverName})
+					if err = o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
+						resp.Diagnostics.AddError("Error creating server", err.Error())
+						return err
+					}
+				}
+			}
+		} else {
+			tflog.Info(ctx, "Servers unchanged, skipping update")
 		}
 	}
 
-	// Update frontend if specified
+	// Update frontend only if it changed in the plan
 	if data.Frontend != nil {
-		tflog.Info(ctx, "Updating frontend", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
-		if err = o.frontendManager.UpdateFrontendInTransaction(ctx, transactionID, data.Frontend); err != nil {
-			resp.Diagnostics.AddError("Error updating frontend", err.Error())
-			return err
+		// Check if frontend changed by comparing plan vs state
+		frontendChanged := o.frontendChanged(ctx, data.Frontend, state.Frontend)
+		if frontendChanged {
+			tflog.Info(ctx, "Frontend changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+			if err = o.frontendManager.UpdateFrontendInTransaction(ctx, transactionID, data.Frontend); err != nil {
+				resp.Diagnostics.AddError("Error updating frontend", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Frontend unchanged, skipping update")
 		}
 	}
 
-	// Update binds for frontend if specified
+	// Update binds only if they changed in the plan
 	if data.Frontend != nil && data.Frontend.Binds != nil {
-		tflog.Info(ctx, "Updating binds", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
-		if err = o.bindManager.UpdateBindsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Binds); err != nil {
-			resp.Diagnostics.AddError("Error updating binds", err.Error())
-			return err
+		// Check if binds changed by comparing plan vs state
+		bindsChanged := o.bindsChanged(ctx, data.Frontend.Binds, state.Frontend.Binds)
+		if bindsChanged {
+			tflog.Info(ctx, "Binds changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+			if err = o.bindManager.UpdateBindsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Binds); err != nil {
+				resp.Diagnostics.AddError("Error updating binds", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Binds unchanged, skipping update")
 		}
 	}
 
-	// Update ACLs if specified - handle both frontend and backend ACLs
+	// Update frontend ACLs only if they changed in the plan
 	if data.Frontend != nil && data.Frontend.Acls != nil && len(data.Frontend.Acls) > 0 {
-		tflog.Info(ctx, "Updating frontend ACLs", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
-		if err = o.aclManager.UpdateACLsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Acls); err != nil {
-			resp.Diagnostics.AddError("Error updating frontend ACLs", err.Error())
-			return err
+		// Check if frontend ACLs changed by comparing plan vs state
+		frontendACLsChanged := o.aclsChanged(ctx, data.Frontend.Acls, state.Frontend.Acls)
+		if frontendACLsChanged {
+			tflog.Info(ctx, "Frontend ACLs changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+			if err = o.aclManager.UpdateACLsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Acls); err != nil {
+				resp.Diagnostics.AddError("Error updating frontend ACLs", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Frontend ACLs unchanged, skipping update")
 		}
 	}
 
+	// Update backend ACLs only if they changed in the plan
 	if data.Backend != nil && data.Backend.Acls != nil && len(data.Backend.Acls) > 0 {
-		tflog.Info(ctx, "Updating backend ACLs", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
-		if err = o.aclManager.UpdateACLsInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.Acls); err != nil {
-			resp.Diagnostics.AddError("Error updating backend ACLs", err.Error())
-			return err
+		// Check if backend ACLs changed by comparing plan vs state
+		backendACLsChanged := o.aclsChanged(ctx, data.Backend.Acls, state.Backend.Acls)
+		if backendACLsChanged {
+			tflog.Info(ctx, "Backend ACLs changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+			if err = o.aclManager.UpdateACLsInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.Acls); err != nil {
+				resp.Diagnostics.AddError("Error updating backend ACLs", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Backend ACLs unchanged, skipping update")
 		}
 	}
 
-	// Update HTTP Request Rules if specified
+	// Update HTTP Request Rules only if they changed in the plan
 	if data.Frontend != nil && data.Frontend.HttpRequestRules != nil && len(data.Frontend.HttpRequestRules) > 0 {
-		tflog.Info(ctx, "Updating HTTP request rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
-		if err = o.httpRequestRuleManager.UpdateHttpRequestRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpRequestRules); err != nil {
-			resp.Diagnostics.AddError("Error updating HTTP request rules", err.Error())
-			return err
+		// Check if HTTP Request Rules changed by comparing plan vs state
+		httpRequestRulesChanged := o.httpRequestRulesChanged(ctx, data.Frontend.HttpRequestRules, state.Frontend.HttpRequestRules)
+		if httpRequestRulesChanged {
+			tflog.Info(ctx, "HTTP request rules changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+			if err = o.httpRequestRuleManager.UpdateHttpRequestRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpRequestRules); err != nil {
+				resp.Diagnostics.AddError("Error updating HTTP request rules", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "HTTP request rules unchanged, skipping update")
+		}
+	}
+
+	// Update HTTP Response Rules only if they changed in the plan
+	if data.Frontend != nil && data.Frontend.HttpResponseRules != nil && len(data.Frontend.HttpResponseRules) > 0 {
+		// Check if HTTP Response Rules changed by comparing plan vs state
+		httpResponseRulesChanged := o.httpResponseRulesChanged(ctx, data.Frontend.HttpResponseRules, state.Frontend.HttpResponseRules)
+		if httpResponseRulesChanged {
+			tflog.Info(ctx, "HTTP response rules changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+			if err = o.httpResponseRuleManager.UpdateHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpResponseRules); err != nil {
+				resp.Diagnostics.AddError("Error updating HTTP response rules", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "HTTP response rules unchanged, skipping update")
 		}
 	}
 
@@ -847,6 +994,317 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 	err = nil
 	tflog.Info(ctx, "HAProxy stack updated successfully")
 	return nil
+}
+
+// httpRequestRulesChanged compares plan vs state HTTP request rules to detect changes
+func (o *StackOperations) httpRequestRulesChanged(ctx context.Context, planRules []haproxyHttpRequestRuleModel, stateRules []haproxyHttpRequestRuleModel) bool {
+	// If counts are different, there's definitely a change
+	if len(planRules) != len(stateRules) {
+		tflog.Info(ctx, "HTTP request rules count changed", map[string]interface{}{
+			"plan_count":  len(planRules),
+			"state_count": len(stateRules),
+		})
+		return true
+	}
+
+	// Compare each rule
+	for i, planRule := range planRules {
+		if i >= len(stateRules) {
+			return true
+		}
+		stateRule := stateRules[i]
+
+		// Compare ALL key fields comprehensively (only confirmed existing fields)
+		if planRule.Type.ValueString() != stateRule.Type.ValueString() ||
+			planRule.Cond.ValueString() != stateRule.Cond.ValueString() ||
+			planRule.CondTest.ValueString() != stateRule.CondTest.ValueString() ||
+			planRule.HdrName.ValueString() != stateRule.HdrName.ValueString() ||
+			planRule.HdrFormat.ValueString() != stateRule.HdrFormat.ValueString() ||
+			planRule.RedirType.ValueString() != stateRule.RedirType.ValueString() ||
+			planRule.RedirValue.ValueString() != stateRule.RedirValue.ValueString() {
+			tflog.Info(ctx, "HTTP request rule changed", map[string]interface{}{
+				"rule_index": i,
+				"plan_type":  planRule.Type.ValueString(),
+				"state_type": stateRule.Type.ValueString(),
+			})
+			return true
+		}
+	}
+
+	return false
+}
+
+// httpResponseRulesChanged compares plan vs state HTTP response rules to detect changes
+func (o *StackOperations) httpResponseRulesChanged(ctx context.Context, planRules []haproxyHttpResponseRuleModel, stateRules []haproxyHttpResponseRuleModel) bool {
+	// If counts are different, there's definitely a change
+	if len(planRules) != len(stateRules) {
+		tflog.Info(ctx, "HTTP response rules count changed", map[string]interface{}{
+			"plan_count":  len(planRules),
+			"state_count": len(stateRules),
+		})
+		return true
+	}
+
+	// Compare each rule
+	for i, planRule := range planRules {
+		if i >= len(stateRules) {
+			return true
+		}
+		stateRule := stateRules[i]
+
+		// Compare ALL key fields comprehensively (only confirmed existing fields)
+		if planRule.Type.ValueString() != stateRule.Type.ValueString() ||
+			planRule.Cond.ValueString() != stateRule.Cond.ValueString() ||
+			planRule.CondTest.ValueString() != stateRule.CondTest.ValueString() ||
+			planRule.HdrName.ValueString() != stateRule.HdrName.ValueString() ||
+			planRule.HdrFormat.ValueString() != stateRule.HdrFormat.ValueString() ||
+			planRule.HdrMethod.ValueString() != stateRule.HdrMethod.ValueString() ||
+			planRule.RedirType.ValueString() != stateRule.RedirType.ValueString() ||
+			planRule.RedirValue.ValueString() != stateRule.RedirValue.ValueString() {
+			tflog.Info(ctx, "HTTP response rule changed", map[string]interface{}{
+				"rule_index": i,
+				"plan_type":  planRule.Type.ValueString(),
+				"state_type": stateRule.Type.ValueString(),
+			})
+			return true
+		}
+	}
+
+	return false
+}
+
+// aclsChanged compares plan vs state ACLs to detect changes
+func (o *StackOperations) aclsChanged(ctx context.Context, planACLs []haproxyAclModel, stateACLs []haproxyAclModel) bool {
+	// If counts are different, there's definitely a change
+	if len(planACLs) != len(stateACLs) {
+		tflog.Info(ctx, "ACLs count changed", map[string]interface{}{
+			"plan_count":  len(planACLs),
+			"state_count": len(stateACLs),
+		})
+		return true
+	}
+
+	// Compare each ACL
+	for i, planACL := range planACLs {
+		if i >= len(stateACLs) {
+			return true
+		}
+		stateACL := stateACLs[i]
+
+		// Compare ALL fields
+		if planACL.AclName.ValueString() != stateACL.AclName.ValueString() ||
+			planACL.Criterion.ValueString() != stateACL.Criterion.ValueString() ||
+			planACL.Value.ValueString() != stateACL.Value.ValueString() ||
+			planACL.Index.ValueInt64() != stateACL.Index.ValueInt64() {
+			tflog.Info(ctx, "ACL changed", map[string]interface{}{
+				"acl_index":  i,
+				"plan_name":  planACL.AclName.ValueString(),
+				"state_name": stateACL.AclName.ValueString(),
+			})
+			return true
+		}
+	}
+
+	return false
+}
+
+// frontendChanged compares plan vs state frontend to detect changes
+func (o *StackOperations) frontendChanged(ctx context.Context, planFrontend *haproxyFrontendModel, stateFrontend *haproxyFrontendModel) bool {
+	// If one is nil and the other isn't, there's a change
+	if (planFrontend == nil) != (stateFrontend == nil) {
+		tflog.Info(ctx, "Frontend nil state changed", map[string]interface{}{
+			"plan_nil":  planFrontend == nil,
+			"state_nil": stateFrontend == nil,
+		})
+		return true
+	}
+
+	// If both are nil, no change
+	if planFrontend == nil && stateFrontend == nil {
+		return false
+	}
+
+	// Compare ALL fields comprehensively
+	if planFrontend.Name.ValueString() != stateFrontend.Name.ValueString() ||
+		planFrontend.Mode.ValueString() != stateFrontend.Mode.ValueString() ||
+		planFrontend.DefaultBackend.ValueString() != stateFrontend.DefaultBackend.ValueString() ||
+		planFrontend.Maxconn.ValueInt64() != stateFrontend.Maxconn.ValueInt64() ||
+		planFrontend.Backlog.ValueInt64() != stateFrontend.Backlog.ValueInt64() ||
+		planFrontend.Ssl.ValueBool() != stateFrontend.Ssl.ValueBool() ||
+		planFrontend.SslCertificate.ValueString() != stateFrontend.SslCertificate.ValueString() ||
+		planFrontend.SslCafile.ValueString() != stateFrontend.SslCafile.ValueString() ||
+		planFrontend.SslMaxVer.ValueString() != stateFrontend.SslMaxVer.ValueString() ||
+		planFrontend.SslMinVer.ValueString() != stateFrontend.SslMinVer.ValueString() ||
+		planFrontend.Ciphers.ValueString() != stateFrontend.Ciphers.ValueString() ||
+		planFrontend.Ciphersuites.ValueString() != stateFrontend.Ciphersuites.ValueString() ||
+		planFrontend.Verify.ValueString() != stateFrontend.Verify.ValueString() ||
+		planFrontend.AcceptProxy.ValueBool() != stateFrontend.AcceptProxy.ValueBool() ||
+		planFrontend.DeferAccept.ValueBool() != stateFrontend.DeferAccept.ValueBool() ||
+		planFrontend.TcpUserTimeout.ValueInt64() != stateFrontend.TcpUserTimeout.ValueInt64() ||
+		planFrontend.Tfo.ValueBool() != stateFrontend.Tfo.ValueBool() ||
+		planFrontend.V4v6.ValueBool() != stateFrontend.V4v6.ValueBool() ||
+		planFrontend.V6only.ValueBool() != stateFrontend.V6only.ValueBool() {
+		tflog.Info(ctx, "Frontend changed", map[string]interface{}{
+			"plan_name":  planFrontend.Name.ValueString(),
+			"state_name": stateFrontend.Name.ValueString(),
+		})
+		return true
+	}
+
+	return false
+}
+
+// backendChanged compares plan vs state backend to detect changes
+func (o *StackOperations) backendChanged(ctx context.Context, planBackend *haproxyBackendModel, stateBackend *haproxyBackendModel) bool {
+	// If one is nil and the other isn't, there's a change
+	if (planBackend == nil) != (stateBackend == nil) {
+		tflog.Info(ctx, "Backend nil state changed", map[string]interface{}{
+			"plan_nil":  planBackend == nil,
+			"state_nil": stateBackend == nil,
+		})
+		return true
+	}
+
+	// If both are nil, no change
+	if planBackend == nil && stateBackend == nil {
+		return false
+	}
+
+	// Compare ALL fields comprehensively
+	if planBackend.Name.ValueString() != stateBackend.Name.ValueString() ||
+		planBackend.Mode.ValueString() != stateBackend.Mode.ValueString() ||
+		planBackend.AdvCheck.ValueString() != stateBackend.AdvCheck.ValueString() ||
+		planBackend.HttpConnectionMode.ValueString() != stateBackend.HttpConnectionMode.ValueString() ||
+		planBackend.ServerTimeout.ValueInt64() != stateBackend.ServerTimeout.ValueInt64() ||
+		planBackend.CheckTimeout.ValueInt64() != stateBackend.CheckTimeout.ValueInt64() ||
+		planBackend.ConnectTimeout.ValueInt64() != stateBackend.ConnectTimeout.ValueInt64() ||
+		planBackend.QueueTimeout.ValueInt64() != stateBackend.QueueTimeout.ValueInt64() ||
+		planBackend.TunnelTimeout.ValueInt64() != stateBackend.TunnelTimeout.ValueInt64() ||
+		planBackend.TarpitTimeout.ValueInt64() != stateBackend.TarpitTimeout.ValueInt64() ||
+		planBackend.Checkcache.ValueString() != stateBackend.Checkcache.ValueString() ||
+		planBackend.Retries.ValueInt64() != stateBackend.Retries.ValueInt64() {
+		tflog.Info(ctx, "Backend changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	return false
+}
+
+// bindsChanged compares plan vs state binds to detect changes
+func (o *StackOperations) bindsChanged(ctx context.Context, planBinds map[string]haproxyBindModel, stateBinds map[string]haproxyBindModel) bool {
+	// If counts are different, there's definitely a change
+	if len(planBinds) != len(stateBinds) {
+		tflog.Info(ctx, "Binds count changed", map[string]interface{}{
+			"plan_count":  len(planBinds),
+			"state_count": len(stateBinds),
+		})
+		return true
+	}
+
+	// Compare each bind by name
+	for bindName, planBind := range planBinds {
+		stateBind, exists := stateBinds[bindName]
+		if !exists {
+			tflog.Info(ctx, "Bind added", map[string]interface{}{"bind_name": bindName})
+			return true
+		}
+
+		// Compare key fields
+		if planBind.Address.ValueString() != stateBind.Address.ValueString() ||
+			planBind.Port.ValueInt64() != stateBind.Port.ValueInt64() ||
+			planBind.Ssl.ValueBool() != stateBind.Ssl.ValueBool() ||
+			planBind.Transparent.ValueBool() != stateBind.Transparent.ValueBool() {
+			tflog.Info(ctx, "Bind changed", map[string]interface{}{
+				"bind_name":     bindName,
+				"plan_address":  planBind.Address.ValueString(),
+				"state_address": stateBind.Address.ValueString(),
+			})
+			return true
+		}
+	}
+
+	// Check for removed binds
+	for bindName := range stateBinds {
+		if _, exists := planBinds[bindName]; !exists {
+			tflog.Info(ctx, "Bind removed", map[string]interface{}{"bind_name": bindName})
+			return true
+		}
+	}
+
+	return false
+}
+
+// serversChanged compares plan vs state servers to detect changes
+func (o *StackOperations) serversChanged(ctx context.Context, planServers map[string]haproxyServerModel, stateServers map[string]haproxyServerModel) bool {
+	// If counts are different, there's definitely a change
+	if len(planServers) != len(stateServers) {
+		tflog.Info(ctx, "Servers count changed", map[string]interface{}{
+			"plan_count":  len(planServers),
+			"state_count": len(stateServers),
+		})
+		return true
+	}
+
+	// Compare each server by name
+	for serverName, planServer := range planServers {
+		stateServer, exists := stateServers[serverName]
+		if !exists {
+			tflog.Info(ctx, "Server added", map[string]interface{}{"server_name": serverName})
+			return true
+		}
+
+		// Compare ALL fields comprehensively
+		if planServer.Address.ValueString() != stateServer.Address.ValueString() ||
+			planServer.Port.ValueInt64() != stateServer.Port.ValueInt64() ||
+			planServer.Check.ValueString() != stateServer.Check.ValueString() ||
+			planServer.Backup.ValueString() != stateServer.Backup.ValueString() ||
+			planServer.Maxconn.ValueInt64() != stateServer.Maxconn.ValueInt64() ||
+			planServer.Weight.ValueInt64() != stateServer.Weight.ValueInt64() ||
+			planServer.Rise.ValueInt64() != stateServer.Rise.ValueInt64() ||
+			planServer.Fall.ValueInt64() != stateServer.Fall.ValueInt64() ||
+			planServer.Inter.ValueInt64() != stateServer.Inter.ValueInt64() ||
+			planServer.Fastinter.ValueInt64() != stateServer.Fastinter.ValueInt64() ||
+			planServer.Downinter.ValueInt64() != stateServer.Downinter.ValueInt64() ||
+			planServer.Ssl.ValueString() != stateServer.Ssl.ValueString() ||
+			planServer.Verify.ValueString() != stateServer.Verify.ValueString() ||
+			planServer.Cookie.ValueString() != stateServer.Cookie.ValueString() ||
+			planServer.Sslv3.ValueString() != stateServer.Sslv3.ValueString() ||
+			planServer.Tlsv10.ValueString() != stateServer.Tlsv10.ValueString() ||
+			planServer.Tlsv11.ValueString() != stateServer.Tlsv11.ValueString() ||
+			planServer.Tlsv12.ValueString() != stateServer.Tlsv12.ValueString() ||
+			planServer.Tlsv13.ValueString() != stateServer.Tlsv13.ValueString() ||
+			planServer.NoSslv3.ValueString() != stateServer.NoSslv3.ValueString() ||
+			planServer.NoTlsv10.ValueString() != stateServer.NoTlsv10.ValueString() ||
+			planServer.NoTlsv11.ValueString() != stateServer.NoTlsv11.ValueString() ||
+			planServer.NoTlsv12.ValueString() != stateServer.NoTlsv12.ValueString() ||
+			planServer.NoTlsv13.ValueString() != stateServer.NoTlsv13.ValueString() ||
+			planServer.ForceSslv3.ValueString() != stateServer.ForceSslv3.ValueString() ||
+			planServer.ForceTlsv10.ValueString() != stateServer.ForceTlsv10.ValueString() ||
+			planServer.ForceTlsv11.ValueString() != stateServer.ForceTlsv11.ValueString() ||
+			planServer.ForceTlsv12.ValueString() != stateServer.ForceTlsv12.ValueString() ||
+			planServer.ForceTlsv13.ValueString() != stateServer.ForceTlsv13.ValueString() ||
+			planServer.ForceStrictSni.ValueString() != stateServer.ForceStrictSni.ValueString() {
+			tflog.Info(ctx, "Server changed", map[string]interface{}{
+				"server_name":   serverName,
+				"plan_address":  planServer.Address.ValueString(),
+				"state_address": stateServer.Address.ValueString(),
+			})
+			return true
+		}
+	}
+
+	// Check for removed servers
+	for serverName := range stateServers {
+		if _, exists := planServers[serverName]; !exists {
+			tflog.Info(ctx, "Server removed", map[string]interface{}{"server_name": serverName})
+			return true
+		}
+	}
+
+	return false
 }
 
 // Delete performs the delete operation for the haproxy_stack resource
@@ -892,6 +1350,15 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 		tflog.Info(ctx, "Deleting HTTP request rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.httpRequestRuleManager.DeleteHttpRequestRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
 			resp.Diagnostics.AddError("Error deleting HTTP request rules", err.Error())
+			return err
+		}
+	}
+
+	// Delete HTTP Response Rules if specified
+	if data.Frontend != nil && data.Frontend.HttpResponseRules != nil && len(data.Frontend.HttpResponseRules) > 0 {
+		tflog.Info(ctx, "Deleting HTTP response rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		if err = o.httpResponseRuleManager.DeleteHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting HTTP response rules", err.Error())
 			return err
 		}
 	}

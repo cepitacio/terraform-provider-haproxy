@@ -1810,7 +1810,20 @@ func (c *HAProxyClient) CreateHttpResponseRule(ctx context.Context, parentType, 
 
 // ReadHttpResponseRules reads all httpresponserules for a given parent.
 func (c *HAProxyClient) ReadHttpResponseRules(ctx context.Context, parentType, parentName string) ([]HttpResponseRulePayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/http_response_rules?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_response_rules", parentTypePlural, parentName)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/http_response_rules?parent_type=%s&parent_name=%s", parentType, parentName)
+	}
+
+	log.Printf("DEBUG: ReadHttpResponseRules URL: %s (API version: %s)", url, c.apiVersion)
+	log.Printf("DEBUG: ReadHttpResponseRules parentType: %s, parentName: %s", parentType, parentName)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1821,27 +1834,53 @@ func (c *HAProxyClient) ReadHttpResponseRules(ctx context.Context, parentType, p
 	}
 	defer resp.Body.Close()
 
+	log.Printf("DEBUG: ReadHttpResponseRules response status: %d", resp.StatusCode)
+
 	if resp.StatusCode == http.StatusNotFound {
+		log.Printf("DEBUG: ReadHttpResponseRules - No rules found (404)")
 		return []HttpResponseRulePayload{}, nil // No httpresponserules found is not an error
 	}
 
 	if resp.StatusCode == http.StatusUnprocessableEntity {
 		// 422 usually means invalid parameters, treat as no rules found
+		log.Printf("DEBUG: ReadHttpResponseRules - Invalid parameters (422)")
 		return []HttpResponseRulePayload{}, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("DEBUG: ReadHttpResponseRules - Error response body: %s", string(body))
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var httpResponseRulesWrapper struct {
-		Data []HttpResponseRulePayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&httpResponseRulesWrapper); err != nil {
+	// Read the response body for debugging
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
+	log.Printf("DEBUG: ReadHttpResponseRules response body: %s", string(body))
 
-	return httpResponseRulesWrapper.Data, nil
+	var httpResponseRules []HttpResponseRulePayload
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct array, no wrapper
+		if err := json.Unmarshal(body, &httpResponseRules); err != nil {
+			log.Printf("DEBUG: ReadHttpResponseRules - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in a data object
+		var httpResponseRulesWrapper struct {
+			Data []HttpResponseRulePayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &httpResponseRulesWrapper); err != nil {
+			log.Printf("DEBUG: ReadHttpResponseRules - JSON decode error: %v", err)
+			return nil, err
+		}
+		httpResponseRules = httpResponseRulesWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadHttpResponseRules found %d rules", len(httpResponseRules))
+	return httpResponseRules, nil
 }
 
 // UpdateHttpResponseRule updates a httpresponserule.
@@ -3042,5 +3081,185 @@ func (c *HAProxyClient) DeleteHttpRequestRuleInTransaction(ctx context.Context, 
 	}
 
 	log.Printf("HTTP request rule deleted successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// CreateHttpResponseRuleInTransaction creates a new httpresponserule using an existing transaction ID.
+func (c *HAProxyClient) CreateHttpResponseRuleInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *HttpResponseRulePayload) error {
+	var url string
+	var method string
+	var requestPayload interface{}
+
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends
+		// v3 doesn't support POST for individual rules - only PUT to replace entire list
+		// v3 expects an array of rules, not a single rule
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_response_rules?transaction_id=%s",
+			parentTypePlural, parentName, transactionID)
+		method = "PUT"
+
+		// For v3, we need to read existing rules first, then add our new rule
+		existingRules, err := c.ReadHttpResponseRules(ctx, parentType, parentName)
+		if err != nil {
+			return fmt.Errorf("failed to read existing HTTP response rules for v3: %w", err)
+		}
+
+		// Add the new rule to the existing rules
+		payload.Index = int64(len(existingRules)) // Set index to the end
+		allRules := append(existingRules, *payload)
+		requestPayload = allRules
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/http_response_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
+			parentType, parentName, transactionID)
+		method = "POST"
+		requestPayload = payload
+	}
+
+	log.Printf("DEBUG: Using HTTP response rule create endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, method, url, requestPayload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("HTTP response rule creation failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("HTTP response rule creation failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("HTTP response rule created successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// CreateAllHttpResponseRulesInTransaction creates all HTTP response rules at once using an existing transaction ID
+func (c *HAProxyClient) CreateAllHttpResponseRulesInTransaction(ctx context.Context, transactionID, parentType, parentName string, payloads []HttpResponseRulePayload) error {
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends - send all at once
+		parentTypePlural := parentType + "s"
+		url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_response_rules?transaction_id=%s",
+			parentTypePlural, parentName, transactionID)
+		method := "PUT"
+
+		// Debug logging for v3
+		payloadJSON, _ := json.Marshal(payloads)
+		log.Printf("DEBUG: API %s - Creating all HTTP response rules at once:", c.apiVersion)
+		log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+		log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
+		log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+		req, err := c.newRequest(ctx, method, url, payloads)
+		if err != nil {
+			return err
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("HTTP response rules creation failed with status %d", resp.StatusCode)
+			}
+			return fmt.Errorf("HTTP response rules creation failed with status %d: %s", resp.StatusCode, string(body))
+		}
+
+		log.Printf("All HTTP response rules created successfully in transaction: %s", transactionID)
+		return nil
+	} else {
+		// v2: Create HTTP response rules individually (v2 doesn't support bulk creation)
+		log.Printf("DEBUG: API %s - Creating HTTP response rules individually (v2 limitation):", c.apiVersion)
+		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
+
+		for i, payload := range payloads {
+			url := fmt.Sprintf("/services/haproxy/configuration/http_response_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
+				parentType, parentName, transactionID)
+			method := "POST"
+
+			// Debug logging for each individual HTTP response rule
+			payloadJSON, _ := json.Marshal(payload)
+			log.Printf("DEBUG: API %s - Creating HTTP response rule %d/%d:", c.apiVersion, i+1, len(payloads))
+			log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+			req, err := c.newRequest(ctx, method, url, payload)
+			if err != nil {
+				return err
+			}
+
+			resp, err := c.httpClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return fmt.Errorf("HTTP response rule %d creation failed with status %d", i+1, resp.StatusCode)
+				}
+				return fmt.Errorf("HTTP response rule %d creation failed with status %d: %s", i+1, resp.StatusCode, string(body))
+			}
+
+			log.Printf("HTTP response rule %d/%d created successfully in transaction: %s", i+1, len(payloads), transactionID)
+		}
+
+		log.Printf("All %d HTTP response rules created successfully in transaction: %s", len(payloads), transactionID)
+		return nil
+	}
+}
+
+// DeleteHttpResponseRuleInTransaction deletes an existing httpresponserule using an existing transaction ID.
+func (c *HAProxyClient) DeleteHttpResponseRuleInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string) error {
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_response_rules/%d?transaction_id=%s",
+			parentTypePlural, parentName, index, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/http_response_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+			index, parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using HTTP response rule delete endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("HTTP response rule deletion failed with status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("HTTP response rule deletion failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("HTTP response rule deleted successfully in transaction: %s", transactionID)
 	return nil
 }

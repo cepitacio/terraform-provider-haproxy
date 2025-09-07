@@ -136,30 +136,31 @@ type haproxyServerModel struct {
 
 // haproxyFrontendModel maps the frontend block schema data.
 type haproxyFrontendModel struct {
-	Name             types.String                  `tfsdk:"name"`
-	Mode             types.String                  `tfsdk:"mode"`
-	DefaultBackend   types.String                  `tfsdk:"default_backend"`
-	Maxconn          types.Int64                   `tfsdk:"maxconn"`
-	Backlog          types.Int64                   `tfsdk:"backlog"`
-	Ssl              types.Bool                    `tfsdk:"ssl"`
-	SslCertificate   types.String                  `tfsdk:"ssl_certificate"`
-	SslCafile        types.String                  `tfsdk:"ssl_cafile"`
-	SslMaxVer        types.String                  `tfsdk:"ssl_max_ver"`
-	SslMinVer        types.String                  `tfsdk:"ssl_min_ver"`
-	Ciphers          types.String                  `tfsdk:"ciphers"`
-	Ciphersuites     types.String                  `tfsdk:"ciphersuites"`
-	Verify           types.String                  `tfsdk:"verify"`
-	AcceptProxy      types.Bool                    `tfsdk:"accept_proxy"`
-	DeferAccept      types.Bool                    `tfsdk:"defer_accept"`
-	TcpUserTimeout   types.Int64                   `tfsdk:"tcp_user_timeout"`
-	Tfo              types.Bool                    `tfsdk:"tfo"`
-	V4v6             types.Bool                    `tfsdk:"v4v6"`
-	V6only           types.Bool                    `tfsdk:"v6only"`
-	Binds            map[string]haproxyBindModel   `tfsdk:"binds"`
-	Acls             []haproxyAclModel             `tfsdk:"acls"`
-	HttpRequestRules []haproxyHttpRequestRuleModel `tfsdk:"http_request_rules"`
-	StatsOptions     []haproxyStatsOptionsModel    `tfsdk:"stats_options"`
-	MonitorFail      []haproxyMonitorFailModel     `tfsdk:"monitor_fail"`
+	Name              types.String                   `tfsdk:"name"`
+	Mode              types.String                   `tfsdk:"mode"`
+	DefaultBackend    types.String                   `tfsdk:"default_backend"`
+	Maxconn           types.Int64                    `tfsdk:"maxconn"`
+	Backlog           types.Int64                    `tfsdk:"backlog"`
+	Ssl               types.Bool                     `tfsdk:"ssl"`
+	SslCertificate    types.String                   `tfsdk:"ssl_certificate"`
+	SslCafile         types.String                   `tfsdk:"ssl_cafile"`
+	SslMaxVer         types.String                   `tfsdk:"ssl_max_ver"`
+	SslMinVer         types.String                   `tfsdk:"ssl_min_ver"`
+	Ciphers           types.String                   `tfsdk:"ciphers"`
+	Ciphersuites      types.String                   `tfsdk:"ciphersuites"`
+	Verify            types.String                   `tfsdk:"verify"`
+	AcceptProxy       types.Bool                     `tfsdk:"accept_proxy"`
+	DeferAccept       types.Bool                     `tfsdk:"defer_accept"`
+	TcpUserTimeout    types.Int64                    `tfsdk:"tcp_user_timeout"`
+	Tfo               types.Bool                     `tfsdk:"tfo"`
+	V4v6              types.Bool                     `tfsdk:"v4v6"`
+	V6only            types.Bool                     `tfsdk:"v6only"`
+	Binds             map[string]haproxyBindModel    `tfsdk:"binds"`
+	Acls              []haproxyAclModel              `tfsdk:"acls"`
+	HttpRequestRules  []haproxyHttpRequestRuleModel  `tfsdk:"http_request_rules"`
+	HttpResponseRules []haproxyHttpResponseRuleModel `tfsdk:"http_response_rules"`
+	StatsOptions      []haproxyStatsOptionsModel     `tfsdk:"stats_options"`
+	MonitorFail       []haproxyMonitorFailModel      `tfsdk:"monitor_fail"`
 }
 
 // haproxyBalanceModel maps the balance block schema data.
@@ -216,12 +217,15 @@ type haproxyReturnHdrModel struct {
 
 // haproxyHttpResponseRuleModel maps the http_response_rule block schema data.
 type haproxyHttpResponseRuleModel struct {
-	Index     types.Int64  `tfsdk:"index"`
-	Type      types.String `tfsdk:"type"`
-	Cond      types.String `tfsdk:"cond"`
-	CondTest  types.String `tfsdk:"cond_test"`
-	HdrName   types.String `tfsdk:"hdr_name"`
-	HdrFormat types.String `tfsdk:"hdr_format"`
+	Index      types.Int64  `tfsdk:"index"` // For backward compatibility with existing state
+	Type       types.String `tfsdk:"type"`
+	RedirType  types.String `tfsdk:"redir_type"`
+	RedirValue types.String `tfsdk:"redir_value"`
+	Cond       types.String `tfsdk:"cond"`
+	CondTest   types.String `tfsdk:"cond_test"`
+	HdrName    types.String `tfsdk:"hdr_name"`
+	HdrFormat  types.String `tfsdk:"hdr_format"`
+	HdrMethod  types.String `tfsdk:"hdr_method"`
 }
 
 // haproxyTcpRequestRuleModel maps the tcp_request_rule block schema data.

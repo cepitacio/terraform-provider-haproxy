@@ -162,6 +162,49 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 					},
 				},
 			},
+			"http_response_rules": schema.ListNestedBlock{
+				Description: "HTTP response rule configuration for the frontend.",
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"type": schema.StringAttribute{
+							Required:    true,
+							Description: "The type of the HTTP response rule.",
+						},
+						"cond": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition of the HTTP response rule (if, unless).",
+						},
+						"cond_test": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition test of the HTTP response rule.",
+						},
+						"hdr_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header name for the HTTP response rule.",
+						},
+						"hdr_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header format for the HTTP response rule.",
+						},
+						"hdr_method": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header method for the HTTP response rule.",
+						},
+						"redir_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection type (location, prefix, scheme).",
+						},
+						"redir_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection value.",
+						},
+						"index": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The index/order of the HTTP response rule (for backward compatibility).",
+						},
+					},
+				},
+			},
 			"stats_options": schema.ListNestedBlock{
 				Description: "Stats options configuration for the frontend.",
 				NestedObject: schema.NestedBlockObject{
