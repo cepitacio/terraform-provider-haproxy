@@ -1124,7 +1124,7 @@ func (o *StackOperations) frontendChanged(ctx context.Context, planFrontend *hap
 		return false
 	}
 
-	// Compare ALL fields comprehensively
+	// Compare ALL basic fields comprehensively
 	if planFrontend.Name.ValueString() != stateFrontend.Name.ValueString() ||
 		planFrontend.Mode.ValueString() != stateFrontend.Mode.ValueString() ||
 		planFrontend.DefaultBackend.ValueString() != stateFrontend.DefaultBackend.ValueString() ||
@@ -1144,11 +1144,123 @@ func (o *StackOperations) frontendChanged(ctx context.Context, planFrontend *hap
 		planFrontend.Tfo.ValueBool() != stateFrontend.Tfo.ValueBool() ||
 		planFrontend.V4v6.ValueBool() != stateFrontend.V4v6.ValueBool() ||
 		planFrontend.V6only.ValueBool() != stateFrontend.V6only.ValueBool() {
-		tflog.Info(ctx, "Frontend changed", map[string]interface{}{
+		tflog.Info(ctx, "Frontend basic fields changed", map[string]interface{}{
 			"plan_name":  planFrontend.Name.ValueString(),
 			"state_name": stateFrontend.Name.ValueString(),
 		})
 		return true
+	}
+
+	// Compare MonitorFail field
+	if o.monitorFailChanged(ctx, planFrontend.MonitorFail, stateFrontend.MonitorFail) {
+		tflog.Info(ctx, "Frontend MonitorFail changed", map[string]interface{}{
+			"plan_name":  planFrontend.Name.ValueString(),
+			"state_name": stateFrontend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare Binds field
+	if o.bindsChanged(ctx, planFrontend.Binds, stateFrontend.Binds) {
+		tflog.Info(ctx, "Frontend Binds changed", map[string]interface{}{
+			"plan_name":  planFrontend.Name.ValueString(),
+			"state_name": stateFrontend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare Acls field
+	if o.aclsChanged(ctx, planFrontend.Acls, stateFrontend.Acls) {
+		tflog.Info(ctx, "Frontend Acls changed", map[string]interface{}{
+			"plan_name":  planFrontend.Name.ValueString(),
+			"state_name": stateFrontend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare HttpRequestRules field
+	if o.httpRequestRulesChanged(ctx, planFrontend.HttpRequestRules, stateFrontend.HttpRequestRules) {
+		tflog.Info(ctx, "Frontend HttpRequestRules changed", map[string]interface{}{
+			"plan_name":  planFrontend.Name.ValueString(),
+			"state_name": stateFrontend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare HttpResponseRules field
+	if o.httpResponseRulesChanged(ctx, planFrontend.HttpResponseRules, stateFrontend.HttpResponseRules) {
+		tflog.Info(ctx, "Frontend HttpResponseRules changed", map[string]interface{}{
+			"plan_name":  planFrontend.Name.ValueString(),
+			"state_name": stateFrontend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare StatsOptions field
+	if o.statsOptionsChanged(ctx, planFrontend.StatsOptions, stateFrontend.StatsOptions) {
+		tflog.Info(ctx, "Frontend StatsOptions changed", map[string]interface{}{
+			"plan_name":  planFrontend.Name.ValueString(),
+			"state_name": stateFrontend.Name.ValueString(),
+		})
+		return true
+	}
+
+	return false
+}
+
+// monitorFailChanged compares plan vs state monitor fail to detect changes
+func (o *StackOperations) monitorFailChanged(ctx context.Context, planMonitorFail []haproxyMonitorFailModel, stateMonitorFail []haproxyMonitorFailModel) bool {
+	// If lengths are different, there's a change
+	if len(planMonitorFail) != len(stateMonitorFail) {
+		return true
+	}
+
+	// If both are empty, no change
+	if len(planMonitorFail) == 0 && len(stateMonitorFail) == 0 {
+		return false
+	}
+
+	// Compare each monitor fail entry
+	for i, planMF := range planMonitorFail {
+		if i >= len(stateMonitorFail) {
+			return true
+		}
+		stateMF := stateMonitorFail[i]
+
+		if planMF.Cond.ValueString() != stateMF.Cond.ValueString() ||
+			planMF.CondTest.ValueString() != stateMF.CondTest.ValueString() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// statsOptionsChanged compares plan vs state stats options to detect changes
+func (o *StackOperations) statsOptionsChanged(ctx context.Context, planStatsOptions []haproxyStatsOptionsModel, stateStatsOptions []haproxyStatsOptionsModel) bool {
+	// If lengths are different, there's a change
+	if len(planStatsOptions) != len(stateStatsOptions) {
+		return true
+	}
+
+	// If both are empty, no change
+	if len(planStatsOptions) == 0 && len(stateStatsOptions) == 0 {
+		return false
+	}
+
+	// Compare each stats options entry
+	for i, planStats := range planStatsOptions {
+		if i >= len(stateStatsOptions) {
+			return true
+		}
+		stateStats := stateStatsOptions[i]
+
+		if planStats.StatsEnable.ValueBool() != stateStats.StatsEnable.ValueBool() ||
+			planStats.StatsUri.ValueString() != stateStats.StatsUri.ValueString() ||
+			planStats.StatsRealm.ValueString() != stateStats.StatsRealm.ValueString() ||
+			planStats.StatsAuth.ValueString() != stateStats.StatsAuth.ValueString() {
+			return true
+		}
 	}
 
 	return false
@@ -1170,7 +1282,7 @@ func (o *StackOperations) backendChanged(ctx context.Context, planBackend *hapro
 		return false
 	}
 
-	// Compare ALL fields comprehensively
+	// Compare ALL basic fields comprehensively
 	if planBackend.Name.ValueString() != stateBackend.Name.ValueString() ||
 		planBackend.Mode.ValueString() != stateBackend.Mode.ValueString() ||
 		planBackend.AdvCheck.ValueString() != stateBackend.AdvCheck.ValueString() ||
@@ -1183,11 +1295,454 @@ func (o *StackOperations) backendChanged(ctx context.Context, planBackend *hapro
 		planBackend.TarpitTimeout.ValueInt64() != stateBackend.TarpitTimeout.ValueInt64() ||
 		planBackend.Checkcache.ValueString() != stateBackend.Checkcache.ValueString() ||
 		planBackend.Retries.ValueInt64() != stateBackend.Retries.ValueInt64() {
-		tflog.Info(ctx, "Backend changed", map[string]interface{}{
+		tflog.Info(ctx, "Backend basic fields changed", map[string]interface{}{
 			"plan_name":  planBackend.Name.ValueString(),
 			"state_name": stateBackend.Name.ValueString(),
 		})
 		return true
+	}
+
+	// Compare Balance field
+	if o.balanceChanged(ctx, planBackend.Balance, stateBackend.Balance) {
+		tflog.Info(ctx, "Backend Balance changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare HttpchkParams field
+	if o.httpchkParamsChanged(ctx, planBackend.HttpchkParams, stateBackend.HttpchkParams) {
+		tflog.Info(ctx, "Backend HttpchkParams changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare Forwardfor field
+	if o.forwardforChanged(ctx, planBackend.Forwardfor, stateBackend.Forwardfor) {
+		tflog.Info(ctx, "Backend Forwardfor changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare Httpcheck field
+	if o.httpcheckChanged(ctx, planBackend.Httpcheck, stateBackend.Httpcheck) {
+		tflog.Info(ctx, "Backend Httpcheck changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare TcpCheck field
+	if o.tcpCheckChanged(ctx, planBackend.TcpCheck, stateBackend.TcpCheck) {
+		tflog.Info(ctx, "Backend TcpCheck changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare Acls field
+	if o.aclsChanged(ctx, planBackend.Acls, stateBackend.Acls) {
+		tflog.Info(ctx, "Backend Acls changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare HttpRequestRule field
+	if o.httpRequestRulesChanged(ctx, planBackend.HttpRequestRule, stateBackend.HttpRequestRule) {
+		tflog.Info(ctx, "Backend HttpRequestRule changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare HttpResponseRule field
+	if o.httpResponseRulesChanged(ctx, planBackend.HttpResponseRule, stateBackend.HttpResponseRule) {
+		tflog.Info(ctx, "Backend HttpResponseRule changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare TcpRequestRule field
+	if o.tcpRequestRuleChanged(ctx, planBackend.TcpRequestRule, stateBackend.TcpRequestRule) {
+		tflog.Info(ctx, "Backend TcpRequestRule changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare TcpResponseRule field
+	if o.tcpResponseRuleChanged(ctx, planBackend.TcpResponseRule, stateBackend.TcpResponseRule) {
+		tflog.Info(ctx, "Backend TcpResponseRule changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare DefaultServer field
+	if o.defaultServerChanged(ctx, planBackend.DefaultServer, stateBackend.DefaultServer) {
+		tflog.Info(ctx, "Backend DefaultServer changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare StickTable field
+	if o.stickTableChanged(ctx, planBackend.StickTable, stateBackend.StickTable) {
+		tflog.Info(ctx, "Backend StickTable changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare StickRule field
+	if o.stickRuleChanged(ctx, planBackend.StickRule, stateBackend.StickRule) {
+		tflog.Info(ctx, "Backend StickRule changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare StatsOptions field
+	if o.statsOptionsChanged(ctx, planBackend.StatsOptions, stateBackend.StatsOptions) {
+		tflog.Info(ctx, "Backend StatsOptions changed", map[string]interface{}{
+			"plan_name":  planBackend.Name.ValueString(),
+			"state_name": stateBackend.Name.ValueString(),
+		})
+		return true
+	}
+
+	return false
+}
+
+// balanceChanged compares plan vs state balance to detect changes
+func (o *StackOperations) balanceChanged(ctx context.Context, planBalance []haproxyBalanceModel, stateBalance []haproxyBalanceModel) bool {
+	// If lengths are different, there's a change
+	if len(planBalance) != len(stateBalance) {
+		return true
+	}
+
+	// If both are empty, no change
+	if len(planBalance) == 0 && len(stateBalance) == 0 {
+		return false
+	}
+
+	// Compare each balance entry
+	for i, planBal := range planBalance {
+		if i >= len(stateBalance) {
+			return true
+		}
+		stateBal := stateBalance[i]
+
+		if planBal.Algorithm.ValueString() != stateBal.Algorithm.ValueString() ||
+			planBal.UrlParam.ValueString() != stateBal.UrlParam.ValueString() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// httpchkParamsChanged compares plan vs state httpchk params to detect changes
+func (o *StackOperations) httpchkParamsChanged(ctx context.Context, planHttpchkParams []haproxyHttpchkParamsModel, stateHttpchkParams []haproxyHttpchkParamsModel) bool {
+	// If lengths are different, there's a change
+	if len(planHttpchkParams) != len(stateHttpchkParams) {
+		return true
+	}
+
+	// If both are empty, no change
+	if len(planHttpchkParams) == 0 && len(stateHttpchkParams) == 0 {
+		return false
+	}
+
+	// Compare each httpchk params entry
+	for i, planParams := range planHttpchkParams {
+		if i >= len(stateHttpchkParams) {
+			return true
+		}
+		stateParams := stateHttpchkParams[i]
+
+		if planParams.Method.ValueString() != stateParams.Method.ValueString() ||
+			planParams.Uri.ValueString() != stateParams.Uri.ValueString() ||
+			planParams.Version.ValueString() != stateParams.Version.ValueString() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// forwardforChanged compares plan vs state forwardfor to detect changes
+func (o *StackOperations) forwardforChanged(ctx context.Context, planForwardfor []haproxyForwardforModel, stateForwardfor []haproxyForwardforModel) bool {
+	// If lengths are different, there's a change
+	if len(planForwardfor) != len(stateForwardfor) {
+		return true
+	}
+
+	// If both are empty, no change
+	if len(planForwardfor) == 0 && len(stateForwardfor) == 0 {
+		return false
+	}
+
+	// Compare each forwardfor entry
+	for i, planFF := range planForwardfor {
+		if i >= len(stateForwardfor) {
+			return true
+		}
+		stateFF := stateForwardfor[i]
+
+		if planFF.Enabled.ValueString() != stateFF.Enabled.ValueString() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// httpcheckChanged compares plan vs state httpcheck to detect changes
+func (o *StackOperations) httpcheckChanged(ctx context.Context, planHttpcheck []haproxyHttpcheckModel, stateHttpcheck []haproxyHttpcheckModel) bool {
+	// If lengths are different, there's a change
+	if len(planHttpcheck) != len(stateHttpcheck) {
+		return true
+	}
+
+	// If both are empty, no change
+	if len(planHttpcheck) == 0 && len(stateHttpcheck) == 0 {
+		return false
+	}
+
+	// Compare each httpcheck entry
+	for i, planCheck := range planHttpcheck {
+		if i >= len(stateHttpcheck) {
+			return true
+		}
+		stateCheck := stateHttpcheck[i]
+
+		// Compare ALL fields from haproxyHttpcheckModel comprehensively
+		if planCheck.Index.ValueInt64() != stateCheck.Index.ValueInt64() ||
+			planCheck.Type.ValueString() != stateCheck.Type.ValueString() ||
+			planCheck.Method.ValueString() != stateCheck.Method.ValueString() ||
+			planCheck.Uri.ValueString() != stateCheck.Uri.ValueString() ||
+			planCheck.Version.ValueString() != stateCheck.Version.ValueString() ||
+			planCheck.Timeout.ValueInt64() != stateCheck.Timeout.ValueInt64() ||
+			planCheck.Match.ValueString() != stateCheck.Match.ValueString() ||
+			planCheck.Pattern.ValueString() != stateCheck.Pattern.ValueString() ||
+			planCheck.Addr.ValueString() != stateCheck.Addr.ValueString() ||
+			planCheck.Port.ValueInt64() != stateCheck.Port.ValueInt64() ||
+			planCheck.ExclamationMark.ValueString() != stateCheck.ExclamationMark.ValueString() ||
+			planCheck.LogLevel.ValueString() != stateCheck.LogLevel.ValueString() ||
+			planCheck.SendProxy.ValueString() != stateCheck.SendProxy.ValueString() ||
+			planCheck.ViaSocks4.ValueString() != stateCheck.ViaSocks4.ValueString() ||
+			planCheck.CheckComment.ValueString() != stateCheck.CheckComment.ValueString() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// tcpCheckChanged compares plan vs state tcp check to detect changes
+func (o *StackOperations) tcpCheckChanged(ctx context.Context, planTcpCheck []haproxyTcpCheckModel, stateTcpCheck []haproxyTcpCheckModel) bool {
+	// If lengths are different, there's a change
+	if len(planTcpCheck) != len(stateTcpCheck) {
+		return true
+	}
+
+	// If both are empty, no change
+	if len(planTcpCheck) == 0 && len(stateTcpCheck) == 0 {
+		return false
+	}
+
+	// Compare each tcp check entry
+	for i, planCheck := range planTcpCheck {
+		if i >= len(stateTcpCheck) {
+			return true
+		}
+		stateCheck := stateTcpCheck[i]
+
+		if planCheck.Index.ValueInt64() != stateCheck.Index.ValueInt64() ||
+			planCheck.Type.ValueString() != stateCheck.Type.ValueString() ||
+			planCheck.Action.ValueString() != stateCheck.Action.ValueString() ||
+			planCheck.Cond.ValueString() != stateCheck.Cond.ValueString() ||
+			planCheck.CondTest.ValueString() != stateCheck.CondTest.ValueString() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// tcpRequestRuleChanged compares plan vs state tcp request rule to detect changes
+func (o *StackOperations) tcpRequestRuleChanged(ctx context.Context, planTcpRequestRule []haproxyTcpRequestRuleModel, stateTcpRequestRule []haproxyTcpRequestRuleModel) bool {
+	// If lengths are different, there's a change
+	if len(planTcpRequestRule) != len(stateTcpRequestRule) {
+		return true
+	}
+
+	// If both are empty, no change
+	if len(planTcpRequestRule) == 0 && len(stateTcpRequestRule) == 0 {
+		return false
+	}
+
+	// Compare each tcp request rule entry
+	for i, planRule := range planTcpRequestRule {
+		if i >= len(stateTcpRequestRule) {
+			return true
+		}
+		stateRule := stateTcpRequestRule[i]
+
+		if planRule.Index.ValueInt64() != stateRule.Index.ValueInt64() ||
+			planRule.Type.ValueString() != stateRule.Type.ValueString() ||
+			planRule.Action.ValueString() != stateRule.Action.ValueString() ||
+			planRule.Cond.ValueString() != stateRule.Cond.ValueString() ||
+			planRule.CondTest.ValueString() != stateRule.CondTest.ValueString() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// tcpResponseRuleChanged compares plan vs state tcp response rule to detect changes
+func (o *StackOperations) tcpResponseRuleChanged(ctx context.Context, planTcpResponseRule []haproxyTcpResponseRuleModel, stateTcpResponseRule []haproxyTcpResponseRuleModel) bool {
+	// If lengths are different, there's a change
+	if len(planTcpResponseRule) != len(stateTcpResponseRule) {
+		return true
+	}
+
+	// If both are empty, no change
+	if len(planTcpResponseRule) == 0 && len(stateTcpResponseRule) == 0 {
+		return false
+	}
+
+	// Compare each tcp response rule entry
+	for i, planRule := range planTcpResponseRule {
+		if i >= len(stateTcpResponseRule) {
+			return true
+		}
+		stateRule := stateTcpResponseRule[i]
+
+		if planRule.Index.ValueInt64() != stateRule.Index.ValueInt64() ||
+			planRule.Type.ValueString() != stateRule.Type.ValueString() ||
+			planRule.Action.ValueString() != stateRule.Action.ValueString() ||
+			planRule.Cond.ValueString() != stateRule.Cond.ValueString() ||
+			planRule.CondTest.ValueString() != stateRule.CondTest.ValueString() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// defaultServerChanged compares plan vs state default server to detect changes
+func (o *StackOperations) defaultServerChanged(ctx context.Context, planDefaultServer *haproxyDefaultServerModel, stateDefaultServer *haproxyDefaultServerModel) bool {
+	// If one is nil and the other isn't, there's a change
+	if (planDefaultServer == nil) != (stateDefaultServer == nil) {
+		return true
+	}
+
+	// If both are nil, no change
+	if planDefaultServer == nil && stateDefaultServer == nil {
+		return false
+	}
+
+	// Compare all default server fields
+	if planDefaultServer.Ssl.ValueString() != stateDefaultServer.Ssl.ValueString() ||
+		planDefaultServer.Verify.ValueString() != stateDefaultServer.Verify.ValueString() ||
+		planDefaultServer.SslCafile.ValueString() != stateDefaultServer.SslCafile.ValueString() ||
+		planDefaultServer.SslCertificate.ValueString() != stateDefaultServer.SslCertificate.ValueString() ||
+		planDefaultServer.SslMaxVer.ValueString() != stateDefaultServer.SslMaxVer.ValueString() ||
+		planDefaultServer.SslMinVer.ValueString() != stateDefaultServer.SslMinVer.ValueString() ||
+		planDefaultServer.Ciphers.ValueString() != stateDefaultServer.Ciphers.ValueString() ||
+		planDefaultServer.Ciphersuites.ValueString() != stateDefaultServer.Ciphersuites.ValueString() ||
+		planDefaultServer.Sslv3.ValueString() != stateDefaultServer.Sslv3.ValueString() ||
+		planDefaultServer.Tlsv10.ValueString() != stateDefaultServer.Tlsv10.ValueString() ||
+		planDefaultServer.Tlsv11.ValueString() != stateDefaultServer.Tlsv11.ValueString() ||
+		planDefaultServer.Tlsv12.ValueString() != stateDefaultServer.Tlsv12.ValueString() ||
+		planDefaultServer.Tlsv13.ValueString() != stateDefaultServer.Tlsv13.ValueString() ||
+		planDefaultServer.NoSslv3.ValueString() != stateDefaultServer.NoSslv3.ValueString() ||
+		planDefaultServer.NoTlsv10.ValueString() != stateDefaultServer.NoTlsv10.ValueString() ||
+		planDefaultServer.NoTlsv11.ValueString() != stateDefaultServer.NoTlsv11.ValueString() ||
+		planDefaultServer.NoTlsv12.ValueString() != stateDefaultServer.NoTlsv12.ValueString() ||
+		planDefaultServer.NoTlsv13.ValueString() != stateDefaultServer.NoTlsv13.ValueString() ||
+		planDefaultServer.ForceSslv3.ValueString() != stateDefaultServer.ForceSslv3.ValueString() ||
+		planDefaultServer.ForceTlsv10.ValueString() != stateDefaultServer.ForceTlsv10.ValueString() ||
+		planDefaultServer.ForceTlsv11.ValueString() != stateDefaultServer.ForceTlsv11.ValueString() ||
+		planDefaultServer.ForceTlsv12.ValueString() != stateDefaultServer.ForceTlsv12.ValueString() ||
+		planDefaultServer.ForceTlsv13.ValueString() != stateDefaultServer.ForceTlsv13.ValueString() ||
+		planDefaultServer.ForceStrictSni.ValueString() != stateDefaultServer.ForceStrictSni.ValueString() ||
+		planDefaultServer.SslReuse.ValueString() != stateDefaultServer.SslReuse.ValueString() {
+		return true
+	}
+
+	return false
+}
+
+// stickTableChanged compares plan vs state stick table to detect changes
+func (o *StackOperations) stickTableChanged(ctx context.Context, planStickTable *haproxyStickTableModel, stateStickTable *haproxyStickTableModel) bool {
+	// If one is nil and the other isn't, there's a change
+	if (planStickTable == nil) != (stateStickTable == nil) {
+		return true
+	}
+
+	// If both are nil, no change
+	if planStickTable == nil && stateStickTable == nil {
+		return false
+	}
+
+	// Compare all stick table fields
+	if planStickTable.Type.ValueString() != stateStickTable.Type.ValueString() ||
+		planStickTable.Size.ValueInt64() != stateStickTable.Size.ValueInt64() ||
+		planStickTable.Expire.ValueInt64() != stateStickTable.Expire.ValueInt64() ||
+		planStickTable.Nopurge.ValueBool() != stateStickTable.Nopurge.ValueBool() ||
+		planStickTable.Peers.ValueString() != stateStickTable.Peers.ValueString() {
+		return true
+	}
+
+	return false
+}
+
+// stickRuleChanged compares plan vs state stick rule to detect changes
+func (o *StackOperations) stickRuleChanged(ctx context.Context, planStickRule []haproxyStickRuleModel, stateStickRule []haproxyStickRuleModel) bool {
+	// If lengths are different, there's a change
+	if len(planStickRule) != len(stateStickRule) {
+		return true
+	}
+
+	// If both are empty, no change
+	if len(planStickRule) == 0 && len(stateStickRule) == 0 {
+		return false
+	}
+
+	// Compare each stick rule entry
+	for i, planRule := range planStickRule {
+		if i >= len(stateStickRule) {
+			return true
+		}
+		stateRule := stateStickRule[i]
+
+		if planRule.Index.ValueInt64() != stateRule.Index.ValueInt64() ||
+			planRule.Type.ValueString() != stateRule.Type.ValueString() ||
+			planRule.Table.ValueString() != stateRule.Table.ValueString() ||
+			planRule.Pattern.ValueString() != stateRule.Pattern.ValueString() {
+			return true
+		}
 	}
 
 	return false
@@ -1212,11 +1767,77 @@ func (o *StackOperations) bindsChanged(ctx context.Context, planBinds map[string
 			return true
 		}
 
-		// Compare key fields
+		// Compare ALL fields from haproxyBindModel comprehensively
 		if planBind.Address.ValueString() != stateBind.Address.ValueString() ||
 			planBind.Port.ValueInt64() != stateBind.Port.ValueInt64() ||
+			planBind.PortRangeEnd.ValueInt64() != stateBind.PortRangeEnd.ValueInt64() ||
+			planBind.Transparent.ValueBool() != stateBind.Transparent.ValueBool() ||
+			planBind.Mode.ValueString() != stateBind.Mode.ValueString() ||
+			planBind.Maxconn.ValueInt64() != stateBind.Maxconn.ValueInt64() ||
 			planBind.Ssl.ValueBool() != stateBind.Ssl.ValueBool() ||
-			planBind.Transparent.ValueBool() != stateBind.Transparent.ValueBool() {
+			planBind.SslCafile.ValueString() != stateBind.SslCafile.ValueString() ||
+			planBind.SslCertificate.ValueString() != stateBind.SslCertificate.ValueString() ||
+			planBind.SslMaxVer.ValueString() != stateBind.SslMaxVer.ValueString() ||
+			planBind.SslMinVer.ValueString() != stateBind.SslMinVer.ValueString() ||
+			planBind.Ciphers.ValueString() != stateBind.Ciphers.ValueString() ||
+			planBind.Ciphersuites.ValueString() != stateBind.Ciphersuites.ValueString() ||
+			planBind.Verify.ValueString() != stateBind.Verify.ValueString() ||
+			planBind.AcceptProxy.ValueBool() != stateBind.AcceptProxy.ValueBool() ||
+			planBind.Allow0rtt.ValueBool() != stateBind.Allow0rtt.ValueBool() ||
+			planBind.Alpn.ValueString() != stateBind.Alpn.ValueString() ||
+			planBind.Backlog.ValueString() != stateBind.Backlog.ValueString() ||
+			planBind.DeferAccept.ValueBool() != stateBind.DeferAccept.ValueBool() ||
+			planBind.GenerateCertificates.ValueBool() != stateBind.GenerateCertificates.ValueBool() ||
+			planBind.Gid.ValueInt64() != stateBind.Gid.ValueInt64() ||
+			planBind.Group.ValueString() != stateBind.Group.ValueString() ||
+			planBind.Id.ValueString() != stateBind.Id.ValueString() ||
+			planBind.Interface.ValueString() != stateBind.Interface.ValueString() ||
+			planBind.Level.ValueString() != stateBind.Level.ValueString() ||
+			planBind.Namespace.ValueString() != stateBind.Namespace.ValueString() ||
+			planBind.Nice.ValueInt64() != stateBind.Nice.ValueInt64() ||
+			planBind.NoCaNames.ValueBool() != stateBind.NoCaNames.ValueBool() ||
+			planBind.Npn.ValueString() != stateBind.Npn.ValueString() ||
+			planBind.PreferClientCiphers.ValueBool() != stateBind.PreferClientCiphers.ValueBool() ||
+			planBind.Process.ValueString() != stateBind.Process.ValueString() ||
+			planBind.Proto.ValueString() != stateBind.Proto.ValueString() ||
+			planBind.SeverityOutput.ValueString() != stateBind.SeverityOutput.ValueString() ||
+			planBind.StrictSni.ValueBool() != stateBind.StrictSni.ValueBool() ||
+			planBind.TcpUserTimeout.ValueInt64() != stateBind.TcpUserTimeout.ValueInt64() ||
+			planBind.Tfo.ValueBool() != stateBind.Tfo.ValueBool() ||
+			planBind.TlsTicketKeys.ValueString() != stateBind.TlsTicketKeys.ValueString() ||
+			planBind.Uid.ValueString() != stateBind.Uid.ValueString() ||
+			planBind.User.ValueString() != stateBind.User.ValueString() ||
+			planBind.V4v6.ValueBool() != stateBind.V4v6.ValueBool() ||
+			planBind.V6only.ValueBool() != stateBind.V6only.ValueBool() ||
+			// v3 fields (non-deprecated)
+			planBind.Sslv3.ValueBool() != stateBind.Sslv3.ValueBool() ||
+			planBind.Tlsv10.ValueBool() != stateBind.Tlsv10.ValueBool() ||
+			planBind.Tlsv11.ValueBool() != stateBind.Tlsv11.ValueBool() ||
+			planBind.Tlsv12.ValueBool() != stateBind.Tlsv12.ValueBool() ||
+			planBind.Tlsv13.ValueBool() != stateBind.Tlsv13.ValueBool() ||
+			planBind.TlsTickets.ValueString() != stateBind.TlsTickets.ValueString() ||
+			planBind.ForceStrictSni.ValueString() != stateBind.ForceStrictSni.ValueString() ||
+			planBind.NoStrictSni.ValueBool() != stateBind.NoStrictSni.ValueBool() ||
+			planBind.GuidPrefix.ValueString() != stateBind.GuidPrefix.ValueString() ||
+			planBind.IdlePing.ValueInt64() != stateBind.IdlePing.ValueInt64() ||
+			planBind.QuicCcAlgo.ValueString() != stateBind.QuicCcAlgo.ValueString() ||
+			planBind.QuicForceRetry.ValueBool() != stateBind.QuicForceRetry.ValueBool() ||
+			planBind.QuicSocket.ValueString() != stateBind.QuicSocket.ValueString() ||
+			planBind.QuicCcAlgoBurstSize.ValueInt64() != stateBind.QuicCcAlgoBurstSize.ValueInt64() ||
+			planBind.QuicCcAlgoMaxWindow.ValueInt64() != stateBind.QuicCcAlgoMaxWindow.ValueInt64() ||
+			planBind.Metadata.ValueString() != stateBind.Metadata.ValueString() ||
+			// v2 fields (deprecated in v3)
+			planBind.NoSslv3.ValueBool() != stateBind.NoSslv3.ValueBool() ||
+			planBind.ForceSslv3.ValueBool() != stateBind.ForceSslv3.ValueBool() ||
+			planBind.ForceTlsv10.ValueBool() != stateBind.ForceTlsv10.ValueBool() ||
+			planBind.ForceTlsv11.ValueBool() != stateBind.ForceTlsv11.ValueBool() ||
+			planBind.ForceTlsv12.ValueBool() != stateBind.ForceTlsv12.ValueBool() ||
+			planBind.ForceTlsv13.ValueBool() != stateBind.ForceTlsv13.ValueBool() ||
+			planBind.NoTlsv10.ValueBool() != stateBind.NoTlsv10.ValueBool() ||
+			planBind.NoTlsv11.ValueBool() != stateBind.NoTlsv11.ValueBool() ||
+			planBind.NoTlsv12.ValueBool() != stateBind.NoTlsv12.ValueBool() ||
+			planBind.NoTlsv13.ValueBool() != stateBind.NoTlsv13.ValueBool() ||
+			planBind.NoTlsTickets.ValueBool() != stateBind.NoTlsTickets.ValueBool() {
 			tflog.Info(ctx, "Bind changed", map[string]interface{}{
 				"bind_name":     bindName,
 				"plan_address":  planBind.Address.ValueString(),

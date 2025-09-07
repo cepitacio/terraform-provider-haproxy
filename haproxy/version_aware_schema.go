@@ -1,7 +1,9 @@
 package haproxy
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
 // VersionAwareSchemaBuilder provides methods to build schemas based on API version
@@ -73,22 +75,37 @@ func (b *VersionAwareSchemaBuilder) BuildDefaultServerSchema() schema.ListNested
 		attributes["sslv3"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "SSLv3 support for the default server (v3 only).",
+			Validators: []validator.String{
+				stringvalidator.OneOf("enabled", "disabled"),
+			},
 		}
 		attributes["tlsv10"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "TLSv1.0 support for the default server (v3 only).",
+			Validators: []validator.String{
+				stringvalidator.OneOf("enabled", "disabled"),
+			},
 		}
 		attributes["tlsv11"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "TLSv1.1 support for the default server (v3 only).",
+			Validators: []validator.String{
+				stringvalidator.OneOf("enabled", "disabled"),
+			},
 		}
 		attributes["tlsv12"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "TLSv1.2 support for the default server (v3 only).",
+			Validators: []validator.String{
+				stringvalidator.OneOf("enabled", "disabled"),
+			},
 		}
 		attributes["tlsv13"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "TLSv1.3 support for the default server (v3 only).",
+			Validators: []validator.String{
+				stringvalidator.OneOf("enabled", "disabled"),
+			},
 		}
 	}
 
@@ -226,22 +243,37 @@ func (b *VersionAwareSchemaBuilder) BuildServerSchema() schema.ListNestedBlock {
 		attributes["sslv3"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "SSLv3 support for the server (v3 only).",
+			Validators: []validator.String{
+				stringvalidator.OneOf("enabled", "disabled"),
+			},
 		}
 		attributes["tlsv10"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "TLSv1.0 support for the server (v3 only).",
+			Validators: []validator.String{
+				stringvalidator.OneOf("enabled", "disabled"),
+			},
 		}
 		attributes["tlsv11"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "TLSv1.1 support for the server (v3 only).",
+			Validators: []validator.String{
+				stringvalidator.OneOf("enabled", "disabled"),
+			},
 		}
 		attributes["tlsv12"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "TLSv1.2 support for the server (v3 only).",
+			Validators: []validator.String{
+				stringvalidator.OneOf("enabled", "disabled"),
+			},
 		}
 		attributes["tlsv13"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "TLSv1.3 support for the server (v3 only).",
+			Validators: []validator.String{
+				stringvalidator.OneOf("enabled", "disabled"),
+			},
 		}
 	}
 
