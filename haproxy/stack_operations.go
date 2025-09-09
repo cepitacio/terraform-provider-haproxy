@@ -426,8 +426,8 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Create Backend HTTP Request Rules AFTER ACLs (so they can reference existing ACLs)
-	if data.Backend != nil && data.Backend.HttpRequestRule != nil && len(data.Backend.HttpRequestRule) > 0 {
-		if err := o.httpRequestRuleManager.CreateHttpRequestRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpRequestRule); err != nil {
+	if data.Backend != nil && data.Backend.HttpRequestRules != nil && len(data.Backend.HttpRequestRules) > 0 {
+		if err := o.httpRequestRuleManager.CreateHttpRequestRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpRequestRules); err != nil {
 			resp.Diagnostics.AddError("Error creating backend HTTP request rules", err.Error())
 			return err
 		}
@@ -1101,6 +1101,28 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
+	// Update Backend HTTP Request Rules only if they changed in the plan
+	if data.Backend != nil && data.Backend.HttpRequestRules != nil && len(data.Backend.HttpRequestRules) > 0 {
+		// Check if HTTP Request Rules changed by comparing plan vs state
+		httpRequestRulesChanged := o.httpRequestRulesChanged(ctx, data.Backend.HttpRequestRules, state.Backend.HttpRequestRules)
+		if httpRequestRulesChanged {
+			tflog.Info(ctx, "Backend HTTP request rules changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+			if err = o.httpRequestRuleManager.UpdateHttpRequestRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpRequestRules); err != nil {
+				resp.Diagnostics.AddError("Error updating backend HTTP request rules", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Backend HTTP request rules unchanged, skipping update")
+		}
+	} else if data.Backend != nil && state.Backend != nil && state.Backend.HttpRequestRules != nil && len(state.Backend.HttpRequestRules) > 0 {
+		// Handle backend HTTP request rules deletion - plan has no rules but state does
+		tflog.Info(ctx, "Backend HTTP request rules removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.httpRequestRuleManager.DeleteHttpRequestRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend HTTP request rules", err.Error())
+			return err
+		}
+	}
+
 	// Update Frontend HTTP Response Rules only if they changed in the plan
 	if data.Frontend != nil && data.Frontend.HttpResponseRules != nil && len(data.Frontend.HttpResponseRules) > 0 {
 		// Check if HTTP Response Rules changed by comparing plan vs state
@@ -1705,8 +1727,8 @@ func (o *StackOperations) backendChanged(ctx context.Context, planBackend *hapro
 		return true
 	}
 
-	// Compare HttpRequestRule field
-	if o.httpRequestRulesChanged(ctx, planBackend.HttpRequestRule, stateBackend.HttpRequestRule) {
+	// Compare HttpRequestRules field
+	if o.httpRequestRulesChanged(ctx, planBackend.HttpRequestRules, stateBackend.HttpRequestRules) {
 		tflog.Info(ctx, "Backend HttpRequestRule changed", map[string]interface{}{
 			"plan_name":  planBackend.Name.ValueString(),
 			"state_name": stateBackend.Name.ValueString(),
