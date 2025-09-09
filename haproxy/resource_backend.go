@@ -408,7 +408,7 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 					},
 				},
 			},
-			"http_request_rule": schema.ListNestedBlock{
+			"http_request_rules": schema.ListNestedBlock{
 				Description: "HTTP request rule configuration for the backend.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{

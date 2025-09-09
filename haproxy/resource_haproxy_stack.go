@@ -56,7 +56,7 @@ type haproxyBackendModel struct {
 	Httpchecks         []haproxyHttpcheckModel       `tfsdk:"http_checks"`
 	TcpChecks          []haproxyTcpCheckModel        `tfsdk:"tcp_checks"`
 	Acls               []haproxyAclModel             `tfsdk:"acls"`
-	HttpRequestRule    []haproxyHttpRequestRuleModel `tfsdk:"http_request_rule"`
+	HttpRequestRules   []haproxyHttpRequestRuleModel `tfsdk:"http_request_rules"`
 
 	HttpResponseRules []haproxyHttpResponseRuleModel `tfsdk:"http_response_rules"`
 	TcpRequestRules   []haproxyTcpRequestRuleModel   `tfsdk:"tcp_request_rules"`
