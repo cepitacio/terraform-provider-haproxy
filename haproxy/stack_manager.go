@@ -19,9 +19,13 @@ type StackManager struct {
 func NewStackManager(client *HAProxyClient, aclManager *ACLManager, frontendManager *FrontendManager, backendManager *BackendManager) *StackManager {
 	httpRequestRuleManager := NewHttpRequestRuleManager(client)
 	httpResponseRuleManager := NewHttpResponseRuleManager(client)
+	tcpRequestRuleManager := NewTcpRequestRuleManager(client)
+	tcpResponseRuleManager := NewTcpResponseRuleManager(client)
+	httpcheckManager := NewHttpcheckManager(client)
+	tcpCheckManager := NewTcpCheckManager(client)
 	bindManager := NewBindManager(client)
 	return &StackManager{
-		operations: NewStackOperations(client, aclManager, frontendManager, backendManager, httpRequestRuleManager, httpResponseRuleManager, bindManager),
+		operations: NewStackOperations(client, aclManager, frontendManager, backendManager, httpRequestRuleManager, httpResponseRuleManager, tcpRequestRuleManager, tcpResponseRuleManager, httpcheckManager, tcpCheckManager, bindManager),
 		validation: NewStackValidation(),
 		processors: NewStackProcessors(),
 	}

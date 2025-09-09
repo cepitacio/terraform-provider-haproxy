@@ -18,24 +18,15 @@ type httpcheckDataSource struct {
 }
 
 type httpcheckDataSourceModel struct {
-	Httpchecks []httpcheckItemModel `tfsdk:"httpchecks"`
+	Httpchecks []httpcheckItemModel `tfsdk:"http_checks"`
 }
 
 type httpcheckItemModel struct {
-	Index           types.String `tfsdk:"index"`
-	Addr            types.String `tfsdk:"addr"`
-	Match           types.String `tfsdk:"match"`
-	Pattern         types.String `tfsdk:"pattern"`
-	Type            types.String `tfsdk:"type"`
-	Method          types.String `tfsdk:"method"`
-	Port            types.Int64  `tfsdk:"port"`
-	Uri             types.String `tfsdk:"uri"`
-	Version         types.String `tfsdk:"version"`
-	ExclamationMark types.String `tfsdk:"exclamation_mark"`
-	LogLevel        types.String `tfsdk:"log_level"`
-	SendProxy       types.String `tfsdk:"send_proxy"`
-	ViaSocks4       types.String `tfsdk:"via_socks4"`
-	CheckComment    types.String `tfsdk:"check_comment"`
+	Index   types.String `tfsdk:"index"`
+	Type    types.String `tfsdk:"type"`
+	Method  types.String `tfsdk:"method"`
+	Uri     types.String `tfsdk:"uri"`
+	Version types.String `tfsdk:"version"`
 }
 
 func (d *httpcheckDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -45,25 +36,13 @@ func (d *httpcheckDataSource) Metadata(_ context.Context, req datasource.Metadat
 func (d *httpcheckDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"httpchecks": schema.ListNestedAttribute{
+			"http_checks": schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"index": schema.StringAttribute{
 							Computed:    true,
 							Description: "The index of the HTTP check.",
-						},
-						"addr": schema.StringAttribute{
-							Computed:    true,
-							Description: "The address of the HTTP check.",
-						},
-						"match": schema.StringAttribute{
-							Computed:    true,
-							Description: "The match condition of the HTTP check.",
-						},
-						"pattern": schema.StringAttribute{
-							Computed:    true,
-							Description: "The pattern of the HTTP check.",
 						},
 						"type": schema.StringAttribute{
 							Computed:    true,
@@ -73,10 +52,6 @@ func (d *httpcheckDataSource) Schema(_ context.Context, _ datasource.SchemaReque
 							Computed:    true,
 							Description: "The HTTP method of the check.",
 						},
-						"port": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The port of the HTTP check.",
-						},
 						"uri": schema.StringAttribute{
 							Computed:    true,
 							Description: "The URI of the HTTP check.",
@@ -84,26 +59,6 @@ func (d *httpcheckDataSource) Schema(_ context.Context, _ datasource.SchemaReque
 						"version": schema.StringAttribute{
 							Computed:    true,
 							Description: "The HTTP version of the check.",
-						},
-						"exclamation_mark": schema.StringAttribute{
-							Computed:    true,
-							Description: "The exclamation mark flag of the HTTP check.",
-						},
-						"log_level": schema.StringAttribute{
-							Computed:    true,
-							Description: "The log level of the HTTP check.",
-						},
-						"send_proxy": schema.StringAttribute{
-							Computed:    true,
-							Description: "The send proxy flag of the HTTP check.",
-						},
-						"via_socks4": schema.StringAttribute{
-							Computed:    true,
-							Description: "The via socks4 flag of the HTTP check.",
-						},
-						"check_comment": schema.StringAttribute{
-							Computed:    true,
-							Description: "The comment of the HTTP check.",
 						},
 					},
 				},
@@ -164,20 +119,11 @@ func (d *httpcheckDataSource) Read(ctx context.Context, req datasource.ReadReque
 
 	for _, httpcheck := range httpchecks {
 		state.Httpchecks = append(state.Httpchecks, httpcheckItemModel{
-			Index:           types.StringValue(fmt.Sprintf("%d", httpcheck.Index)),
-			Addr:            types.StringValue(httpcheck.Addr),
-			Match:           types.StringValue(httpcheck.Match),
-			Pattern:         types.StringValue(httpcheck.Pattern),
-			Type:            types.StringValue(httpcheck.Type),
-			Method:          types.StringValue(httpcheck.Method),
-			Port:            types.Int64Value(httpcheck.Port),
-			Uri:             types.StringValue(httpcheck.Uri),
-			Version:         types.StringValue(httpcheck.Version),
-			ExclamationMark: types.StringValue(httpcheck.ExclamationMark),
-			LogLevel:        types.StringValue(httpcheck.LogLevel),
-			SendProxy:       types.StringValue(httpcheck.SendProxy),
-			ViaSocks4:       types.StringValue(httpcheck.ViaSocks4),
-			CheckComment:    types.StringValue(httpcheck.CheckComment),
+			Index:   types.StringValue(fmt.Sprintf("%d", httpcheck.Index)),
+			Type:    types.StringValue(httpcheck.Type),
+			Method:  types.StringValue(httpcheck.Method),
+			Uri:     types.StringValue(httpcheck.Uri),
+			Version: types.StringValue(httpcheck.Version),
 		})
 	}
 

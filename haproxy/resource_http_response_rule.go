@@ -627,14 +627,125 @@ func (r *HttpResponseRuleManager) convertToHttpResponseRulePayload(rule *haproxy
 	if !rule.RedirValue.IsNull() && !rule.RedirValue.IsUnknown() && rule.RedirValue.ValueString() != "" {
 		payload.RedirValue = rule.RedirValue.ValueString()
 	}
+	if !rule.BandwidthLimitName.IsNull() && !rule.BandwidthLimitName.IsUnknown() && rule.BandwidthLimitName.ValueString() != "" {
+		payload.BandwidthLimitName = rule.BandwidthLimitName.ValueString()
+	}
+	if !rule.BandwidthLimitLimit.IsNull() && !rule.BandwidthLimitLimit.IsUnknown() && rule.BandwidthLimitLimit.ValueString() != "" {
+		payload.BandwidthLimitLimit = rule.BandwidthLimitLimit.ValueString()
+	}
+	if !rule.BandwidthLimitPeriod.IsNull() && !rule.BandwidthLimitPeriod.IsUnknown() && rule.BandwidthLimitPeriod.ValueString() != "" {
+		payload.BandwidthLimitPeriod = rule.BandwidthLimitPeriod.ValueString()
+	}
+	if !rule.HdrMethod.IsNull() && !rule.HdrMethod.IsUnknown() && rule.HdrMethod.ValueString() != "" {
+		payload.HdrMethod = rule.HdrMethod.ValueString()
+	}
+	if !rule.RedirCode.IsNull() && !rule.RedirCode.IsUnknown() {
+		payload.RedirCode = rule.RedirCode.ValueInt64()
+	}
+	if !rule.RedirOption.IsNull() && !rule.RedirOption.IsUnknown() && rule.RedirOption.ValueString() != "" {
+		payload.RedirOption = rule.RedirOption.ValueString()
+	}
+	if !rule.AclFile.IsNull() && !rule.AclFile.IsUnknown() && rule.AclFile.ValueString() != "" {
+		payload.AclFile = rule.AclFile.ValueString()
+	}
+	if !rule.AclKeyfmt.IsNull() && !rule.AclKeyfmt.IsUnknown() && rule.AclKeyfmt.ValueString() != "" {
+		payload.AclKeyfmt = rule.AclKeyfmt.ValueString()
+	}
+	if !rule.CacheName.IsNull() && !rule.CacheName.IsUnknown() && rule.CacheName.ValueString() != "" {
+		payload.CacheName = rule.CacheName.ValueString()
+	}
+	if !rule.CaptureId.IsNull() && !rule.CaptureId.IsUnknown() {
+		payload.CaptureID = rule.CaptureId.ValueInt64()
+	}
+	if !rule.CaptureSample.IsNull() && !rule.CaptureSample.IsUnknown() && rule.CaptureSample.ValueString() != "" {
+		payload.CaptureSample = rule.CaptureSample.ValueString()
+	}
+	if !rule.DenyStatus.IsNull() && !rule.DenyStatus.IsUnknown() {
+		payload.DenyStatus = rule.DenyStatus.ValueInt64()
+	}
+	if !rule.Expr.IsNull() && !rule.Expr.IsUnknown() && rule.Expr.ValueString() != "" {
+		payload.Expr = rule.Expr.ValueString()
+	}
+	if !rule.LogLevel.IsNull() && !rule.LogLevel.IsUnknown() && rule.LogLevel.ValueString() != "" {
+		payload.LogLevel = rule.LogLevel.ValueString()
+	}
+	if !rule.LuaAction.IsNull() && !rule.LuaAction.IsUnknown() && rule.LuaAction.ValueString() != "" {
+		payload.LuaAction = rule.LuaAction.ValueString()
+	}
+	if !rule.LuaParams.IsNull() && !rule.LuaParams.IsUnknown() && rule.LuaParams.ValueString() != "" {
+		payload.LuaParams = rule.LuaParams.ValueString()
+	}
+	if !rule.MapFile.IsNull() && !rule.MapFile.IsUnknown() && rule.MapFile.ValueString() != "" {
+		payload.MapFile = rule.MapFile.ValueString()
+	}
+	if !rule.MapKeyfmt.IsNull() && !rule.MapKeyfmt.IsUnknown() && rule.MapKeyfmt.ValueString() != "" {
+		payload.MapKeyfmt = rule.MapKeyfmt.ValueString()
+	}
+	if !rule.MapValuefmt.IsNull() && !rule.MapValuefmt.IsUnknown() && rule.MapValuefmt.ValueString() != "" {
+		payload.MapValuefmt = rule.MapValuefmt.ValueString()
+	}
+	if !rule.MarkValue.IsNull() && !rule.MarkValue.IsUnknown() && rule.MarkValue.ValueString() != "" {
+		payload.MarkValue = rule.MarkValue.ValueString()
+	}
+	if !rule.NiceValue.IsNull() && !rule.NiceValue.IsUnknown() {
+		payload.NiceValue = rule.NiceValue.ValueInt64()
+	}
+	if !rule.ReturnContent.IsNull() && !rule.ReturnContent.IsUnknown() && rule.ReturnContent.ValueString() != "" {
+		payload.ReturnContent = rule.ReturnContent.ValueString()
+	}
+	if !rule.ReturnContentFormat.IsNull() && !rule.ReturnContentFormat.IsUnknown() && rule.ReturnContentFormat.ValueString() != "" {
+		payload.ReturnContentFormat = rule.ReturnContentFormat.ValueString()
+	}
+	if !rule.ReturnContentType.IsNull() && !rule.ReturnContentType.IsUnknown() && rule.ReturnContentType.ValueString() != "" {
+		payload.ReturnContentType = rule.ReturnContentType.ValueString()
+	}
+	if !rule.ReturnStatusCode.IsNull() && !rule.ReturnStatusCode.IsUnknown() {
+		payload.ReturnStatusCode = rule.ReturnStatusCode.ValueInt64()
+	}
+	if !rule.RstTtl.IsNull() && !rule.RstTtl.IsUnknown() {
+		payload.RstTtl = rule.RstTtl.ValueInt64()
+	}
+	if !rule.SpoeEngine.IsNull() && !rule.SpoeEngine.IsUnknown() && rule.SpoeEngine.ValueString() != "" {
+		payload.SpoeEngine = rule.SpoeEngine.ValueString()
+	}
+	if !rule.SpoeGroup.IsNull() && !rule.SpoeGroup.IsUnknown() && rule.SpoeGroup.ValueString() != "" {
+		payload.SpoeGroup = rule.SpoeGroup.ValueString()
+	}
+	if !rule.Status.IsNull() && !rule.Status.IsUnknown() {
+		payload.StatusCode = rule.Status.ValueInt64()
+	}
+	if !rule.StatusReason.IsNull() && !rule.StatusReason.IsUnknown() && rule.StatusReason.ValueString() != "" {
+		payload.StatusReason = rule.StatusReason.ValueString()
+	}
+	if !rule.StrictMode.IsNull() && !rule.StrictMode.IsUnknown() && rule.StrictMode.ValueString() != "" {
+		payload.StrictMode = rule.StrictMode.ValueString()
+	}
+	if !rule.Timeout.IsNull() && !rule.Timeout.IsUnknown() && rule.Timeout.ValueString() != "" {
+		payload.Timeout = rule.Timeout.ValueString()
+	}
+	if !rule.TimeoutType.IsNull() && !rule.TimeoutType.IsUnknown() && rule.TimeoutType.ValueString() != "" {
+		payload.TimeoutType = rule.TimeoutType.ValueString()
+	}
+	if !rule.TosValue.IsNull() && !rule.TosValue.IsUnknown() && rule.TosValue.ValueString() != "" {
+		payload.TosValue = rule.TosValue.ValueString()
+	}
+	if !rule.TrackScKey.IsNull() && !rule.TrackScKey.IsUnknown() && rule.TrackScKey.ValueString() != "" {
+		payload.TrackScKey = rule.TrackScKey.ValueString()
+	}
+	if !rule.TrackScStickCounter.IsNull() && !rule.TrackScStickCounter.IsUnknown() {
+		payload.TrackScStickCounter = rule.TrackScStickCounter.ValueInt64()
+	}
 
 	// Debug logging to see what's being sent
-	log.Printf("DEBUG: HTTP response rule payload: Type=%s, Cond=%s, CondTest=%s, HdrName=%s, HdrFormat=%s, HdrMethod=%s",
-		payload.Type, payload.Cond, payload.CondTest, payload.HdrName, payload.HdrFormat, payload.HdrMethod)
+	log.Printf("DEBUG: HTTP response rule payload: Type=%s, Cond=%s, CondTest=%s, HdrName=%s, HdrFormat=%s, HdrMethod=%s, BandwidthLimitName=%s, BandwidthLimitLimit=%s, BandwidthLimitPeriod=%s",
+		payload.Type, payload.Cond, payload.CondTest, payload.HdrName, payload.HdrFormat, payload.HdrMethod, payload.BandwidthLimitName, payload.BandwidthLimitLimit, payload.BandwidthLimitPeriod)
 
 	// Validate that required fields are present for specific rule types
 	if payload.Type == "set-header" && (payload.HdrName == "" || payload.HdrFormat == "") {
 		log.Printf("WARNING: set-header rule at position %d is missing hdr_name or hdr_format, this may cause formatting issues", position)
+	}
+	if payload.Type == "set-bandwidth-limit" && (payload.BandwidthLimitName == "" || payload.BandwidthLimitLimit == "" || payload.BandwidthLimitPeriod == "") {
+		log.Printf("WARNING: set-bandwidth-limit rule at position %d is missing bandwidth_limit_name, bandwidth_limit_limit, or bandwidth_limit_period, this may cause formatting issues", position)
 	}
 
 	return payload
@@ -974,7 +1085,50 @@ func (r *HttpResponseRuleManager) updateHttpResponseRulesWithIndexingInTransacti
 
 // hasHttpResponseRuleChanged compares two HTTP response rules to determine if they have different content
 func hasHttpResponseRuleChanged(existing, desired HttpResponseRulePayload) bool {
-	return existing.Type != desired.Type || existing.Cond != desired.Cond || existing.CondTest != desired.CondTest
+	return existing.Type != desired.Type ||
+		existing.Cond != desired.Cond ||
+		existing.CondTest != desired.CondTest ||
+		existing.HdrName != desired.HdrName ||
+		existing.HdrFormat != desired.HdrFormat ||
+		existing.HdrMatch != desired.HdrMatch ||
+		existing.HdrMethod != desired.HdrMethod ||
+		existing.RedirType != desired.RedirType ||
+		existing.RedirValue != desired.RedirValue ||
+		existing.RedirCode != desired.RedirCode ||
+		existing.RedirOption != desired.RedirOption ||
+		existing.BandwidthLimitName != desired.BandwidthLimitName ||
+		existing.BandwidthLimitLimit != desired.BandwidthLimitLimit ||
+		existing.BandwidthLimitPeriod != desired.BandwidthLimitPeriod ||
+		existing.AclFile != desired.AclFile ||
+		existing.AclKeyfmt != desired.AclKeyfmt ||
+		existing.CacheName != desired.CacheName ||
+		existing.CaptureID != desired.CaptureID ||
+		existing.CaptureSample != desired.CaptureSample ||
+		existing.DenyStatus != desired.DenyStatus ||
+		existing.Expr != desired.Expr ||
+		existing.LogLevel != desired.LogLevel ||
+		existing.LuaAction != desired.LuaAction ||
+		existing.LuaParams != desired.LuaParams ||
+		existing.MapFile != desired.MapFile ||
+		existing.MapKeyfmt != desired.MapKeyfmt ||
+		existing.MapValuefmt != desired.MapValuefmt ||
+		existing.MarkValue != desired.MarkValue ||
+		existing.NiceValue != desired.NiceValue ||
+		existing.ReturnContent != desired.ReturnContent ||
+		existing.ReturnContentFormat != desired.ReturnContentFormat ||
+		existing.ReturnContentType != desired.ReturnContentType ||
+		existing.ReturnStatusCode != desired.ReturnStatusCode ||
+		existing.RstTtl != desired.RstTtl ||
+		existing.SpoeEngine != desired.SpoeEngine ||
+		existing.SpoeGroup != desired.SpoeGroup ||
+		existing.StatusCode != desired.StatusCode ||
+		existing.StatusReason != desired.StatusReason ||
+		existing.StrictMode != desired.StrictMode ||
+		existing.Timeout != desired.Timeout ||
+		existing.TimeoutType != desired.TimeoutType ||
+		existing.TosValue != desired.TosValue ||
+		existing.TrackScKey != desired.TrackScKey ||
+		existing.TrackScStickCounter != desired.TrackScStickCounter
 }
 
 // deleteAllHttpResponseRulesInTransaction deletes all HTTP response rules for a parent resource using an existing transaction ID

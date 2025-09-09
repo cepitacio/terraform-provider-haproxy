@@ -22,9 +22,7 @@ type aclDataSourceModel struct {
 }
 
 type aclItemModel struct {
-	Index    types.Int64  `tfsdk:"index"`
-	Cond     types.String `tfsdk:"cond"`
-	CondTest types.String `tfsdk:"cond_test"`
+	Index types.Int64 `tfsdk:"index"`
 }
 
 func (d *aclDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -41,14 +39,6 @@ func (d *aclDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, re
 						"index": schema.Int64Attribute{
 							Computed:    true,
 							Description: "The index of the ACL.",
-						},
-						"cond": schema.StringAttribute{
-							Computed:    true,
-							Description: "The condition of the ACL.",
-						},
-						"cond_test": schema.StringAttribute{
-							Computed:    true,
-							Description: "The condition test of the ACL.",
 						},
 					},
 				},
@@ -109,9 +99,7 @@ func (d *aclDataSource) Read(ctx context.Context, req datasource.ReadRequest, re
 
 	for _, acl := range acls {
 		state.Acls = append(state.Acls, aclItemModel{
-			Index:    types.Int64Value(acl.Index),
-			Cond:     types.StringValue(acl.Criterion),
-			CondTest: types.StringValue(acl.Value),
+			Index: types.Int64Value(acl.Index),
 		})
 	}
 

@@ -9,35 +9,31 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func NewTcpResponseRuleDataSource() datasource.DataSource {
-	return &tcpResponseRuleDataSource{}
-}
-
-type tcpResponseRuleDataSource struct {
+// TcpResponseRuleDataSource defines the data source implementation.
+type TcpResponseRuleDataSource struct {
 	client *HAProxyClient
 }
 
-type tcpResponseRuleDataSourceModel struct {
-	TcpResponseRules []tcpResponseRuleItemModel `tfsdk:"tcp_response_rules"`
+// TcpResponseRuleDataSourceModel describes the data source data model.
+type TcpResponseRuleDataSourceModel struct {
+	TcpResponseRules []TcpResponseRuleItemModel `tfsdk:"tcp_response_rules"`
 }
 
-type tcpResponseRuleItemModel struct {
-	Index        types.Int64  `tfsdk:"index"`
-	Action       types.String `tfsdk:"action"`
-	Cond         types.String `tfsdk:"cond"`
-	CondTest     types.String `tfsdk:"cond_test"`
-	HdrName      types.String `tfsdk:"hdr_name"`
-	HdrFormat    types.String `tfsdk:"hdr_format"`
-	StatusCode   types.Int64  `tfsdk:"status_code"`
-	StatusReason types.String `tfsdk:"status_reason"`
+type TcpResponseRuleItemModel struct {
+	Index types.Int64 `tfsdk:"index"`
 }
 
-func (d *tcpResponseRuleDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+// Metadata returns the data source type name.
+func (d *TcpResponseRuleDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_tcp_response_rule"
 }
 
-func (d *tcpResponseRuleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+// Schema defines the schema for the data source.
+func (d *TcpResponseRuleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		// This description is used by the documentation generator and the language server.
+		MarkdownDescription: "TCP Response Rule data source",
+
 		Attributes: map[string]schema.Attribute{
 			"tcp_response_rules": schema.ListNestedAttribute{
 				Computed: true,
@@ -46,34 +42,6 @@ func (d *tcpResponseRuleDataSource) Schema(_ context.Context, _ datasource.Schem
 						"index": schema.Int64Attribute{
 							Computed:    true,
 							Description: "The index of the TCP response rule.",
-						},
-						"action": schema.StringAttribute{
-							Computed:    true,
-							Description: "The action of the TCP response rule.",
-						},
-						"cond": schema.StringAttribute{
-							Computed:    true,
-							Description: "The condition of the TCP response rule.",
-						},
-						"cond_test": schema.StringAttribute{
-							Computed:    true,
-							Description: "The condition test of the TCP response rule.",
-						},
-						"hdr_name": schema.StringAttribute{
-							Computed:    true,
-							Description: "The header name of the TCP response rule.",
-						},
-						"hdr_format": schema.StringAttribute{
-							Computed:    true,
-							Description: "The header format of the TCP response rule.",
-						},
-						"status_code": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The status code of the TCP response rule.",
-						},
-						"status_reason": schema.StringAttribute{
-							Computed:    true,
-							Description: "The status reason of the TCP response rule.",
 						},
 					},
 				},
@@ -90,25 +58,30 @@ func (d *tcpResponseRuleDataSource) Schema(_ context.Context, _ datasource.Schem
 	}
 }
 
-func (d *tcpResponseRuleDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+// Configure adds the provider configured client to the data source.
+func (d *TcpResponseRuleDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
 	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
+
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
 			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
+
 		return
 	}
 
 	d.client = client
 }
 
-func (d *tcpResponseRuleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var state tcpResponseRuleDataSourceModel
+// Read refreshes the Terraform state with the latest data.
+func (d *TcpResponseRuleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state TcpResponseRuleDataSourceModel
 
 	var config struct {
 		ParentType types.String `tfsdk:"parent_type"`
@@ -123,28 +96,27 @@ func (d *tcpResponseRuleDataSource) Read(ctx context.Context, req datasource.Rea
 	parentType := config.ParentType.ValueString()
 	parentName := config.ParentName.ValueString()
 
-	tcpResponseRules, err := d.client.ReadTcpResponseRules(ctx, parentType, parentName)
+	// Read the rules
+	manager := NewTcpResponseRuleManager(d.client)
+	rules, err := manager.Read(ctx, parentType, parentName)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Reading HAProxy TCP Response Rules",
-			"Could not read HAProxy TCP Response Rules, unexpected error: "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read TCP response rules, got error: %s", err))
 		return
 	}
 
-	for _, rule := range tcpResponseRules {
-		state.TcpResponseRules = append(state.TcpResponseRules, tcpResponseRuleItemModel{
-			Index:        types.Int64Value(rule.Index),
-			Action:       types.StringValue(rule.Action),
-			Cond:         types.StringValue(rule.Cond),
-			CondTest:     types.StringValue(rule.CondTest),
-			HdrName:      types.StringValue(""), // Not available in model
-			HdrFormat:    types.StringValue(""), // Not available in model
-			StatusCode:   types.Int64Value(0),   // Not available in model
-			StatusReason: types.StringValue(""), // Not available in model
+	// Convert all rules to data source model
+	for _, rule := range rules {
+		state.TcpResponseRules = append(state.TcpResponseRules, TcpResponseRuleItemModel{
+			Index: rule.Index,
 		})
 	}
 
+	// Save data into Terraform state
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
+}
+
+// NewTcpResponseRuleDataSource creates a new TCP response rule data source
+func NewTcpResponseRuleDataSource() datasource.DataSource {
+	return &TcpResponseRuleDataSource{}
 }

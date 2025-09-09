@@ -9,39 +9,31 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func NewTcpCheckDataSource() datasource.DataSource {
-	return &tcpCheckDataSource{}
-}
-
-type tcpCheckDataSource struct {
+// TcpCheckDataSource defines the data source implementation.
+type TcpCheckDataSource struct {
 	client *HAProxyClient
 }
 
-type tcpCheckDataSourceModel struct {
-	TcpChecks []tcpCheckItemModel `tfsdk:"tcp_checks"`
+// TcpCheckDataSourceModel describes the data source data model.
+type TcpCheckDataSourceModel struct {
+	TcpChecks []TcpCheckItemModel `tfsdk:"tcp_checks"`
 }
 
-type tcpCheckItemModel struct {
-	Index      types.Int64  `tfsdk:"index"`
-	Action     types.String `tfsdk:"action"`
-	Comment    types.String `tfsdk:"comment"`
-	Port       types.Int64  `tfsdk:"port"`
-	Address    types.String `tfsdk:"address"`
-	Data       types.String `tfsdk:"data"`
-	MinRecv    types.Int64  `tfsdk:"min_recv"`
-	OnSuccess  types.String `tfsdk:"on_success"`
-	OnError    types.String `tfsdk:"on_error"`
-	StatusCode types.String `tfsdk:"status_code"`
-	Timeout    types.Int64  `tfsdk:"timeout"`
-	LogLevel   types.String `tfsdk:"log_level"`
+type TcpCheckItemModel struct {
+	Index types.Int64 `tfsdk:"index"`
 }
 
-func (d *tcpCheckDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+// Metadata returns the data source type name.
+func (d *TcpCheckDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_tcp_check"
 }
 
-func (d *tcpCheckDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+// Schema defines the schema for the data source.
+func (d *TcpCheckDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		// This description is used by the documentation generator and the language server.
+		MarkdownDescription: "TCP Check data source",
+
 		Attributes: map[string]schema.Attribute{
 			"tcp_checks": schema.ListNestedAttribute{
 				Computed: true,
@@ -50,50 +42,6 @@ func (d *tcpCheckDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 						"index": schema.Int64Attribute{
 							Computed:    true,
 							Description: "The index of the TCP check.",
-						},
-						"action": schema.StringAttribute{
-							Computed:    true,
-							Description: "The action of the TCP check.",
-						},
-						"comment": schema.StringAttribute{
-							Computed:    true,
-							Description: "The comment of the TCP check.",
-						},
-						"port": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The port of the TCP check.",
-						},
-						"address": schema.StringAttribute{
-							Computed:    true,
-							Description: "The address of the TCP check.",
-						},
-						"data": schema.StringAttribute{
-							Computed:    true,
-							Description: "The data of the TCP check.",
-						},
-						"min_recv": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The minimum receive bytes of the TCP check.",
-						},
-						"on_success": schema.StringAttribute{
-							Computed:    true,
-							Description: "The on success action of the TCP check.",
-						},
-						"on_error": schema.StringAttribute{
-							Computed:    true,
-							Description: "The on error action of the TCP check.",
-						},
-						"status_code": schema.StringAttribute{
-							Computed:    true,
-							Description: "The status code of the TCP check.",
-						},
-						"timeout": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The timeout of the TCP check.",
-						},
-						"log_level": schema.StringAttribute{
-							Computed:    true,
-							Description: "The log level of the TCP check.",
 						},
 					},
 				},
@@ -110,25 +58,30 @@ func (d *tcpCheckDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 	}
 }
 
-func (d *tcpCheckDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+// Configure adds the provider configured client to the data source.
+func (d *TcpCheckDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
 	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
+
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
 			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
+
 		return
 	}
 
 	d.client = client
 }
 
-func (d *tcpCheckDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var state tcpCheckDataSourceModel
+// Read refreshes the Terraform state with the latest data.
+func (d *TcpCheckDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state TcpCheckDataSourceModel
 
 	var config struct {
 		ParentType types.String `tfsdk:"parent_type"`
@@ -143,32 +96,27 @@ func (d *tcpCheckDataSource) Read(ctx context.Context, req datasource.ReadReques
 	parentType := config.ParentType.ValueString()
 	parentName := config.ParentName.ValueString()
 
-	tcpChecks, err := d.client.ReadTcpChecks(ctx, parentType, parentName)
+	// Read the checks
+	manager := NewTcpCheckManager(d.client)
+	checks, err := manager.Read(ctx, parentType, parentName)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Reading HAProxy TCP Checks",
-			"Could not read HAProxy TCP Checks, unexpected error: "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read TCP checks, got error: %s", err))
 		return
 	}
 
-	for _, tcpCheck := range tcpChecks {
-		state.TcpChecks = append(state.TcpChecks, tcpCheckItemModel{
-			Index:      types.Int64Value(tcpCheck.Index),
-			Action:     types.StringValue(tcpCheck.Action),
-			Comment:    types.StringValue(tcpCheck.Comment),
-			Port:       types.Int64Value(tcpCheck.Port),
-			Address:    types.StringValue(tcpCheck.Address),
-			Data:       types.StringValue(tcpCheck.Data),
-			MinRecv:    types.Int64Value(tcpCheck.MinRecv),
-			OnSuccess:  types.StringValue(tcpCheck.OnSuccess),
-			OnError:    types.StringValue(tcpCheck.OnError),
-			StatusCode: types.StringValue(tcpCheck.StatusCode),
-			Timeout:    types.Int64Value(tcpCheck.Timeout),
-			LogLevel:   types.StringValue(tcpCheck.LogLevel),
+	// Convert all checks to data source model
+	for _, check := range checks {
+		state.TcpChecks = append(state.TcpChecks, TcpCheckItemModel{
+			Index: check.Index,
 		})
 	}
 
+	// Save data into Terraform state
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
+}
+
+// NewTcpCheckDataSource creates a new TCP check data source
+func NewTcpCheckDataSource() datasource.DataSource {
+	return &TcpCheckDataSource{}
 }
