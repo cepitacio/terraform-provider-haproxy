@@ -9,37 +9,31 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func NewTcpRequestRuleDataSource() datasource.DataSource {
-	return &tcpRequestRuleDataSource{}
-}
-
-type tcpRequestRuleDataSource struct {
+// TcpRequestRuleDataSource defines the data source implementation.
+type TcpRequestRuleDataSource struct {
 	client *HAProxyClient
 }
 
-type tcpRequestRuleDataSourceModel struct {
-	TcpRequestRules []tcpRequestRuleItemModel `tfsdk:"tcp_request_rules"`
+// TcpRequestRuleDataSourceModel describes the data source data model.
+type TcpRequestRuleDataSourceModel struct {
+	TcpRequestRules []TcpRequestRuleItemModel `tfsdk:"tcp_request_rules"`
 }
 
-type tcpRequestRuleItemModel struct {
-	Index        types.Int64  `tfsdk:"index"`
-	Action       types.String `tfsdk:"action"`
-	Cond         types.String `tfsdk:"cond"`
-	CondTest     types.String `tfsdk:"cond_test"`
-	HdrName      types.String `tfsdk:"hdr_name"`
-	HdrFormat    types.String `tfsdk:"hdr_format"`
-	RedirType    types.String `tfsdk:"redir_type"`
-	RedirValue   types.String `tfsdk:"redir_value"`
-	StatusCode   types.Int64  `tfsdk:"status_code"`
-	StatusReason types.String `tfsdk:"status_reason"`
+type TcpRequestRuleItemModel struct {
+	Index types.Int64 `tfsdk:"index"`
 }
 
-func (d *tcpRequestRuleDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+// Metadata returns the data source type name.
+func (d *TcpRequestRuleDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_tcp_request_rule"
 }
 
-func (d *tcpRequestRuleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+// Schema defines the schema for the data source.
+func (d *TcpRequestRuleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		// This description is used by the documentation generator and the language server.
+		MarkdownDescription: "TCP Request Rule data source",
+
 		Attributes: map[string]schema.Attribute{
 			"tcp_request_rules": schema.ListNestedAttribute{
 				Computed: true,
@@ -48,42 +42,6 @@ func (d *tcpRequestRuleDataSource) Schema(_ context.Context, _ datasource.Schema
 						"index": schema.Int64Attribute{
 							Computed:    true,
 							Description: "The index of the TCP request rule.",
-						},
-						"action": schema.StringAttribute{
-							Computed:    true,
-							Description: "The action of the TCP request rule.",
-						},
-						"cond": schema.StringAttribute{
-							Computed:    true,
-							Description: "The condition of the TCP request rule.",
-						},
-						"cond_test": schema.StringAttribute{
-							Computed:    true,
-							Description: "The condition test of the TCP request rule.",
-						},
-						"hdr_name": schema.StringAttribute{
-							Computed:    true,
-							Description: "The header name of the TCP request rule.",
-						},
-						"hdr_format": schema.StringAttribute{
-							Computed:    true,
-							Description: "The header format of the TCP request rule.",
-						},
-						"redir_type": schema.StringAttribute{
-							Computed:    true,
-							Description: "The redirect type of the TCP request rule.",
-						},
-						"redir_value": schema.StringAttribute{
-							Computed:    true,
-							Description: "The redirect value of the TCP request rule.",
-						},
-						"status_code": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The status code of the TCP request rule.",
-						},
-						"status_reason": schema.StringAttribute{
-							Computed:    true,
-							Description: "The status reason of the TCP request rule.",
 						},
 					},
 				},
@@ -100,25 +58,30 @@ func (d *tcpRequestRuleDataSource) Schema(_ context.Context, _ datasource.Schema
 	}
 }
 
-func (d *tcpRequestRuleDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+// Configure adds the provider configured client to the data source.
+func (d *TcpRequestRuleDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
 	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
+
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
 			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
+
 		return
 	}
 
 	d.client = client
 }
 
-func (d *tcpRequestRuleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var state tcpRequestRuleDataSourceModel
+// Read refreshes the Terraform state with the latest data.
+func (d *TcpRequestRuleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state TcpRequestRuleDataSourceModel
 
 	var config struct {
 		ParentType types.String `tfsdk:"parent_type"`
@@ -133,30 +96,27 @@ func (d *tcpRequestRuleDataSource) Read(ctx context.Context, req datasource.Read
 	parentType := config.ParentType.ValueString()
 	parentName := config.ParentName.ValueString()
 
-	tcpRequestRules, err := d.client.ReadTcpRequestRules(ctx, parentType, parentName)
+	// Read the rules
+	manager := NewTcpRequestRuleManager(d.client)
+	rules, err := manager.Read(ctx, parentType, parentName)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Reading HAProxy TCP Request Rules",
-			"Could not read HAProxy TCP Request Rules, unexpected error: "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read TCP request rules, got error: %s", err))
 		return
 	}
 
-	for _, rule := range tcpRequestRules {
-		state.TcpRequestRules = append(state.TcpRequestRules, tcpRequestRuleItemModel{
-			Index:        types.Int64Value(rule.Index),
-			Action:       types.StringValue(rule.Action),
-			Cond:         types.StringValue(rule.Cond),
-			CondTest:     types.StringValue(rule.CondTest),
-			HdrName:      types.StringValue(""), // Not available in model
-			HdrFormat:    types.StringValue(""), // Not available in model
-			RedirType:    types.StringValue(""), // Not available in model
-			RedirValue:   types.StringValue(""), // Not available in model
-			StatusCode:   types.Int64Value(0),   // Not available in model
-			StatusReason: types.StringValue(""), // Not available in model
+	// Convert all rules to data source model
+	for _, rule := range rules {
+		state.TcpRequestRules = append(state.TcpRequestRules, TcpRequestRuleItemModel{
+			Index: rule.Index,
 		})
 	}
 
+	// Save data into Terraform state
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
+}
+
+// NewTcpRequestRuleDataSource creates a new TCP request rule data source
+func NewTcpRequestRuleDataSource() datasource.DataSource {
+	return &TcpRequestRuleDataSource{}
 }

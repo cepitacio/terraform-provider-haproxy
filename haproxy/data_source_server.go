@@ -22,10 +22,7 @@ type serverDataSourceModel struct {
 }
 
 type serverItemModel struct {
-	Name    types.String `tfsdk:"name"`
-	Address types.String `tfsdk:"address"`
-	Port    types.Int64  `tfsdk:"port"`
-	Backend types.String `tfsdk:"backend"`
+	Name types.String `tfsdk:"name"`
 }
 
 func (d *serverDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -42,18 +39,6 @@ func (d *serverDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 						"name": schema.StringAttribute{
 							Computed:    true,
 							Description: "The name of the server.",
-						},
-						"address": schema.StringAttribute{
-							Computed:    true,
-							Description: "The address of the server.",
-						},
-						"port": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The port of the server.",
-						},
-						"backend": schema.StringAttribute{
-							Computed:    true,
-							Description: "The backend of the server.",
 						},
 					},
 				},
@@ -108,13 +93,10 @@ func (d *serverDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 	for _, server := range servers {
 		state.Servers = append(state.Servers, serverItemModel{
-			Name:    types.StringValue(server.Name),
-			Address: types.StringValue(server.Address),
-			Port:    types.Int64Value(server.Port),
-			Backend: types.StringValue(backendName),
+			Name: types.StringValue(server.Name),
 		})
 	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
-} 
+}

@@ -127,8 +127,11 @@ func (p *haproxyProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewStickRuleDataSource,
 		NewStickTableDataSource,
 		NewTcpCheckDataSource,
+		NewTcpCheckSingleDataSource,
 		NewTcpRequestRuleDataSource,
+		NewTcpRequestRuleSingleDataSource,
 		NewTcpResponseRuleDataSource,
+		NewTcpResponseRuleSingleDataSource,
 	}
 }
 

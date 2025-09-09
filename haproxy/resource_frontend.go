@@ -147,6 +147,14 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 							Optional:    true,
 							Description: "The header format for the HTTP request rule.",
 						},
+						"hdr_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header match for the HTTP request rule.",
+						},
+						"hdr_method": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header method for the HTTP request rule.",
+						},
 						"redir_type": schema.StringAttribute{
 							Optional:    true,
 							Description: "The redirection type (location, prefix, scheme).",
@@ -154,6 +162,206 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 						"redir_value": schema.StringAttribute{
 							Optional:    true,
 							Description: "The redirection value.",
+						},
+						"redir_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The redirection code for the HTTP request rule.",
+						},
+						"redir_option": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection option for the HTTP request rule.",
+						},
+						"bandwidth_limit_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit name for the HTTP request rule.",
+						},
+						"bandwidth_limit_limit": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit limit for the HTTP request rule.",
+						},
+						"bandwidth_limit_period": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit period for the HTTP request rule.",
+						},
+						"acl_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The ACL file for the HTTP request rule.",
+						},
+						"acl_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The ACL key format for the HTTP request rule.",
+						},
+						"auth_realm": schema.StringAttribute{
+							Optional:    true,
+							Description: "The authentication realm for the HTTP request rule.",
+						},
+						"cache_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The cache name for the HTTP request rule.",
+						},
+						"capture_id": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The capture ID for the HTTP request rule.",
+						},
+						"capture_len": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The capture length for the HTTP request rule.",
+						},
+						"capture_sample": schema.StringAttribute{
+							Optional:    true,
+							Description: "The capture sample for the HTTP request rule.",
+						},
+						"deny_status": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The deny status for the HTTP request rule.",
+						},
+						"expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The expression for the HTTP request rule.",
+						},
+						"hint_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The hint format for the HTTP request rule.",
+						},
+						"hint_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The hint name for the HTTP request rule.",
+						},
+						"log_level": schema.StringAttribute{
+							Optional:    true,
+							Description: "The log level for the HTTP request rule.",
+						},
+						"lua_action": schema.StringAttribute{
+							Optional:    true,
+							Description: "The Lua action for the HTTP request rule.",
+						},
+						"lua_params": schema.StringAttribute{
+							Optional:    true,
+							Description: "The Lua parameters for the HTTP request rule.",
+						},
+						"map_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map file for the HTTP request rule.",
+						},
+						"map_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map key format for the HTTP request rule.",
+						},
+						"map_valuefmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map value format for the HTTP request rule.",
+						},
+						"mark_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The mark value for the HTTP request rule.",
+						},
+						"nice_value": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The nice value for the HTTP request rule.",
+						},
+						"return_content": schema.StringAttribute{
+							Optional:    true,
+							Description: "The return content for the HTTP request rule.",
+						},
+						"return_content_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The return content format for the HTTP request rule.",
+						},
+						"return_content_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The return content type for the HTTP request rule.",
+						},
+						"return_status_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The return status code for the HTTP request rule.",
+						},
+						"rst_ttl": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The RST TTL for the HTTP request rule.",
+						},
+						"sc_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SC expression for the HTTP request rule.",
+						},
+						"sc_id": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The SC ID for the HTTP request rule.",
+						},
+						"sc_idx": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The SC index for the HTTP request rule.",
+						},
+						"sc_int": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The SC integer for the HTTP request rule.",
+						},
+						"spoe_engine": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SPOE engine for the HTTP request rule.",
+						},
+						"spoe_group": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SPOE group for the HTTP request rule.",
+						},
+						"status": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The status for the HTTP request rule.",
+						},
+						"status_reason": schema.StringAttribute{
+							Optional:    true,
+							Description: "The status reason for the HTTP request rule.",
+						},
+						"strict_mode": schema.StringAttribute{
+							Optional:    true,
+							Description: "The strict mode for the HTTP request rule.",
+						},
+						"timeout": schema.StringAttribute{
+							Optional:    true,
+							Description: "The timeout for the HTTP request rule.",
+						},
+						"timeout_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The timeout type for the HTTP request rule.",
+						},
+						"tos_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The TOS value for the HTTP request rule.",
+						},
+						"track_sc_key": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track SC key for the HTTP request rule.",
+						},
+						"track_sc_stick_counter": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The track SC stick counter for the HTTP request rule.",
+						},
+						"track_sc_table": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track SC table for the HTTP request rule.",
+						},
+						"var_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable expression for the HTTP request rule.",
+						},
+						"var_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable format for the HTTP request rule.",
+						},
+						"var_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable name for the HTTP request rule.",
+						},
+						"var_scope": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable scope for the HTTP request rule.",
+						},
+						"wait_at_least": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The wait at least for the HTTP request rule.",
+						},
+						"wait_time": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The wait time for the HTTP request rule.",
 						},
 						"index": schema.Int64Attribute{
 							Optional:    true,
@@ -186,6 +394,10 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 							Optional:    true,
 							Description: "The header format for the HTTP response rule.",
 						},
+						"hdr_match": schema.StringAttribute{
+							Optional:    true,
+							Description: "The header match for the HTTP response rule.",
+						},
 						"hdr_method": schema.StringAttribute{
 							Optional:    true,
 							Description: "The header method for the HTTP response rule.",
@@ -198,9 +410,283 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 							Optional:    true,
 							Description: "The redirection value.",
 						},
+						"redir_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The redirection code for the HTTP response rule.",
+						},
+						"redir_option": schema.StringAttribute{
+							Optional:    true,
+							Description: "The redirection option for the HTTP response rule.",
+						},
+						"bandwidth_limit_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit name for the HTTP response rule.",
+						},
+						"bandwidth_limit_limit": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit limit for the HTTP response rule.",
+						},
+						"bandwidth_limit_period": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit period for the HTTP response rule.",
+						},
+						"acl_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The ACL file for the HTTP response rule.",
+						},
+						"acl_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The ACL key format for the HTTP response rule.",
+						},
+						"cache_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The cache name for the HTTP response rule.",
+						},
+						"capture_id": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The capture ID for the HTTP response rule.",
+						},
+						"capture_len": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The capture length for the HTTP response rule.",
+						},
+						"capture_sample": schema.StringAttribute{
+							Optional:    true,
+							Description: "The capture sample for the HTTP response rule.",
+						},
+						"deny_status": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The deny status for the HTTP response rule.",
+						},
+						"expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The expression for the HTTP response rule.",
+						},
+						"log_level": schema.StringAttribute{
+							Optional:    true,
+							Description: "The log level for the HTTP response rule.",
+						},
+						"lua_action": schema.StringAttribute{
+							Optional:    true,
+							Description: "The Lua action for the HTTP response rule.",
+						},
+						"lua_params": schema.StringAttribute{
+							Optional:    true,
+							Description: "The Lua parameters for the HTTP response rule.",
+						},
+						"map_file": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map file for the HTTP response rule.",
+						},
+						"map_keyfmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map key format for the HTTP response rule.",
+						},
+						"map_valuefmt": schema.StringAttribute{
+							Optional:    true,
+							Description: "The map value format for the HTTP response rule.",
+						},
+						"mark_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The mark value for the HTTP response rule.",
+						},
+						"nice_value": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The nice value for the HTTP response rule.",
+						},
+						"return_content": schema.StringAttribute{
+							Optional:    true,
+							Description: "The return content for the HTTP response rule.",
+						},
+						"return_content_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The return content format for the HTTP response rule.",
+						},
+						"return_content_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The return content type for the HTTP response rule.",
+						},
+						"return_status_code": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The return status code for the HTTP response rule.",
+						},
+						"rst_ttl": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The RST TTL for the HTTP response rule.",
+						},
+						"sc_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SC expression for the HTTP response rule.",
+						},
+						"sc_id": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The SC ID for the HTTP response rule.",
+						},
+						"sc_idx": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The SC index for the HTTP response rule.",
+						},
+						"sc_int": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The SC integer for the HTTP response rule.",
+						},
+						"spoe_engine": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SPOE engine for the HTTP response rule.",
+						},
+						"spoe_group": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SPOE group for the HTTP response rule.",
+						},
+						"status": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The status for the HTTP response rule.",
+						},
+						"status_reason": schema.StringAttribute{
+							Optional:    true,
+							Description: "The status reason for the HTTP response rule.",
+						},
+						"strict_mode": schema.StringAttribute{
+							Optional:    true,
+							Description: "The strict mode for the HTTP response rule.",
+						},
+						"timeout": schema.StringAttribute{
+							Optional:    true,
+							Description: "The timeout for the HTTP response rule.",
+						},
+						"timeout_type": schema.StringAttribute{
+							Optional:    true,
+							Description: "The timeout type for the HTTP response rule.",
+						},
+						"tos_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The TOS value for the HTTP response rule.",
+						},
+						"track_sc_key": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track SC key for the HTTP response rule.",
+						},
+						"track_sc_stick_counter": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The track SC stick counter for the HTTP response rule.",
+						},
+						"track_sc_table": schema.StringAttribute{
+							Optional:    true,
+							Description: "The track SC table for the HTTP response rule.",
+						},
+						"var_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable expression for the HTTP response rule.",
+						},
+						"var_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable format for the HTTP response rule.",
+						},
+						"var_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable name for the HTTP response rule.",
+						},
+						"var_scope": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable scope for the HTTP response rule.",
+						},
+						"wait_at_least": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The wait at least for the HTTP response rule.",
+						},
+						"wait_time": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The wait time for the HTTP response rule.",
+						},
 						"index": schema.Int64Attribute{
 							Optional:    true,
 							Description: "The index/order of the HTTP response rule (for backward compatibility).",
+						},
+					},
+				},
+			},
+			"tcp_request_rules": schema.ListNestedBlock{
+				Description: "TCP request rule configuration for the frontend.",
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"type": schema.StringAttribute{
+							Required:    true,
+							Description: "The type of the tcp-request rule.",
+						},
+						"action": schema.StringAttribute{
+							Optional:    true,
+							Description: "The action of the tcp-request rule.",
+						},
+						"cond": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition of the tcp-request rule.",
+						},
+						"cond_test": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition test of the tcp-request rule.",
+						},
+						"capture_len": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The capture length for the tcp-request rule.",
+						},
+						"capture_sample": schema.StringAttribute{
+							Optional:    true,
+							Description: "The capture sample for the tcp-request rule.",
+						},
+						"var_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable name for the tcp-request rule.",
+						},
+						"var_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable expression for the tcp-request rule.",
+						},
+						"index": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The index/order of the tcp-request rule (for backward compatibility).",
+						},
+					},
+				},
+			},
+			"tcp_response_rules": schema.ListNestedBlock{
+				Description: "TCP response rule configuration for the frontend.",
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"type": schema.StringAttribute{
+							Required:    true,
+							Description: "The type of the tcp-response rule.",
+						},
+						"action": schema.StringAttribute{
+							Optional:    true,
+							Description: "The action of the tcp-response rule.",
+						},
+						"cond": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition of the tcp-response rule.",
+						},
+						"cond_test": schema.StringAttribute{
+							Optional:    true,
+							Description: "The condition test of the tcp-response rule.",
+						},
+						"capture_len": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The capture length for the tcp-response rule.",
+						},
+						"capture_sample": schema.StringAttribute{
+							Optional:    true,
+							Description: "The capture sample for the tcp-response rule.",
+						},
+						"var_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable name for the tcp-response rule.",
+						},
+						"var_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable expression for the tcp-response rule.",
+						},
+						"index": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The index/order of the tcp-response rule (for backward compatibility).",
 						},
 					},
 				},

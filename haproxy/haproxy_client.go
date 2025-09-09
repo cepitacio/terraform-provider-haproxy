@@ -1637,7 +1637,20 @@ func (c *HAProxyClient) CreateAcl(ctx context.Context, parentType, parentName st
 
 // ReadAcls reads all acls for a given parent.
 func (c *HAProxyClient) ReadAcls(ctx context.Context, parentType, parentName string) ([]AclPayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/acls", parentTypePlural, parentName)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s", parentType, parentName)
+	}
+
+	log.Printf("DEBUG: ReadAcls URL: %s (API version: %s)", url, c.apiVersion)
+	log.Printf("DEBUG: ReadAcls parentType: %s, parentName: %s", parentType, parentName)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1649,7 +1662,8 @@ func (c *HAProxyClient) ReadAcls(ctx context.Context, parentType, parentName str
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return []AclPayload{}, nil // No acls found is not an error
+		log.Printf("DEBUG: ReadAcls: 404 - No ACLs found")
+		return []AclPayload{}, nil
 	}
 
 	if resp.StatusCode == http.StatusUnprocessableEntity {
@@ -1658,17 +1672,36 @@ func (c *HAProxyClient) ReadAcls(ctx context.Context, parentType, parentName str
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to read ACLs: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var aclsWrapper struct {
-		Data []AclPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&aclsWrapper); err != nil {
+	var acls []AclPayload
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return aclsWrapper.Data, nil
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct array, no wrapper
+		if err := json.Unmarshal(body, &acls); err != nil {
+			log.Printf("DEBUG: ReadAcls - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": [...]}
+		var aclsWrapper struct {
+			Data []AclPayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &aclsWrapper); err != nil {
+			log.Printf("DEBUG: ReadAcls - JSON decode error: %v", err)
+			return nil, err
+		}
+		acls = aclsWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadAcls - Found %d ACLs", len(acls))
+	return acls, nil
 }
 
 // UpdateAcl updates a acl.
@@ -1921,7 +1954,19 @@ func (c *HAProxyClient) CreateResolver(ctx context.Context, payload *ResolverPay
 
 // ReadResolver reads a resolver.
 func (c *HAProxyClient) ReadResolver(ctx context.Context, name string) (*ResolverPayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/resolvers/%s", name), nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use direct endpoint
+		url = fmt.Sprintf("/services/haproxy/configuration/resolvers/%s", name)
+	} else {
+		// v2: Use same endpoint but different response format
+		url = fmt.Sprintf("/services/haproxy/configuration/resolvers/%s", name)
+	}
+
+	log.Printf("DEBUG: ReadResolver URL: %s (API version: %s)", url, c.apiVersion)
+	log.Printf("DEBUG: ReadResolver name: %s", name)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1933,21 +1978,41 @@ func (c *HAProxyClient) ReadResolver(ctx context.Context, name string) (*Resolve
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
+		log.Printf("DEBUG: ReadResolver: 404 - No resolver found")
 		return nil, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to read resolver: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var resolverWrapper struct {
-		Data ResolverPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&resolverWrapper); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return &resolverWrapper.Data, nil
+	var resolver *ResolverPayload
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct object, no wrapper
+		if err := json.Unmarshal(body, &resolver); err != nil {
+			log.Printf("DEBUG: ReadResolver - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": {...}}
+		var resolverWrapper struct {
+			Data ResolverPayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &resolverWrapper); err != nil {
+			log.Printf("DEBUG: ReadResolver - JSON decode error: %v", err)
+			return nil, err
+		}
+		resolver = &resolverWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadResolver - Found resolver: %s", name)
+	return resolver, nil
 }
 
 // UpdateResolver updates a resolver.
@@ -2357,7 +2422,18 @@ func (c *HAProxyClient) newRequest(ctx context.Context, method, path string, bod
 
 // ReadBackends reads all backends.
 func (c *HAProxyClient) ReadBackends(ctx context.Context) ([]BackendPayload, error) {
-	req, err := c.newRequest(ctx, "GET", "/services/haproxy/configuration/backends", nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use direct endpoint
+		url = "/services/haproxy/configuration/backends"
+	} else {
+		// v2: Use same endpoint but different response format
+		url = "/services/haproxy/configuration/backends"
+	}
+
+	log.Printf("DEBUG: ReadBackends URL: %s (API version: %s)", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2369,26 +2445,57 @@ func (c *HAProxyClient) ReadBackends(ctx context.Context) ([]BackendPayload, err
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return []BackendPayload{}, nil // No backends found is not an error
+		log.Printf("DEBUG: ReadBackends: 404 - No backends found")
+		return []BackendPayload{}, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to read backends: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var backendsWrapper struct {
-		Data []BackendPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&backendsWrapper); err != nil {
+	var backends []BackendPayload
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return backendsWrapper.Data, nil
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct array, no wrapper
+		if err := json.Unmarshal(body, &backends); err != nil {
+			log.Printf("DEBUG: ReadBackends - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": [...]}
+		var backendsWrapper struct {
+			Data []BackendPayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &backendsWrapper); err != nil {
+			log.Printf("DEBUG: ReadBackends - JSON decode error: %v", err)
+			return nil, err
+		}
+		backends = backendsWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadBackends - Found %d backends", len(backends))
+	return backends, nil
 }
 
 // ReadFrontends reads all frontends.
 func (c *HAProxyClient) ReadFrontends(ctx context.Context) ([]FrontendPayload, error) {
-	req, err := c.newRequest(ctx, "GET", "/services/haproxy/configuration/frontends", nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use direct endpoint
+		url = "/services/haproxy/configuration/frontends"
+	} else {
+		// v2: Use same endpoint but different response format
+		url = "/services/haproxy/configuration/frontends"
+	}
+
+	log.Printf("DEBUG: ReadFrontends URL: %s (API version: %s)", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2400,21 +2507,41 @@ func (c *HAProxyClient) ReadFrontends(ctx context.Context) ([]FrontendPayload, e
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return []FrontendPayload{}, nil // No frontends found is not an error
+		log.Printf("DEBUG: ReadFrontends: 404 - No frontends found")
+		return []FrontendPayload{}, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to read frontends: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var frontendsWrapper struct {
-		Data []FrontendPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&frontendsWrapper); err != nil {
+	var frontends []FrontendPayload
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return frontendsWrapper.Data, nil
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct array, no wrapper
+		if err := json.Unmarshal(body, &frontends); err != nil {
+			log.Printf("DEBUG: ReadFrontends - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": [...]}
+		var frontendsWrapper struct {
+			Data []FrontendPayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &frontendsWrapper); err != nil {
+			log.Printf("DEBUG: ReadFrontends - JSON decode error: %v", err)
+			return nil, err
+		}
+		frontends = frontendsWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadFrontends - Found %d frontends", len(frontends))
+	return frontends, nil
 }
 
 // CreateHttpcheck creates a new httpcheck.
@@ -2429,9 +2556,22 @@ func (c *HAProxyClient) CreateHttpcheck(ctx context.Context, parentType, parentN
 	return err
 }
 
-// ReadHttpchecks reads all httpchecks for a given parent.
+// ReadHttpchecks reads all http_checks for a given parent.
 func (c *HAProxyClient) ReadHttpchecks(ctx context.Context, parentType, parentName string) ([]HttpcheckPayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/http_checks?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_checks", parentTypePlural, parentName)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/http_checks?parent_type=%s&parent_name=%s", parentType, parentName)
+	}
+
+	log.Printf("DEBUG: ReadHttpchecks URL: %s (API version: %s)", url, c.apiVersion)
+	log.Printf("DEBUG: ReadHttpchecks parentType: %s, parentName: %s", parentType, parentName)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2443,21 +2583,46 @@ func (c *HAProxyClient) ReadHttpchecks(ctx context.Context, parentType, parentNa
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return []HttpcheckPayload{}, nil // No httpchecks found is not an error
+		log.Printf("DEBUG: ReadHttpchecks: 404 - No HTTP checks found")
+		return []HttpcheckPayload{}, nil
+	}
+
+	if resp.StatusCode == http.StatusUnprocessableEntity {
+		// 422 usually means invalid parameters, treat as no checks found
+		return []HttpcheckPayload{}, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to read HTTP checks: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var httpchecksWrapper struct {
-		Data []HttpcheckPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&httpchecksWrapper); err != nil {
+	var http_checks []HttpcheckPayload
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return httpchecksWrapper.Data, nil
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct array, no wrapper
+		if err := json.Unmarshal(body, &http_checks); err != nil {
+			log.Printf("DEBUG: ReadHttpchecks - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": [...]}
+		var http_checksWrapper struct {
+			Data []HttpcheckPayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &http_checksWrapper); err != nil {
+			log.Printf("DEBUG: ReadHttpchecks - JSON decode error: %v", err)
+			return nil, err
+		}
+		http_checks = http_checksWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadHttpchecks - Found %d HTTP checks", len(http_checks))
+	return http_checks, nil
 }
 
 // UpdateHttpcheck updates a httpcheck.
@@ -2565,7 +2730,20 @@ func (c *HAProxyClient) CreateTcpCheck(ctx context.Context, parentType, parentNa
 
 // ReadTcpChecks reads all tcp_checks for a given parent.
 func (c *HAProxyClient) ReadTcpChecks(ctx context.Context, parentType, parentName string) ([]TcpCheckPayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/tcp_checks?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_checks", parentTypePlural, parentName)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/tcp_checks?parent_type=%s&parent_name=%s", parentType, parentName)
+	}
+
+	log.Printf("DEBUG: ReadTcpChecks URL: %s (API version: %s)", url, c.apiVersion)
+	log.Printf("DEBUG: ReadTcpChecks parentType: %s, parentName: %s", parentType, parentName)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2577,7 +2755,8 @@ func (c *HAProxyClient) ReadTcpChecks(ctx context.Context, parentType, parentNam
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return []TcpCheckPayload{}, nil // No tcp_checks found is not an error
+		log.Printf("DEBUG: ReadTcpChecks: 404 - No TCP checks found")
+		return []TcpCheckPayload{}, nil
 	}
 
 	if resp.StatusCode == http.StatusUnprocessableEntity {
@@ -2586,17 +2765,36 @@ func (c *HAProxyClient) ReadTcpChecks(ctx context.Context, parentType, parentNam
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to read TCP checks: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var tcpChecksWrapper struct {
-		Data []TcpCheckPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&tcpChecksWrapper); err != nil {
+	var tcpChecks []TcpCheckPayload
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return tcpChecksWrapper.Data, nil
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct array, no wrapper
+		if err := json.Unmarshal(body, &tcpChecks); err != nil {
+			log.Printf("DEBUG: ReadTcpChecks - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": [...]}
+		var tcpChecksWrapper struct {
+			Data []TcpCheckPayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &tcpChecksWrapper); err != nil {
+			log.Printf("DEBUG: ReadTcpChecks - JSON decode error: %v", err)
+			return nil, err
+		}
+		tcpChecks = tcpChecksWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadTcpChecks - Found %d TCP checks", len(tcpChecks))
+	return tcpChecks, nil
 }
 
 // UpdateTcpCheck updates a tcp_check.
@@ -2637,7 +2835,20 @@ func (c *HAProxyClient) CreateTcpRequestRule(ctx context.Context, parentType, pa
 
 // ReadTcpRequestRules reads all tcp_request_rules for a given parent.
 func (c *HAProxyClient) ReadTcpRequestRules(ctx context.Context, parentType, parentName string) ([]TcpRequestRulePayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_request_rules", parentTypePlural, parentName)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules?parent_type=%s&parent_name=%s", parentType, parentName)
+	}
+
+	log.Printf("DEBUG: ReadTcpRequestRules URL: %s (API version: %s)", url, c.apiVersion)
+	log.Printf("DEBUG: ReadTcpRequestRules parentType: %s, parentName: %s", parentType, parentName)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2649,7 +2860,8 @@ func (c *HAProxyClient) ReadTcpRequestRules(ctx context.Context, parentType, par
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return []TcpRequestRulePayload{}, nil // No tcp_request_rules found is not an error
+		log.Printf("DEBUG: ReadTcpRequestRules: 404 - No TCP request rules found")
+		return []TcpRequestRulePayload{}, nil
 	}
 
 	if resp.StatusCode == http.StatusUnprocessableEntity {
@@ -2658,17 +2870,36 @@ func (c *HAProxyClient) ReadTcpRequestRules(ctx context.Context, parentType, par
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to read TCP request rules: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var tcpRequestRulesWrapper struct {
-		Data []TcpRequestRulePayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&tcpRequestRulesWrapper); err != nil {
+	var tcpRequestRules []TcpRequestRulePayload
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return tcpRequestRulesWrapper.Data, nil
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct array, no wrapper
+		if err := json.Unmarshal(body, &tcpRequestRules); err != nil {
+			log.Printf("DEBUG: ReadTcpRequestRules - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": [...]}
+		var tcpRequestRulesWrapper struct {
+			Data []TcpRequestRulePayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &tcpRequestRulesWrapper); err != nil {
+			log.Printf("DEBUG: ReadTcpRequestRules - JSON decode error: %v", err)
+			return nil, err
+		}
+		tcpRequestRules = tcpRequestRulesWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadTcpRequestRules - Found %d TCP request rules", len(tcpRequestRules))
+	return tcpRequestRules, nil
 }
 
 // UpdateTcpRequestRule updates a tcp_request_rule.
@@ -2709,7 +2940,20 @@ func (c *HAProxyClient) CreateTcpResponseRule(ctx context.Context, parentType, p
 
 // ReadTcpResponseRules reads all tcp_response_rules for a given parent.
 func (c *HAProxyClient) ReadTcpResponseRules(ctx context.Context, parentType, parentName string) ([]TcpResponseRulePayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&parent_name=%s", parentType, parentName), nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_response_rules", parentTypePlural, parentName)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&parent_name=%s", parentType, parentName)
+	}
+
+	log.Printf("DEBUG: ReadTcpResponseRules URL: %s (API version: %s)", url, c.apiVersion)
+	log.Printf("DEBUG: ReadTcpResponseRules parentType: %s, parentName: %s", parentType, parentName)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2721,7 +2965,8 @@ func (c *HAProxyClient) ReadTcpResponseRules(ctx context.Context, parentType, pa
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return []TcpResponseRulePayload{}, nil // No tcp_response_rules found is not an error
+		log.Printf("DEBUG: ReadTcpResponseRules: 404 - No TCP response rules found")
+		return []TcpResponseRulePayload{}, nil
 	}
 
 	if resp.StatusCode == http.StatusUnprocessableEntity {
@@ -2730,17 +2975,36 @@ func (c *HAProxyClient) ReadTcpResponseRules(ctx context.Context, parentType, pa
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to read TCP response rules: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var tcpResponseRulesWrapper struct {
-		Data []TcpResponseRulePayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&tcpResponseRulesWrapper); err != nil {
+	var tcpResponseRules []TcpResponseRulePayload
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return tcpResponseRulesWrapper.Data, nil
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct array, no wrapper
+		if err := json.Unmarshal(body, &tcpResponseRules); err != nil {
+			log.Printf("DEBUG: ReadTcpResponseRules - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": [...]}
+		var tcpResponseRulesWrapper struct {
+			Data []TcpResponseRulePayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &tcpResponseRulesWrapper); err != nil {
+			log.Printf("DEBUG: ReadTcpResponseRules - JSON decode error: %v", err)
+			return nil, err
+		}
+		tcpResponseRules = tcpResponseRulesWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadTcpResponseRules - Found %d TCP response rules", len(tcpResponseRules))
+	return tcpResponseRules, nil
 }
 
 // UpdateTcpResponseRule updates a tcp_response_rule.
@@ -2781,7 +3045,19 @@ func (c *HAProxyClient) CreateLogForward(ctx context.Context, payload *LogForwar
 
 // ReadLogForward reads a log_forward.
 func (c *HAProxyClient) ReadLogForward(ctx context.Context, name string) (*LogForwardPayload, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/services/haproxy/configuration/log_forwards/%s", name), nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use direct endpoint
+		url = fmt.Sprintf("/services/haproxy/configuration/log_forwards/%s", name)
+	} else {
+		// v2: Use same endpoint but different response format
+		url = fmt.Sprintf("/services/haproxy/configuration/log_forwards/%s", name)
+	}
+
+	log.Printf("DEBUG: ReadLogForward URL: %s (API version: %s)", url, c.apiVersion)
+	log.Printf("DEBUG: ReadLogForward name: %s", name)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2793,21 +3069,41 @@ func (c *HAProxyClient) ReadLogForward(ctx context.Context, name string) (*LogFo
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
+		log.Printf("DEBUG: ReadLogForward: 404 - No log forward found")
 		return nil, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to read log forward: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var logForwardWrapper struct {
-		Data LogForwardPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&logForwardWrapper); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return &logForwardWrapper.Data, nil
+	var logForward *LogForwardPayload
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct object, no wrapper
+		if err := json.Unmarshal(body, &logForward); err != nil {
+			log.Printf("DEBUG: ReadLogForward - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": {...}}
+		var logForwardWrapper struct {
+			Data LogForwardPayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &logForwardWrapper); err != nil {
+			log.Printf("DEBUG: ReadLogForward - JSON decode error: %v", err)
+			return nil, err
+		}
+		logForward = &logForwardWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadLogForward - Found log forward: %s", name)
+	return logForward, nil
 }
 
 // UpdateLogForward updates a log_forward.
@@ -2848,7 +3144,18 @@ func (c *HAProxyClient) CreateGlobal(ctx context.Context, payload *GlobalPayload
 
 // ReadGlobal reads a global.
 func (c *HAProxyClient) ReadGlobal(ctx context.Context) (*GlobalPayload, error) {
-	req, err := c.newRequest(ctx, "GET", "/services/haproxy/configuration/global", nil)
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use direct endpoint
+		url = "/services/haproxy/configuration/global"
+	} else {
+		// v2: Use same endpoint but different response format
+		url = "/services/haproxy/configuration/global"
+	}
+
+	log.Printf("DEBUG: ReadGlobal URL: %s (API version: %s)", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2860,21 +3167,41 @@ func (c *HAProxyClient) ReadGlobal(ctx context.Context) (*GlobalPayload, error) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
+		log.Printf("DEBUG: ReadGlobal: 404 - No global config found")
 		return nil, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to read global config: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var globalWrapper struct {
-		Data GlobalPayload `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&globalWrapper); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return &globalWrapper.Data, nil
+	var global *GlobalPayload
+	if c.apiVersion == "v3" {
+		// v3: Response is a direct object, no wrapper
+		if err := json.Unmarshal(body, &global); err != nil {
+			log.Printf("DEBUG: ReadGlobal - JSON decode error: %v", err)
+			return nil, err
+		}
+	} else {
+		// v2: Response is wrapped in {"data": {...}}
+		var globalWrapper struct {
+			Data GlobalPayload `json:"data"`
+		}
+		if err := json.Unmarshal(body, &globalWrapper); err != nil {
+			log.Printf("DEBUG: ReadGlobal - JSON decode error: %v", err)
+			return nil, err
+		}
+		global = &globalWrapper.Data
+	}
+
+	log.Printf("DEBUG: ReadGlobal - Found global config")
+	return global, nil
 }
 
 // UpdateGlobal updates a global.
@@ -3261,5 +3588,433 @@ func (c *HAProxyClient) DeleteHttpResponseRuleInTransaction(ctx context.Context,
 	}
 
 	log.Printf("HTTP response rule deleted successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// CreateAllTcpRequestRulesInTransaction creates all TCP request rules at once using an existing transaction ID
+func (c *HAProxyClient) CreateAllTcpRequestRulesInTransaction(ctx context.Context, transactionID, parentType, parentName string, payloads []TcpRequestRulePayload) error {
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends - send all at once
+		parentTypePlural := parentType + "s"
+		url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_request_rules?transaction_id=%s",
+			parentTypePlural, parentName, transactionID)
+		method := "PUT"
+
+		// Debug logging for v3
+		payloadJSON, _ := json.Marshal(payloads)
+		log.Printf("DEBUG: API %s - Creating all TCP request rules at once:", c.apiVersion)
+		log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+		log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+		log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+		req, err := c.newRequest(ctx, method, url, payloads)
+		if err != nil {
+			return err
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("failed to create TCP request rules: status %d, body: %s", resp.StatusCode, string(body))
+		}
+	} else {
+		// v2: Create TCP request rules individually (v2 doesn't support bulk creation)
+		log.Printf("DEBUG: API %s - Creating TCP request rules individually (v2 limitation):", c.apiVersion)
+		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
+
+		for i, payload := range payloads {
+			url := fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
+				parentType, parentName, transactionID)
+			method := "POST"
+
+			// Debug logging for each individual TCP request rule
+			payloadJSON, _ := json.Marshal(payload)
+			log.Printf("DEBUG: API %s - Creating TCP request rule %d/%d:", c.apiVersion, i+1, len(payloads))
+			log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+			req, err := c.newRequest(ctx, method, url, payload)
+			if err != nil {
+				return err
+			}
+
+			resp, err := c.httpClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+				body, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed to create TCP request rule %d: status %d, body: %s", i+1, resp.StatusCode, string(body))
+			}
+		}
+	}
+
+	log.Printf("TCP request rules created successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// DeleteTcpRequestRuleInTransaction deletes an existing tcprequestrule using an existing transaction ID.
+func (c *HAProxyClient) DeleteTcpRequestRuleInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string) error {
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under frontends/backends
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_request_rules/%d?transaction_id=%s",
+			parentTypePlural, parentName, index, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+			index, parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using TCP request rule delete endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to delete TCP request rule: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("TCP request rule deleted successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// CreateAllTcpResponseRulesInTransaction creates all TCP response rules at once using an existing transaction ID
+func (c *HAProxyClient) CreateAllTcpResponseRulesInTransaction(ctx context.Context, transactionID, parentType, parentName string, payloads []TcpResponseRulePayload) error {
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends - send all at once
+		parentTypePlural := parentType + "s"
+		url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_response_rules?transaction_id=%s",
+			parentTypePlural, parentName, transactionID)
+		method := "PUT"
+
+		// Debug logging for v3
+		payloadJSON, _ := json.Marshal(payloads)
+		log.Printf("DEBUG: API %s - Creating all TCP response rules at once:", c.apiVersion)
+		log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+		log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+		log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+		req, err := c.newRequest(ctx, method, url, payloads)
+		if err != nil {
+			return err
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("failed to create TCP response rules: status %d, body: %s", resp.StatusCode, string(body))
+		}
+	} else {
+		// v2: Create TCP response rules individually (v2 doesn't support bulk creation)
+		log.Printf("DEBUG: API %s - Creating TCP response rules individually (v2 limitation):", c.apiVersion)
+		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
+
+		for i, payload := range payloads {
+			url := fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
+				parentType, parentName, transactionID)
+			method := "POST"
+
+			// Debug logging for each individual TCP response rule
+			payloadJSON, _ := json.Marshal(payload)
+			log.Printf("DEBUG: API %s - Creating TCP response rule %d/%d:", c.apiVersion, i+1, len(payloads))
+			log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+			req, err := c.newRequest(ctx, method, url, payload)
+			if err != nil {
+				return err
+			}
+
+			resp, err := c.httpClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+				body, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed to create TCP response rule %d: status %d, body: %s", i+1, resp.StatusCode, string(body))
+			}
+		}
+	}
+
+	log.Printf("TCP response rules created successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// DeleteTcpResponseRuleInTransaction deletes an existing tcpresponserule using an existing transaction ID.
+func (c *HAProxyClient) DeleteTcpResponseRuleInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string) error {
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_response_rules/%d?transaction_id=%s",
+			parentTypePlural, parentName, index, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+			index, parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using TCP response rule delete endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to delete TCP response rule: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("TCP response rule deleted successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// CreateAllHttpchecksInTransaction creates all HTTP checks at once using an existing transaction ID
+func (c *HAProxyClient) CreateAllHttpchecksInTransaction(ctx context.Context, transactionID, parentType, parentName string, payloads []HttpcheckPayload) error {
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends - send all at once
+		parentTypePlural := parentType + "s"
+		url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_checks?transaction_id=%s",
+			parentTypePlural, parentName, transactionID)
+		method := "PUT"
+
+		// Debug logging for v3
+		payloadJSON, _ := json.Marshal(payloads)
+		log.Printf("DEBUG: API %s - Creating all HTTP checks at once:", c.apiVersion)
+		log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+		log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+		log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+		req, err := c.newRequest(ctx, method, url, payloads)
+		if err != nil {
+			return err
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("failed to create HTTP checks: status %d, body: %s", resp.StatusCode, string(body))
+		}
+	} else {
+		// v2: Create HTTP checks individually (v2 doesn't support bulk creation)
+		log.Printf("DEBUG: API %s - Creating HTTP checks individually (v2 limitation):", c.apiVersion)
+		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
+
+		for i, payload := range payloads {
+			url := fmt.Sprintf("/services/haproxy/configuration/http_checks?parent_type=%s&parent_name=%s&transaction_id=%s",
+				parentType, parentName, transactionID)
+			method := "POST"
+
+			// Debug logging for each individual HTTP check
+			payloadJSON, _ := json.Marshal(payload)
+			log.Printf("DEBUG: API %s - Creating HTTP check %d/%d:", c.apiVersion, i+1, len(payloads))
+			log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+			req, err := c.newRequest(ctx, method, url, payload)
+			if err != nil {
+				return err
+			}
+
+			resp, err := c.httpClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+				body, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed to create HTTP check %d: status %d, body: %s", i+1, resp.StatusCode, string(body))
+			}
+		}
+	}
+
+	log.Printf("HTTP checks created successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// DeleteHttpcheckInTransaction deletes an existing httpcheck using an existing transaction ID.
+func (c *HAProxyClient) DeleteHttpcheckInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string) error {
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_checks/%d?transaction_id=%s",
+			parentTypePlural, parentName, index, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/http_checks/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+			index, parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using HTTP check delete endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to delete HTTP check: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("HTTP check deleted successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// CreateAllTcpChecksInTransaction creates all TCP checks at once using an existing transaction ID
+func (c *HAProxyClient) CreateAllTcpChecksInTransaction(ctx context.Context, transactionID, parentType, parentName string, payloads []TcpCheckPayload) error {
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends - send all at once
+		parentTypePlural := parentType + "s"
+		url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_checks?transaction_id=%s",
+			parentTypePlural, parentName, transactionID)
+		method := "PUT"
+
+		// Debug logging for v3
+		payloadJSON, _ := json.Marshal(payloads)
+		log.Printf("DEBUG: API %s - Creating all TCP checks at once:", c.apiVersion)
+		log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+		log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+		log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+		req, err := c.newRequest(ctx, method, url, payloads)
+		if err != nil {
+			return err
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("failed to create TCP checks: status %d, body: %s", resp.StatusCode, string(body))
+		}
+	} else {
+		// v2: Create TCP checks individually (v2 doesn't support bulk creation)
+		log.Printf("DEBUG: API %s - Creating TCP checks individually (v2 limitation):", c.apiVersion)
+		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
+
+		for i, payload := range payloads {
+			url := fmt.Sprintf("/services/haproxy/configuration/tcp_checks?parent_type=%s&parent_name=%s&transaction_id=%s",
+				parentType, parentName, transactionID)
+			method := "POST"
+
+			// Debug logging for each individual TCP check
+			payloadJSON, _ := json.Marshal(payload)
+			log.Printf("DEBUG: API %s - Creating TCP check %d/%d:", c.apiVersion, i+1, len(payloads))
+			log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
+			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
+			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
+
+			req, err := c.newRequest(ctx, method, url, payload)
+			if err != nil {
+				return err
+			}
+
+			resp, err := c.httpClient.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+				body, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed to create TCP check %d: status %d, body: %s", i+1, resp.StatusCode, string(body))
+			}
+		}
+	}
+
+	log.Printf("TCP checks created successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// DeleteTcpCheckInTransaction deletes an existing tcpcheck using an existing transaction ID.
+func (c *HAProxyClient) DeleteTcpCheckInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string) error {
+	var url string
+	if c.apiVersion == "v3" {
+		// v3: Use nested endpoint under backends
+		// Properly pluralize the parent type
+		parentTypePlural := parentType + "s"
+		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_checks/%d?transaction_id=%s",
+			parentTypePlural, parentName, index, transactionID)
+	} else {
+		// v2: Use query parameter approach
+		url = fmt.Sprintf("/services/haproxy/configuration/tcp_checks/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+			index, parentType, parentName, transactionID)
+	}
+
+	log.Printf("DEBUG: Using TCP check delete endpoint: %s for API version %s", url, c.apiVersion)
+
+	req, err := c.newRequest(ctx, "DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to delete TCP check: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("TCP check deleted successfully in transaction: %s", transactionID)
 	return nil
 }

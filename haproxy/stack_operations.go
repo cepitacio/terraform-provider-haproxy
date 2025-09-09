@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -18,11 +20,15 @@ type StackOperations struct {
 	backendManager          *BackendManager
 	httpRequestRuleManager  *HttpRequestRuleManager
 	httpResponseRuleManager *HttpResponseRuleManager
+	tcpRequestRuleManager   *TcpRequestRuleManager
+	tcpResponseRuleManager  *TcpResponseRuleManager
+	httpcheckManager        *HttpcheckManager
+	tcpCheckManager         *TcpCheckManager
 	bindManager             *BindManager
 }
 
 // NewStackOperations creates a new StackOperations instance
-func NewStackOperations(client *HAProxyClient, aclManager *ACLManager, frontendManager *FrontendManager, backendManager *BackendManager, httpRequestRuleManager *HttpRequestRuleManager, httpResponseRuleManager *HttpResponseRuleManager, bindManager *BindManager) *StackOperations {
+func NewStackOperations(client *HAProxyClient, aclManager *ACLManager, frontendManager *FrontendManager, backendManager *BackendManager, httpRequestRuleManager *HttpRequestRuleManager, httpResponseRuleManager *HttpResponseRuleManager, tcpRequestRuleManager *TcpRequestRuleManager, tcpResponseRuleManager *TcpResponseRuleManager, httpcheckManager *HttpcheckManager, tcpCheckManager *TcpCheckManager, bindManager *BindManager) *StackOperations {
 	return &StackOperations{
 		client:                  client,
 		aclManager:              aclManager,
@@ -30,6 +36,10 @@ func NewStackOperations(client *HAProxyClient, aclManager *ACLManager, frontendM
 		frontendManager:         frontendManager,
 		httpRequestRuleManager:  httpRequestRuleManager,
 		httpResponseRuleManager: httpResponseRuleManager,
+		tcpRequestRuleManager:   tcpRequestRuleManager,
+		tcpResponseRuleManager:  tcpResponseRuleManager,
+		httpcheckManager:        httpcheckManager,
+		tcpCheckManager:         tcpCheckManager,
 		bindManager:             bindManager,
 	}
 }
@@ -423,18 +433,72 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
-	// Create HTTP Response Rules AFTER HTTP Request Rules
+	// Create Frontend HTTP Response Rules AFTER HTTP Request Rules
 	if data.Frontend != nil && data.Frontend.HttpResponseRules != nil && len(data.Frontend.HttpResponseRules) > 0 {
 		if err := o.httpResponseRuleManager.CreateHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpResponseRules); err != nil {
-			resp.Diagnostics.AddError("Error creating HTTP response rules", err.Error())
+			resp.Diagnostics.AddError("Error creating frontend HTTP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Create Frontend TCP Request Rules AFTER HTTP Response Rules
+	if data.Frontend != nil && data.Frontend.TcpRequestRules != nil && len(data.Frontend.TcpRequestRules) > 0 {
+		tcpRequestRules := o.convertTcpRequestRulesToResourceModels(data.Frontend.TcpRequestRules, "frontend", data.Frontend.Name.ValueString())
+		if err := o.tcpRequestRuleManager.Create(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), tcpRequestRules); err != nil {
+			resp.Diagnostics.AddError("Error creating frontend TCP request rules", err.Error())
+			return err
+		}
+	}
+
+	// Create Frontend TCP Response Rules AFTER TCP Request Rules
+	if data.Frontend != nil && data.Frontend.TcpResponseRules != nil && len(data.Frontend.TcpResponseRules) > 0 {
+		tcpResponseRules := o.convertTcpResponseRulesToResourceModels(data.Frontend.TcpResponseRules, "frontend", data.Frontend.Name.ValueString())
+		if err := o.tcpResponseRuleManager.Create(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), tcpResponseRules); err != nil {
+			resp.Diagnostics.AddError("Error creating frontend TCP response rules", err.Error())
 			return err
 		}
 	}
 
 	// Create Backend HTTP Response Rules AFTER HTTP Request Rules
-	if data.Backend != nil && data.Backend.HttpResponseRule != nil && len(data.Backend.HttpResponseRule) > 0 {
-		if err := o.httpResponseRuleManager.CreateHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpResponseRule); err != nil {
+	if data.Backend != nil && data.Backend.HttpResponseRules != nil && len(data.Backend.HttpResponseRules) > 0 {
+		if err := o.httpResponseRuleManager.CreateHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpResponseRules); err != nil {
 			resp.Diagnostics.AddError("Error creating backend HTTP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Create Backend TCP Request Rules AFTER HTTP Response Rules
+	if data.Backend != nil && data.Backend.TcpRequestRules != nil && len(data.Backend.TcpRequestRules) > 0 {
+		tcpRequestRules := o.convertTcpRequestRulesToResourceModels(data.Backend.TcpRequestRules, "backend", data.Backend.Name.ValueString())
+		if err := o.tcpRequestRuleManager.Create(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpRequestRules); err != nil {
+			resp.Diagnostics.AddError("Error creating backend TCP request rules", err.Error())
+			return err
+		}
+	}
+
+	// Create Backend TCP Response Rules AFTER TCP Request Rules
+	if data.Backend != nil && data.Backend.TcpResponseRules != nil && len(data.Backend.TcpResponseRules) > 0 {
+		tcpResponseRules := o.convertTcpResponseRulesToResourceModels(data.Backend.TcpResponseRules, "backend", data.Backend.Name.ValueString())
+		if err := o.tcpResponseRuleManager.Create(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpResponseRules); err != nil {
+			resp.Diagnostics.AddError("Error creating backend TCP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Create Backend HTTP Checks AFTER TCP Response Rules
+	if data.Backend != nil && data.Backend.Httpchecks != nil && len(data.Backend.Httpchecks) > 0 {
+		httpChecks := o.convertHttpchecksToResourceModels(data.Backend.Httpchecks, "backend", data.Backend.Name.ValueString())
+		if err := o.httpcheckManager.Create(ctx, transactionID, "backend", data.Backend.Name.ValueString(), httpChecks); err != nil {
+			resp.Diagnostics.AddError("Error creating backend HTTP checks", err.Error())
+			return err
+		}
+	}
+
+	// Create Backend TCP Checks AFTER HTTP Checks
+	if data.Backend != nil && data.Backend.TcpChecks != nil && len(data.Backend.TcpChecks) > 0 {
+		tcpChecks := o.convertTcpChecksToResourceModels(data.Backend.TcpChecks, "backend", data.Backend.Name.ValueString())
+		if err := o.tcpCheckManager.Create(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpChecks); err != nil {
+			resp.Diagnostics.AddError("Error creating backend TCP checks", err.Error())
 			return err
 		}
 	}
@@ -454,7 +518,7 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 
 // Read performs the read operation for the haproxy_stack resource
 func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse, data *haproxyStackResourceModel) error {
-	tflog.Info(ctx, "Reading HAProxy stack")
+	tflog.Info(ctx, "Reading HAProxy stack - READ FUNCTION CALLED")
 
 	// Read backend if specified
 	if data.Backend != nil {
@@ -487,6 +551,54 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 				data.Servers[server.Name] = o.convertServerPayloadToModel(server)
 				tflog.Info(ctx, "Converted server", map[string]interface{}{
 					"server_name": server.Name,
+				})
+			}
+		}
+	}
+
+	// Read TCP checks if specified
+	if data.Backend != nil {
+		tflog.Info(ctx, "Reading TCP checks from HAProxy", map[string]interface{}{
+			"backend_name": data.Backend.Name.ValueString(),
+		})
+
+		tcpChecks, err := o.client.ReadTcpChecks(ctx, "backend", data.Backend.Name.ValueString())
+		if err != nil {
+			tflog.Warn(ctx, "Could not read TCP checks, preserving existing state", map[string]interface{}{"error": err.Error()})
+			// Don't overwrite data.Backend.TcpChecks if we can't read from HAProxy
+		} else {
+			tflog.Info(ctx, "Successfully read TCP checks from HAProxy", map[string]interface{}{
+				"tcp_checks_found": len(tcpChecks),
+			})
+			// Debug: Log the actual TCP checks from HAProxy
+			for i, tcpCheck := range tcpChecks {
+				tflog.Info(ctx, "HAProxy TCP check", map[string]interface{}{
+					"index":   i,
+					"action":  tcpCheck.Action,
+					"addr":    tcpCheck.Addr,
+					"port":    tcpCheck.Port,
+					"data":    tcpCheck.Data,
+					"pattern": tcpCheck.Pattern,
+				})
+			}
+			// Convert TCP checks to model format
+			data.Backend.TcpChecks = make([]haproxyTcpCheckModel, len(tcpChecks))
+			for i, tcpCheck := range tcpChecks {
+				data.Backend.TcpChecks[i] = o.convertTcpCheckPayloadToStackModel(tcpCheck)
+			}
+
+			// Debug: Log the final state after conversion
+			tflog.Info(ctx, "Final TCP checks state after Read", map[string]interface{}{
+				"tcp_checks_count": len(data.Backend.TcpChecks),
+			})
+			for i, tcpCheck := range data.Backend.TcpChecks {
+				tflog.Info(ctx, "Final TCP check state", map[string]interface{}{
+					"index":   i,
+					"action":  tcpCheck.Action.ValueString(),
+					"addr":    tcpCheck.Addr.ValueString(),
+					"port":    tcpCheck.Port.ValueInt64(),
+					"data":    tcpCheck.Data.ValueString(),
+					"pattern": tcpCheck.Pattern.ValueString(),
 				})
 			}
 		}
@@ -936,6 +1048,13 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		} else {
 			tflog.Info(ctx, "Frontend ACLs unchanged, skipping update")
 		}
+	} else if data.Frontend != nil && state.Frontend != nil && state.Frontend.Acls != nil && len(state.Frontend.Acls) > 0 {
+		// Handle frontend ACLs deletion - plan has no ACLs but state does
+		tflog.Info(ctx, "Frontend ACLs removed, deleting", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		if err = o.aclManager.DeleteACLsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting frontend ACLs", err.Error())
+			return err
+		}
 	}
 
 	// Update backend ACLs only if they changed in the plan
@@ -950,6 +1069,13 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 			}
 		} else {
 			tflog.Info(ctx, "Backend ACLs unchanged, skipping update")
+		}
+	} else if data.Backend != nil && state.Backend != nil && state.Backend.Acls != nil && len(state.Backend.Acls) > 0 {
+		// Handle backend ACLs deletion - plan has no ACLs but state does
+		tflog.Info(ctx, "Backend ACLs removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.aclManager.DeleteACLsInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend ACLs", err.Error())
+			return err
 		}
 	}
 
@@ -966,20 +1092,225 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		} else {
 			tflog.Info(ctx, "HTTP request rules unchanged, skipping update")
 		}
+	} else if data.Frontend != nil && state.Frontend != nil && state.Frontend.HttpRequestRules != nil && len(state.Frontend.HttpRequestRules) > 0 {
+		// Handle HTTP request rules deletion - plan has no rules but state does
+		tflog.Info(ctx, "HTTP request rules removed, deleting", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		if err = o.httpRequestRuleManager.DeleteHttpRequestRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting HTTP request rules", err.Error())
+			return err
+		}
 	}
 
-	// Update HTTP Response Rules only if they changed in the plan
+	// Update Frontend HTTP Response Rules only if they changed in the plan
 	if data.Frontend != nil && data.Frontend.HttpResponseRules != nil && len(data.Frontend.HttpResponseRules) > 0 {
 		// Check if HTTP Response Rules changed by comparing plan vs state
 		httpResponseRulesChanged := o.httpResponseRulesChanged(ctx, data.Frontend.HttpResponseRules, state.Frontend.HttpResponseRules)
 		if httpResponseRulesChanged {
-			tflog.Info(ctx, "HTTP response rules changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+			tflog.Info(ctx, "Frontend HTTP response rules changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 			if err = o.httpResponseRuleManager.UpdateHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpResponseRules); err != nil {
-				resp.Diagnostics.AddError("Error updating HTTP response rules", err.Error())
+				resp.Diagnostics.AddError("Error updating frontend HTTP response rules", err.Error())
 				return err
 			}
 		} else {
-			tflog.Info(ctx, "HTTP response rules unchanged, skipping update")
+			tflog.Info(ctx, "Frontend HTTP response rules unchanged, skipping update")
+		}
+	} else if data.Frontend != nil && state.Frontend != nil && state.Frontend.HttpResponseRules != nil && len(state.Frontend.HttpResponseRules) > 0 {
+		// Handle frontend HTTP response rules deletion - plan has no rules but state does
+		tflog.Info(ctx, "Frontend HTTP response rules removed, deleting", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		if err = o.httpResponseRuleManager.DeleteHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting frontend HTTP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Update Backend HTTP Response Rules only if they changed in the plan
+	if data.Backend != nil && data.Backend.HttpResponseRules != nil && len(data.Backend.HttpResponseRules) > 0 {
+		// Check if HTTP Response Rules changed by comparing plan vs state
+		httpResponseRulesChanged := o.httpResponseRulesChanged(ctx, data.Backend.HttpResponseRules, state.Backend.HttpResponseRules)
+		if httpResponseRulesChanged {
+			tflog.Info(ctx, "Backend HTTP response rules changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+			if err = o.httpResponseRuleManager.UpdateHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpResponseRules); err != nil {
+				resp.Diagnostics.AddError("Error updating backend HTTP response rules", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Backend HTTP response rules unchanged, skipping update")
+		}
+	} else if data.Backend != nil && state.Backend != nil && state.Backend.HttpResponseRules != nil && len(state.Backend.HttpResponseRules) > 0 {
+		// Handle backend HTTP response rules deletion - plan has no rules but state does
+		tflog.Info(ctx, "Backend HTTP response rules removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.httpResponseRuleManager.DeleteHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend HTTP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Update Frontend TCP Request Rules only if they changed in the plan
+	if data.Frontend != nil && data.Frontend.TcpRequestRules != nil && len(data.Frontend.TcpRequestRules) > 0 {
+		// Check if TCP Request Rules changed by comparing plan vs state
+		tcpRequestRulesChanged := o.tcpRequestRuleChanged(ctx, data.Frontend.TcpRequestRules, state.Frontend.TcpRequestRules)
+		if tcpRequestRulesChanged {
+			tflog.Info(ctx, "Frontend TCP request rules changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+			tcpRequestRules := o.convertTcpRequestRulesToResourceModels(data.Frontend.TcpRequestRules, "frontend", data.Frontend.Name.ValueString())
+			if err = o.tcpRequestRuleManager.Update(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), tcpRequestRules); err != nil {
+				resp.Diagnostics.AddError("Error updating frontend TCP request rules", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Frontend TCP request rules unchanged, skipping update")
+		}
+	} else if data.Frontend != nil && state.Frontend != nil && state.Frontend.TcpRequestRules != nil && len(state.Frontend.TcpRequestRules) > 0 {
+		// Handle frontend TCP request rules deletion - plan has no rules but state does
+		tflog.Info(ctx, "Frontend TCP request rules removed, deleting", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		if err = o.tcpRequestRuleManager.Delete(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting frontend TCP request rules", err.Error())
+			return err
+		}
+	}
+
+	// Update Frontend TCP Response Rules only if they changed in the plan
+	if data.Frontend != nil && data.Frontend.TcpResponseRules != nil && len(data.Frontend.TcpResponseRules) > 0 {
+		// Check if TCP Response Rules changed by comparing plan vs state
+		tcpResponseRulesChanged := o.tcpResponseRuleChanged(ctx, data.Frontend.TcpResponseRules, state.Frontend.TcpResponseRules)
+		if tcpResponseRulesChanged {
+			tflog.Info(ctx, "Frontend TCP response rules changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+			tcpResponseRules := o.convertTcpResponseRulesToResourceModels(data.Frontend.TcpResponseRules, "frontend", data.Frontend.Name.ValueString())
+			if err = o.tcpResponseRuleManager.Update(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), tcpResponseRules); err != nil {
+				resp.Diagnostics.AddError("Error updating frontend TCP response rules", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Frontend TCP response rules unchanged, skipping update")
+		}
+	} else if data.Frontend != nil && state.Frontend != nil && state.Frontend.TcpResponseRules != nil && len(state.Frontend.TcpResponseRules) > 0 {
+		// Handle frontend TCP response rules deletion - plan has no rules but state does
+		tflog.Info(ctx, "Frontend TCP response rules removed, deleting", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		if err = o.tcpResponseRuleManager.Delete(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting frontend TCP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Update Backend TCP Request Rules only if they changed in the plan
+	if data.Backend != nil && data.Backend.TcpRequestRules != nil && len(data.Backend.TcpRequestRules) > 0 {
+		// Check if TCP Request Rules changed by comparing plan vs state
+		tcpRequestRulesChanged := o.tcpRequestRuleChanged(ctx, data.Backend.TcpRequestRules, state.Backend.TcpRequestRules)
+		if tcpRequestRulesChanged {
+			tflog.Info(ctx, "Backend TCP request rules changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+			tcpRequestRules := o.convertTcpRequestRulesToResourceModels(data.Backend.TcpRequestRules, "backend", data.Backend.Name.ValueString())
+			if err = o.tcpRequestRuleManager.Update(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpRequestRules); err != nil {
+				resp.Diagnostics.AddError("Error updating backend TCP request rules", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Backend TCP request rules unchanged, skipping update")
+		}
+	} else if data.Backend != nil && state.Backend != nil && state.Backend.TcpRequestRules != nil && len(state.Backend.TcpRequestRules) > 0 {
+		// Handle backend TCP request rules deletion - plan has no rules but state does
+		tflog.Info(ctx, "Backend TCP request rules removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.tcpRequestRuleManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend TCP request rules", err.Error())
+			return err
+		}
+	}
+
+	// Update Backend TCP Response Rules only if they changed in the plan
+	if data.Backend != nil && data.Backend.TcpResponseRules != nil && len(data.Backend.TcpResponseRules) > 0 {
+		// Check if TCP Response Rules changed by comparing plan vs state
+		tcpResponseRulesChanged := o.tcpResponseRuleChanged(ctx, data.Backend.TcpResponseRules, state.Backend.TcpResponseRules)
+		if tcpResponseRulesChanged {
+			tflog.Info(ctx, "Backend TCP response rules changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+			tcpResponseRules := o.convertTcpResponseRulesToResourceModels(data.Backend.TcpResponseRules, "backend", data.Backend.Name.ValueString())
+			if err = o.tcpResponseRuleManager.Update(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpResponseRules); err != nil {
+				resp.Diagnostics.AddError("Error updating backend TCP response rules", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Backend TCP response rules unchanged, skipping update")
+		}
+	} else if data.Backend != nil && state.Backend != nil && state.Backend.TcpResponseRules != nil && len(state.Backend.TcpResponseRules) > 0 {
+		// Handle backend TCP response rules deletion - plan has no rules but state does
+		tflog.Info(ctx, "Backend TCP response rules removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.tcpResponseRuleManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend TCP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Update Backend HTTP Checks only if they changed in the plan
+	if data.Backend != nil && data.Backend.Httpchecks != nil && len(data.Backend.Httpchecks) > 0 {
+		// Check if HTTP Checks changed by comparing plan vs state
+		httpcheckChanged := o.httpcheckChanged(ctx, data.Backend.Httpchecks, state.Backend.Httpchecks)
+		if httpcheckChanged {
+			tflog.Info(ctx, "Backend HTTP checks changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+			httpChecks := o.convertHttpchecksToResourceModels(data.Backend.Httpchecks, "backend", data.Backend.Name.ValueString())
+			if err = o.httpcheckManager.Update(ctx, transactionID, "backend", data.Backend.Name.ValueString(), httpChecks); err != nil {
+				resp.Diagnostics.AddError("Error updating backend HTTP checks", err.Error())
+				return err
+			}
+		} else {
+			tflog.Info(ctx, "Backend HTTP checks unchanged, skipping update")
+		}
+	} else if data.Backend != nil && state.Backend != nil && state.Backend.Httpchecks != nil && len(state.Backend.Httpchecks) > 0 {
+		// Handle HTTP checks deletion - plan has no HTTP checks but state does
+		tflog.Info(ctx, "Backend HTTP checks removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.httpcheckManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend HTTP checks", err.Error())
+			return err
+		}
+	}
+
+	// Handle Backend TCP Checks
+	if data.Backend != nil && state.Backend != nil {
+		// Debug logging for TCP checks
+		tflog.Info(ctx, "TCP checks processing", map[string]interface{}{
+			"backend_name":         data.Backend.Name.ValueString(),
+			"state_tcp_checks_len": len(state.Backend.TcpChecks),
+			"data_tcp_checks_len":  len(data.Backend.TcpChecks),
+		})
+
+		// Check for deletion first - plan has no TCP checks but state does
+		if len(state.Backend.TcpChecks) > 0 && len(data.Backend.TcpChecks) == 0 {
+			// Handle TCP checks deletion
+			tflog.Info(ctx, "Backend TCP checks removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+			if err = o.tcpCheckManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+				resp.Diagnostics.AddError("Error deleting backend TCP checks", err.Error())
+				return err
+			}
+		} else if data.Backend.TcpChecks != nil && len(data.Backend.TcpChecks) > 0 {
+			// Check if TCP Checks changed by comparing plan vs state
+			tcpCheckChanged := o.tcpCheckChanged(ctx, data.Backend.TcpChecks, state.Backend.TcpChecks)
+			if tcpCheckChanged {
+				tflog.Info(ctx, "Backend TCP checks changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+				tcpChecks := o.convertTcpChecksToResourceModels(data.Backend.TcpChecks, "backend", data.Backend.Name.ValueString())
+				if err = o.tcpCheckManager.Update(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpChecks); err != nil {
+					resp.Diagnostics.AddError("Error updating backend TCP checks", err.Error())
+					return err
+				}
+
+				// Debug: Read back the TCP checks to see what HAProxy actually stored
+				tflog.Info(ctx, "Reading TCP checks back from HAProxy after update")
+				readTcpChecks, err := o.client.ReadTcpChecks(ctx, "backend", data.Backend.Name.ValueString())
+				if err != nil {
+					tflog.Warn(ctx, "Could not read TCP checks back from HAProxy", map[string]interface{}{"error": err.Error()})
+				} else {
+					tflog.Info(ctx, "HAProxy returned TCP checks after update", map[string]interface{}{
+						"tcp_checks_count": len(readTcpChecks),
+					})
+					for i, tcpCheck := range readTcpChecks {
+						tflog.Info(ctx, "HAProxy TCP check after update", map[string]interface{}{
+							"index":   i,
+							"action":  tcpCheck.Action,
+							"addr":    tcpCheck.Addr,
+							"port":    tcpCheck.Port,
+							"data":    tcpCheck.Data,
+							"pattern": tcpCheck.Pattern,
+						})
+					}
+				}
+			} else {
+				tflog.Info(ctx, "Backend TCP checks unchanged, skipping update")
+			}
 		}
 	}
 
@@ -1196,6 +1527,24 @@ func (o *StackOperations) frontendChanged(ctx context.Context, planFrontend *hap
 		return true
 	}
 
+	// Compare TcpRequestRules field
+	if o.tcpRequestRuleChanged(ctx, planFrontend.TcpRequestRules, stateFrontend.TcpRequestRules) {
+		tflog.Info(ctx, "Frontend TcpRequestRules changed", map[string]interface{}{
+			"plan_name":  planFrontend.Name.ValueString(),
+			"state_name": stateFrontend.Name.ValueString(),
+		})
+		return true
+	}
+
+	// Compare TcpResponseRules field
+	if o.tcpResponseRuleChanged(ctx, planFrontend.TcpResponseRules, stateFrontend.TcpResponseRules) {
+		tflog.Info(ctx, "Frontend TcpResponseRules changed", map[string]interface{}{
+			"plan_name":  planFrontend.Name.ValueString(),
+			"state_name": stateFrontend.Name.ValueString(),
+		})
+		return true
+	}
+
 	// Compare StatsOptions field
 	if o.statsOptionsChanged(ctx, planFrontend.StatsOptions, stateFrontend.StatsOptions) {
 		tflog.Info(ctx, "Frontend StatsOptions changed", map[string]interface{}{
@@ -1329,8 +1678,8 @@ func (o *StackOperations) backendChanged(ctx context.Context, planBackend *hapro
 		return true
 	}
 
-	// Compare Httpcheck field
-	if o.httpcheckChanged(ctx, planBackend.Httpcheck, stateBackend.Httpcheck) {
+	// Compare Httpchecks field
+	if o.httpcheckChanged(ctx, planBackend.Httpchecks, stateBackend.Httpchecks) {
 		tflog.Info(ctx, "Backend Httpcheck changed", map[string]interface{}{
 			"plan_name":  planBackend.Name.ValueString(),
 			"state_name": stateBackend.Name.ValueString(),
@@ -1338,8 +1687,8 @@ func (o *StackOperations) backendChanged(ctx context.Context, planBackend *hapro
 		return true
 	}
 
-	// Compare TcpCheck field
-	if o.tcpCheckChanged(ctx, planBackend.TcpCheck, stateBackend.TcpCheck) {
+	// Compare TcpChecks field
+	if o.tcpCheckChanged(ctx, planBackend.TcpChecks, stateBackend.TcpChecks) {
 		tflog.Info(ctx, "Backend TcpCheck changed", map[string]interface{}{
 			"plan_name":  planBackend.Name.ValueString(),
 			"state_name": stateBackend.Name.ValueString(),
@@ -1365,8 +1714,8 @@ func (o *StackOperations) backendChanged(ctx context.Context, planBackend *hapro
 		return true
 	}
 
-	// Compare HttpResponseRule field
-	if o.httpResponseRulesChanged(ctx, planBackend.HttpResponseRule, stateBackend.HttpResponseRule) {
+	// Compare HttpResponseRules field
+	if o.httpResponseRulesChanged(ctx, planBackend.HttpResponseRules, stateBackend.HttpResponseRules) {
 		tflog.Info(ctx, "Backend HttpResponseRule changed", map[string]interface{}{
 			"plan_name":  planBackend.Name.ValueString(),
 			"state_name": stateBackend.Name.ValueString(),
@@ -1374,8 +1723,8 @@ func (o *StackOperations) backendChanged(ctx context.Context, planBackend *hapro
 		return true
 	}
 
-	// Compare TcpRequestRule field
-	if o.tcpRequestRuleChanged(ctx, planBackend.TcpRequestRule, stateBackend.TcpRequestRule) {
+	// Compare TcpRequestRules field
+	if o.tcpRequestRuleChanged(ctx, planBackend.TcpRequestRules, stateBackend.TcpRequestRules) {
 		tflog.Info(ctx, "Backend TcpRequestRule changed", map[string]interface{}{
 			"plan_name":  planBackend.Name.ValueString(),
 			"state_name": stateBackend.Name.ValueString(),
@@ -1383,8 +1732,8 @@ func (o *StackOperations) backendChanged(ctx context.Context, planBackend *hapro
 		return true
 	}
 
-	// Compare TcpResponseRule field
-	if o.tcpResponseRuleChanged(ctx, planBackend.TcpResponseRule, stateBackend.TcpResponseRule) {
+	// Compare TcpResponseRules field
+	if o.tcpResponseRuleChanged(ctx, planBackend.TcpResponseRules, stateBackend.TcpResponseRules) {
 		tflog.Info(ctx, "Backend TcpResponseRule changed", map[string]interface{}{
 			"plan_name":  planBackend.Name.ValueString(),
 			"state_name": stateBackend.Name.ValueString(),
@@ -1535,21 +1884,31 @@ func (o *StackOperations) httpcheckChanged(ctx context.Context, planHttpcheck []
 		stateCheck := stateHttpcheck[i]
 
 		// Compare ALL fields from haproxyHttpcheckModel comprehensively
-		if planCheck.Index.ValueInt64() != stateCheck.Index.ValueInt64() ||
-			planCheck.Type.ValueString() != stateCheck.Type.ValueString() ||
-			planCheck.Method.ValueString() != stateCheck.Method.ValueString() ||
-			planCheck.Uri.ValueString() != stateCheck.Uri.ValueString() ||
-			planCheck.Version.ValueString() != stateCheck.Version.ValueString() ||
-			planCheck.Timeout.ValueInt64() != stateCheck.Timeout.ValueInt64() ||
-			planCheck.Match.ValueString() != stateCheck.Match.ValueString() ||
-			planCheck.Pattern.ValueString() != stateCheck.Pattern.ValueString() ||
+		if planCheck.Type.ValueString() != stateCheck.Type.ValueString() ||
 			planCheck.Addr.ValueString() != stateCheck.Addr.ValueString() ||
+			planCheck.Alpn.ValueString() != stateCheck.Alpn.ValueString() ||
+			planCheck.Body.ValueString() != stateCheck.Body.ValueString() ||
+			planCheck.BodyLogFormat.ValueString() != stateCheck.BodyLogFormat.ValueString() ||
+			planCheck.CheckComment.ValueString() != stateCheck.CheckComment.ValueString() ||
+			planCheck.Default.ValueBool() != stateCheck.Default.ValueBool() ||
+			planCheck.ErrorStatus.ValueString() != stateCheck.ErrorStatus.ValueString() ||
+			planCheck.ExclamationMark.ValueBool() != stateCheck.ExclamationMark.ValueBool() ||
+			planCheck.Linger.ValueBool() != stateCheck.Linger.ValueBool() ||
+			planCheck.Match.ValueString() != stateCheck.Match.ValueString() ||
+			planCheck.Method.ValueString() != stateCheck.Method.ValueString() ||
+			planCheck.MinRecv.ValueInt64() != stateCheck.MinRecv.ValueInt64() ||
+			planCheck.OkStatus.ValueString() != stateCheck.OkStatus.ValueString() ||
+			planCheck.OnError.ValueString() != stateCheck.OnError.ValueString() ||
+			planCheck.OnSuccess.ValueString() != stateCheck.OnSuccess.ValueString() ||
+			planCheck.Pattern.ValueString() != stateCheck.Pattern.ValueString() ||
 			planCheck.Port.ValueInt64() != stateCheck.Port.ValueInt64() ||
-			planCheck.ExclamationMark.ValueString() != stateCheck.ExclamationMark.ValueString() ||
-			planCheck.LogLevel.ValueString() != stateCheck.LogLevel.ValueString() ||
-			planCheck.SendProxy.ValueString() != stateCheck.SendProxy.ValueString() ||
-			planCheck.ViaSocks4.ValueString() != stateCheck.ViaSocks4.ValueString() ||
-			planCheck.CheckComment.ValueString() != stateCheck.CheckComment.ValueString() {
+			planCheck.PortString.ValueString() != stateCheck.PortString.ValueString() ||
+			planCheck.Proto.ValueString() != stateCheck.Proto.ValueString() ||
+			planCheck.SendProxy.ValueBool() != stateCheck.SendProxy.ValueBool() ||
+			planCheck.Sni.ValueString() != stateCheck.Sni.ValueString() ||
+			planCheck.Ssl.ValueBool() != stateCheck.Ssl.ValueBool() ||
+			planCheck.StatusCode.ValueString() != stateCheck.StatusCode.ValueString() ||
+			planCheck.ToutStatus.ValueString() != stateCheck.ToutStatus.ValueString() {
 			return true
 		}
 	}
@@ -1576,11 +1935,37 @@ func (o *StackOperations) tcpCheckChanged(ctx context.Context, planTcpCheck []ha
 		}
 		stateCheck := stateTcpCheck[i]
 
-		if planCheck.Index.ValueInt64() != stateCheck.Index.ValueInt64() ||
-			planCheck.Type.ValueString() != stateCheck.Type.ValueString() ||
-			planCheck.Action.ValueString() != stateCheck.Action.ValueString() ||
-			planCheck.Cond.ValueString() != stateCheck.Cond.ValueString() ||
-			planCheck.CondTest.ValueString() != stateCheck.CondTest.ValueString() {
+		if planCheck.Action.ValueString() != stateCheck.Action.ValueString() ||
+			planCheck.Addr.ValueString() != stateCheck.Addr.ValueString() ||
+			planCheck.Alpn.ValueString() != stateCheck.Alpn.ValueString() ||
+			planCheck.CheckComment.ValueString() != stateCheck.CheckComment.ValueString() ||
+			planCheck.Data.ValueString() != stateCheck.Data.ValueString() ||
+			planCheck.Default.ValueBool() != stateCheck.Default.ValueBool() ||
+			planCheck.ErrorStatus.ValueString() != stateCheck.ErrorStatus.ValueString() ||
+			planCheck.ExclamationMark.ValueBool() != stateCheck.ExclamationMark.ValueBool() ||
+			planCheck.Fmt.ValueString() != stateCheck.Fmt.ValueString() ||
+			planCheck.HexFmt.ValueString() != stateCheck.HexFmt.ValueString() ||
+			planCheck.HexString.ValueString() != stateCheck.HexString.ValueString() ||
+			planCheck.Linger.ValueBool() != stateCheck.Linger.ValueBool() ||
+			planCheck.Match.ValueString() != stateCheck.Match.ValueString() ||
+			planCheck.MinRecv.ValueInt64() != stateCheck.MinRecv.ValueInt64() ||
+			planCheck.OkStatus.ValueString() != stateCheck.OkStatus.ValueString() ||
+			planCheck.OnError.ValueString() != stateCheck.OnError.ValueString() ||
+			planCheck.OnSuccess.ValueString() != stateCheck.OnSuccess.ValueString() ||
+			planCheck.Pattern.ValueString() != stateCheck.Pattern.ValueString() ||
+			planCheck.Port.ValueInt64() != stateCheck.Port.ValueInt64() ||
+			planCheck.PortString.ValueString() != stateCheck.PortString.ValueString() ||
+			planCheck.Proto.ValueString() != stateCheck.Proto.ValueString() ||
+			planCheck.SendProxy.ValueBool() != stateCheck.SendProxy.ValueBool() ||
+			planCheck.Sni.ValueString() != stateCheck.Sni.ValueString() ||
+			planCheck.Ssl.ValueBool() != stateCheck.Ssl.ValueBool() ||
+			planCheck.StatusCode.ValueString() != stateCheck.StatusCode.ValueString() ||
+			planCheck.ToutStatus.ValueString() != stateCheck.ToutStatus.ValueString() ||
+			planCheck.VarExpr.ValueString() != stateCheck.VarExpr.ValueString() ||
+			planCheck.VarFmt.ValueString() != stateCheck.VarFmt.ValueString() ||
+			planCheck.VarName.ValueString() != stateCheck.VarName.ValueString() ||
+			planCheck.VarScope.ValueString() != stateCheck.VarScope.ValueString() ||
+			planCheck.ViaSocks4.ValueBool() != stateCheck.ViaSocks4.ValueBool() {
 			return true
 		}
 	}
@@ -1607,11 +1992,35 @@ func (o *StackOperations) tcpRequestRuleChanged(ctx context.Context, planTcpRequ
 		}
 		stateRule := stateTcpRequestRule[i]
 
-		if planRule.Index.ValueInt64() != stateRule.Index.ValueInt64() ||
-			planRule.Type.ValueString() != stateRule.Type.ValueString() ||
+		if planRule.Type.ValueString() != stateRule.Type.ValueString() ||
 			planRule.Action.ValueString() != stateRule.Action.ValueString() ||
 			planRule.Cond.ValueString() != stateRule.Cond.ValueString() ||
-			planRule.CondTest.ValueString() != stateRule.CondTest.ValueString() {
+			planRule.CondTest.ValueString() != stateRule.CondTest.ValueString() ||
+			planRule.Expr.ValueString() != stateRule.Expr.ValueString() ||
+			planRule.Timeout.ValueInt64() != stateRule.Timeout.ValueInt64() ||
+			planRule.LuaAction.ValueString() != stateRule.LuaAction.ValueString() ||
+			planRule.LuaParams.ValueString() != stateRule.LuaParams.ValueString() ||
+			planRule.LogLevel.ValueString() != stateRule.LogLevel.ValueString() ||
+			planRule.MarkValue.ValueString() != stateRule.MarkValue.ValueString() ||
+			planRule.NiceValue.ValueInt64() != stateRule.NiceValue.ValueInt64() ||
+			planRule.TosValue.ValueString() != stateRule.TosValue.ValueString() ||
+			planRule.CaptureLen.ValueInt64() != stateRule.CaptureLen.ValueInt64() ||
+			planRule.CaptureSample.ValueString() != stateRule.CaptureSample.ValueString() ||
+			planRule.BandwidthLimitLimit.ValueString() != stateRule.BandwidthLimitLimit.ValueString() ||
+			planRule.BandwidthLimitName.ValueString() != stateRule.BandwidthLimitName.ValueString() ||
+			planRule.BandwidthLimitPeriod.ValueString() != stateRule.BandwidthLimitPeriod.ValueString() ||
+			planRule.ResolveProtocol.ValueString() != stateRule.ResolveProtocol.ValueString() ||
+			planRule.ResolveResolvers.ValueString() != stateRule.ResolveResolvers.ValueString() ||
+			planRule.ResolveVar.ValueString() != stateRule.ResolveVar.ValueString() ||
+			planRule.RstTtl.ValueInt64() != stateRule.RstTtl.ValueInt64() ||
+			planRule.ScIdx.ValueString() != stateRule.ScIdx.ValueString() ||
+			planRule.ScIncId.ValueString() != stateRule.ScIncId.ValueString() ||
+			planRule.ScInt.ValueInt64() != stateRule.ScInt.ValueInt64() ||
+			planRule.ServerName.ValueString() != stateRule.ServerName.ValueString() ||
+			planRule.ServiceName.ValueString() != stateRule.ServiceName.ValueString() ||
+			planRule.VarName.ValueString() != stateRule.VarName.ValueString() ||
+			planRule.VarFormat.ValueString() != stateRule.VarFormat.ValueString() ||
+			planRule.VarScope.ValueString() != stateRule.VarScope.ValueString() {
 			return true
 		}
 	}
@@ -1638,11 +2047,31 @@ func (o *StackOperations) tcpResponseRuleChanged(ctx context.Context, planTcpRes
 		}
 		stateRule := stateTcpResponseRule[i]
 
-		if planRule.Index.ValueInt64() != stateRule.Index.ValueInt64() ||
-			planRule.Type.ValueString() != stateRule.Type.ValueString() ||
+		if planRule.Type.ValueString() != stateRule.Type.ValueString() ||
 			planRule.Action.ValueString() != stateRule.Action.ValueString() ||
 			planRule.Cond.ValueString() != stateRule.Cond.ValueString() ||
-			planRule.CondTest.ValueString() != stateRule.CondTest.ValueString() {
+			planRule.CondTest.ValueString() != stateRule.CondTest.ValueString() ||
+			planRule.Expr.ValueString() != stateRule.Expr.ValueString() ||
+			planRule.LogLevel.ValueString() != stateRule.LogLevel.ValueString() ||
+			planRule.LuaAction.ValueString() != stateRule.LuaAction.ValueString() ||
+			planRule.LuaParams.ValueString() != stateRule.LuaParams.ValueString() ||
+			planRule.MarkValue.ValueString() != stateRule.MarkValue.ValueString() ||
+			planRule.NiceValue.ValueInt64() != stateRule.NiceValue.ValueInt64() ||
+			planRule.RstTtl.ValueInt64() != stateRule.RstTtl.ValueInt64() ||
+			planRule.ScExpr.ValueString() != stateRule.ScExpr.ValueString() ||
+			planRule.ScId.ValueInt64() != stateRule.ScId.ValueInt64() ||
+			planRule.ScIdx.ValueInt64() != stateRule.ScIdx.ValueInt64() ||
+			planRule.ScInt.ValueInt64() != stateRule.ScInt.ValueInt64() ||
+			planRule.SpoeEngine.ValueString() != stateRule.SpoeEngine.ValueString() ||
+			planRule.SpoeGroup.ValueString() != stateRule.SpoeGroup.ValueString() ||
+			planRule.Timeout.ValueInt64() != stateRule.Timeout.ValueInt64() ||
+			planRule.TosValue.ValueString() != stateRule.TosValue.ValueString() ||
+			planRule.VarFormat.ValueString() != stateRule.VarFormat.ValueString() ||
+			planRule.VarName.ValueString() != stateRule.VarName.ValueString() ||
+			planRule.VarScope.ValueString() != stateRule.VarScope.ValueString() ||
+			planRule.BandwidthLimitLimit.ValueString() != stateRule.BandwidthLimitLimit.ValueString() ||
+			planRule.BandwidthLimitName.ValueString() != stateRule.BandwidthLimitName.ValueString() ||
+			planRule.BandwidthLimitPeriod.ValueString() != stateRule.BandwidthLimitPeriod.ValueString() {
 			return true
 		}
 	}
@@ -1975,11 +2404,74 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 		}
 	}
 
-	// Delete HTTP Response Rules if specified
+	// Delete Frontend HTTP Response Rules if specified
 	if data.Frontend != nil && data.Frontend.HttpResponseRules != nil && len(data.Frontend.HttpResponseRules) > 0 {
-		tflog.Info(ctx, "Deleting HTTP response rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		tflog.Info(ctx, "Deleting frontend HTTP response rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.httpResponseRuleManager.DeleteHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting HTTP response rules", err.Error())
+			resp.Diagnostics.AddError("Error deleting frontend HTTP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Delete Backend HTTP Response Rules if specified
+	if data.Backend != nil && data.Backend.HttpResponseRules != nil && len(data.Backend.HttpResponseRules) > 0 {
+		tflog.Info(ctx, "Deleting backend HTTP response rules", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.httpResponseRuleManager.DeleteHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend HTTP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Delete Frontend TCP Request Rules if specified
+	if data.Frontend != nil && data.Frontend.TcpRequestRules != nil && len(data.Frontend.TcpRequestRules) > 0 {
+		tflog.Info(ctx, "Deleting frontend TCP request rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		if err = o.tcpRequestRuleManager.Delete(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting frontend TCP request rules", err.Error())
+			return err
+		}
+	}
+
+	// Delete Frontend TCP Response Rules if specified
+	if data.Frontend != nil && data.Frontend.TcpResponseRules != nil && len(data.Frontend.TcpResponseRules) > 0 {
+		tflog.Info(ctx, "Deleting frontend TCP response rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
+		if err = o.tcpResponseRuleManager.Delete(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting frontend TCP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Delete Backend TCP Request Rules if specified
+	if data.Backend != nil && data.Backend.TcpRequestRules != nil && len(data.Backend.TcpRequestRules) > 0 {
+		tflog.Info(ctx, "Deleting backend TCP request rules", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.tcpRequestRuleManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend TCP request rules", err.Error())
+			return err
+		}
+	}
+
+	// Delete Backend TCP Response Rules if specified
+	if data.Backend != nil && data.Backend.TcpResponseRules != nil && len(data.Backend.TcpResponseRules) > 0 {
+		tflog.Info(ctx, "Deleting backend TCP response rules", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.tcpResponseRuleManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend TCP response rules", err.Error())
+			return err
+		}
+	}
+
+	// Delete Backend HTTP Checks if specified
+	if data.Backend != nil && data.Backend.Httpchecks != nil && len(data.Backend.Httpchecks) > 0 {
+		tflog.Info(ctx, "Deleting backend HTTP checks", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.httpcheckManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend HTTP checks", err.Error())
+			return err
+		}
+	}
+
+	// Delete Backend TCP Checks if specified
+	if data.Backend != nil && data.Backend.TcpChecks != nil && len(data.Backend.TcpChecks) > 0 {
+		tflog.Info(ctx, "Deleting backend TCP checks", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
+		if err = o.tcpCheckManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Error deleting backend TCP checks", err.Error())
 			return err
 		}
 	}
@@ -2049,4 +2541,310 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	err = nil
 	tflog.Info(ctx, "HAProxy stack deleted successfully")
 	return nil
+}
+
+// convertTcpRequestRulesToResourceModels converts stack models to resource models
+func (o *StackOperations) convertTcpRequestRulesToResourceModels(stackRules []haproxyTcpRequestRuleModel, parentType, parentName string) []TcpRequestRuleResourceModel {
+	resourceRules := make([]TcpRequestRuleResourceModel, len(stackRules))
+	for i, stackRule := range stackRules {
+		resourceRules[i] = TcpRequestRuleResourceModel{
+			ID:                   types.StringValue(fmt.Sprintf("%s/%s/tcp_request_rule/%d", parentType, parentName, i)),
+			ParentType:           types.StringValue(parentType),
+			ParentName:           types.StringValue(parentName),
+			Index:                types.Int64Value(int64(i)),
+			Type:                 stackRule.Type,
+			Action:               stackRule.Action,
+			Cond:                 stackRule.Cond,
+			CondTest:             stackRule.CondTest,
+			Expr:                 stackRule.Expr,
+			Timeout:              stackRule.Timeout,
+			LuaAction:            stackRule.LuaAction,
+			LuaParams:            stackRule.LuaParams,
+			LogLevel:             stackRule.LogLevel,
+			MarkValue:            stackRule.MarkValue,
+			NiceValue:            stackRule.NiceValue,
+			TosValue:             stackRule.TosValue,
+			CaptureLen:           stackRule.CaptureLen,
+			CaptureSample:        stackRule.CaptureSample,
+			BandwidthLimitLimit:  stackRule.BandwidthLimitLimit,
+			BandwidthLimitName:   stackRule.BandwidthLimitName,
+			BandwidthLimitPeriod: stackRule.BandwidthLimitPeriod,
+			ResolveProtocol:      stackRule.ResolveProtocol,
+			ResolveResolvers:     stackRule.ResolveResolvers,
+			ResolveVar:           stackRule.ResolveVar,
+			RstTtl:               stackRule.RstTtl,
+			ScIdx:                stackRule.ScIdx,
+			ScIncId:              stackRule.ScIncId,
+			ScInt:                stackRule.ScInt,
+			ServerName:           stackRule.ServerName,
+			ServiceName:          stackRule.ServiceName,
+			VarName:              stackRule.VarName,
+			VarFormat:            stackRule.VarFormat,
+			VarScope:             stackRule.VarScope,
+		}
+	}
+	return resourceRules
+}
+
+// convertTcpResponseRulesToResourceModels converts stack models to resource models
+func (o *StackOperations) convertTcpResponseRulesToResourceModels(stackRules []haproxyTcpResponseRuleModel, parentType, parentName string) []TcpResponseRuleResourceModel {
+	resourceRules := make([]TcpResponseRuleResourceModel, len(stackRules))
+	for i, stackRule := range stackRules {
+		resourceRules[i] = TcpResponseRuleResourceModel{
+			ID:                   types.StringValue(fmt.Sprintf("%s/%s/tcp_response_rule/%d", parentType, parentName, i)),
+			ParentType:           types.StringValue(parentType),
+			ParentName:           types.StringValue(parentName),
+			Index:                types.Int64Value(int64(i)),
+			Type:                 stackRule.Type,
+			Action:               stackRule.Action,
+			Cond:                 stackRule.Cond,
+			CondTest:             stackRule.CondTest,
+			Expr:                 stackRule.Expr,
+			LogLevel:             stackRule.LogLevel,
+			LuaAction:            stackRule.LuaAction,
+			LuaParams:            stackRule.LuaParams,
+			MarkValue:            stackRule.MarkValue,
+			NiceValue:            stackRule.NiceValue,
+			RstTtl:               stackRule.RstTtl,
+			ScExpr:               stackRule.ScExpr,
+			ScId:                 stackRule.ScId,
+			ScIdx:                stackRule.ScIdx,
+			ScInt:                stackRule.ScInt,
+			SpoeEngine:           stackRule.SpoeEngine,
+			SpoeGroup:            stackRule.SpoeGroup,
+			Timeout:              stackRule.Timeout,
+			TosValue:             stackRule.TosValue,
+			VarFormat:            stackRule.VarFormat,
+			VarName:              stackRule.VarName,
+			VarScope:             stackRule.VarScope,
+			BandwidthLimitLimit:  stackRule.BandwidthLimitLimit,
+			BandwidthLimitName:   stackRule.BandwidthLimitName,
+			BandwidthLimitPeriod: stackRule.BandwidthLimitPeriod,
+		}
+	}
+	return resourceRules
+}
+
+// convertHttpchecksToResourceModels converts stack models to resource models
+func (o *StackOperations) convertHttpchecksToResourceModels(stackChecks []haproxyHttpcheckModel, parentType, parentName string) []HttpcheckResourceModel {
+	resourceChecks := make([]HttpcheckResourceModel, len(stackChecks))
+	for i, stackCheck := range stackChecks {
+		resourceChecks[i] = HttpcheckResourceModel{
+			ID:              types.StringValue(fmt.Sprintf("%s/%s/httpcheck/%d", parentType, parentName, i)),
+			ParentType:      types.StringValue(parentType),
+			ParentName:      types.StringValue(parentName),
+			Index:           types.Int64Value(int64(i)),
+			Type:            stackCheck.Type,
+			Addr:            stackCheck.Addr,
+			Alpn:            stackCheck.Alpn,
+			Body:            stackCheck.Body,
+			BodyLogFormat:   stackCheck.BodyLogFormat,
+			CheckComment:    stackCheck.CheckComment,
+			Default:         stackCheck.Default,
+			ErrorStatus:     stackCheck.ErrorStatus,
+			ExclamationMark: stackCheck.ExclamationMark,
+			Headers:         stackCheck.Headers,
+			Linger:          stackCheck.Linger,
+			Match:           stackCheck.Match,
+			Method:          stackCheck.Method,
+			MinRecv:         stackCheck.MinRecv,
+			OkStatus:        stackCheck.OkStatus,
+			OnError:         stackCheck.OnError,
+			OnSuccess:       stackCheck.OnSuccess,
+			Pattern:         stackCheck.Pattern,
+			Port:            stackCheck.Port,
+			PortString:      stackCheck.PortString,
+			Proto:           stackCheck.Proto,
+			SendProxy:       stackCheck.SendProxy,
+			Sni:             stackCheck.Sni,
+			Ssl:             stackCheck.Ssl,
+			StatusCode:      stackCheck.StatusCode,
+			ToutStatus:      stackCheck.ToutStatus,
+			Uri:             stackCheck.Uri,
+			UriLogFormat:    stackCheck.UriLogFormat,
+			VarExpr:         stackCheck.VarExpr,
+			VarFormat:       stackCheck.VarFormat,
+			VarName:         stackCheck.VarName,
+			VarScope:        stackCheck.VarScope,
+			Version:         stackCheck.Version,
+		}
+	}
+	return resourceChecks
+}
+
+// convertTcpChecksToResourceModels converts stack models to resource models
+func (o *StackOperations) convertTcpChecksToResourceModels(stackChecks []haproxyTcpCheckModel, parentType, parentName string) []TcpCheckResourceModel {
+	resourceChecks := make([]TcpCheckResourceModel, len(stackChecks))
+	for i, stackCheck := range stackChecks {
+		resourceChecks[i] = TcpCheckResourceModel{
+			ID:              types.StringValue(fmt.Sprintf("%s/%s/tcp_check/%d", parentType, parentName, i)),
+			ParentType:      types.StringValue(parentType),
+			ParentName:      types.StringValue(parentName),
+			Index:           types.Int64Value(int64(i)),
+			Action:          stackCheck.Action,
+			Addr:            stackCheck.Addr,
+			Alpn:            stackCheck.Alpn,
+			CheckComment:    stackCheck.CheckComment,
+			Data:            stackCheck.Data,
+			Default:         stackCheck.Default,
+			ErrorStatus:     stackCheck.ErrorStatus,
+			ExclamationMark: stackCheck.ExclamationMark,
+			Fmt:             stackCheck.Fmt,
+			HexFmt:          stackCheck.HexFmt,
+			HexString:       stackCheck.HexString,
+			Linger:          stackCheck.Linger,
+			Match:           stackCheck.Match,
+			MinRecv:         stackCheck.MinRecv,
+			OkStatus:        stackCheck.OkStatus,
+			OnError:         stackCheck.OnError,
+			OnSuccess:       stackCheck.OnSuccess,
+			Pattern:         stackCheck.Pattern,
+			Port:            o.getTcpCheckPort(stackCheck),
+			PortString:      stackCheck.PortString,
+			Proto:           stackCheck.Proto,
+			SendProxy:       stackCheck.SendProxy,
+			Sni:             stackCheck.Sni,
+			Ssl:             stackCheck.Ssl,
+			StatusCode:      stackCheck.StatusCode,
+			ToutStatus:      stackCheck.ToutStatus,
+			VarExpr:         stackCheck.VarExpr,
+			VarFmt:          stackCheck.VarFmt,
+			VarName:         stackCheck.VarName,
+			VarScope:        stackCheck.VarScope,
+			ViaSocks4:       stackCheck.ViaSocks4,
+		}
+	}
+	return resourceChecks
+}
+
+// getTcpCheckPort returns the appropriate port value for TCP checks
+// Return the port value if it's set, otherwise return null
+func (o *StackOperations) getTcpCheckPort(stackCheck haproxyTcpCheckModel) types.Int64 {
+	if !stackCheck.Port.IsNull() && !stackCheck.Port.IsUnknown() {
+		return stackCheck.Port
+	}
+	return types.Int64Null()
+}
+
+// convertTcpCheckPayloadToStackModel converts a TcpCheckPayload to haproxyTcpCheckModel
+func (o *StackOperations) convertTcpCheckPayloadToStackModel(payload TcpCheckPayload) haproxyTcpCheckModel {
+	model := haproxyTcpCheckModel{
+		Action: types.StringValue(payload.Action),
+	}
+
+	// For connect actions, HAProxy combines addr and port into addr field as "addr:port"
+	// We need to split this back to separate addr and port fields for Terraform state
+	if payload.Action == "connect" && payload.Addr != "" {
+		// Check if addr contains port (format: "addr:port")
+		if strings.Contains(payload.Addr, ":") {
+			parts := strings.Split(payload.Addr, ":")
+			if len(parts) == 2 {
+				model.Addr = types.StringValue(parts[0])
+				if port, err := strconv.ParseInt(parts[1], 10, 64); err == nil {
+					model.Port = types.Int64Value(port)
+				}
+			} else {
+				model.Addr = types.StringValue(payload.Addr)
+			}
+		} else {
+			model.Addr = types.StringValue(payload.Addr)
+		}
+	} else {
+		// For other actions, use addr as-is
+		if payload.Addr != "" {
+			model.Addr = types.StringValue(payload.Addr)
+		}
+	}
+
+	// For connect actions, HAProxy always returns port=0, so we don't set the port field
+	// For other actions, set the port field if it's non-zero
+	if payload.Action != "connect" && payload.Port > 0 {
+		model.Port = types.Int64Value(payload.Port)
+	}
+	if payload.Alpn != "" {
+		model.Alpn = types.StringValue(payload.Alpn)
+	}
+	if payload.CheckComment != "" {
+		model.CheckComment = types.StringValue(payload.CheckComment)
+	}
+	if payload.Data != "" {
+		model.Data = types.StringValue(payload.Data)
+	}
+	if payload.Default {
+		model.Default = types.BoolValue(payload.Default)
+	}
+	if payload.ErrorStatus != "" {
+		model.ErrorStatus = types.StringValue(payload.ErrorStatus)
+	}
+	if payload.ExclamationMark {
+		model.ExclamationMark = types.BoolValue(payload.ExclamationMark)
+	}
+	if payload.Fmt != "" {
+		model.Fmt = types.StringValue(payload.Fmt)
+	}
+	if payload.HexFmt != "" {
+		model.HexFmt = types.StringValue(payload.HexFmt)
+	}
+	if payload.HexString != "" {
+		model.HexString = types.StringValue(payload.HexString)
+	}
+	if payload.Linger {
+		model.Linger = types.BoolValue(payload.Linger)
+	}
+	if payload.Match != "" {
+		model.Match = types.StringValue(payload.Match)
+	}
+	if payload.MinRecv != 0 {
+		model.MinRecv = types.Int64Value(payload.MinRecv)
+	}
+	if payload.OkStatus != "" {
+		model.OkStatus = types.StringValue(payload.OkStatus)
+	}
+	if payload.OnError != "" {
+		model.OnError = types.StringValue(payload.OnError)
+	}
+	if payload.OnSuccess != "" {
+		model.OnSuccess = types.StringValue(payload.OnSuccess)
+	}
+	if payload.Pattern != "" {
+		model.Pattern = types.StringValue(payload.Pattern)
+	}
+	if payload.PortString != "" {
+		model.PortString = types.StringValue(payload.PortString)
+	}
+	if payload.Proto != "" {
+		model.Proto = types.StringValue(payload.Proto)
+	}
+	if payload.SendProxy {
+		model.SendProxy = types.BoolValue(payload.SendProxy)
+	}
+	if payload.Sni != "" {
+		model.Sni = types.StringValue(payload.Sni)
+	}
+	if payload.Ssl {
+		model.Ssl = types.BoolValue(payload.Ssl)
+	}
+	if payload.StatusCode != "" {
+		model.StatusCode = types.StringValue(payload.StatusCode)
+	}
+	if payload.ToutStatus != "" {
+		model.ToutStatus = types.StringValue(payload.ToutStatus)
+	}
+	if payload.VarExpr != "" {
+		model.VarExpr = types.StringValue(payload.VarExpr)
+	}
+	if payload.VarFmt != "" {
+		model.VarFmt = types.StringValue(payload.VarFmt)
+	}
+	if payload.VarName != "" {
+		model.VarName = types.StringValue(payload.VarName)
+	}
+	if payload.VarScope != "" {
+		model.VarScope = types.StringValue(payload.VarScope)
+	}
+	if payload.ViaSocks4 {
+		model.ViaSocks4 = types.BoolValue(payload.ViaSocks4)
+	}
+
+	return model
 }

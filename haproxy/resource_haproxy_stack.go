@@ -53,18 +53,18 @@ type haproxyBackendModel struct {
 	Balance            []haproxyBalanceModel         `tfsdk:"balance"`
 	HttpchkParams      []haproxyHttpchkParamsModel   `tfsdk:"httpchk_params"`
 	Forwardfor         []haproxyForwardforModel      `tfsdk:"forwardfor"`
-	Httpcheck          []haproxyHttpcheckModel       `tfsdk:"httpcheck"`
-	TcpCheck           []haproxyTcpCheckModel        `tfsdk:"tcp_check"`
+	Httpchecks         []haproxyHttpcheckModel       `tfsdk:"http_checks"`
+	TcpChecks          []haproxyTcpCheckModel        `tfsdk:"tcp_checks"`
 	Acls               []haproxyAclModel             `tfsdk:"acls"`
 	HttpRequestRule    []haproxyHttpRequestRuleModel `tfsdk:"http_request_rule"`
 
-	HttpResponseRule []haproxyHttpResponseRuleModel `tfsdk:"http_response_rule"`
-	TcpRequestRule   []haproxyTcpRequestRuleModel   `tfsdk:"tcp_request_rule"`
-	TcpResponseRule  []haproxyTcpResponseRuleModel  `tfsdk:"tcp_response_rule"`
-	DefaultServer    *haproxyDefaultServerModel     `tfsdk:"default_server"`
-	StickTable       *haproxyStickTableModel        `tfsdk:"stick_table"`
-	StickRule        []haproxyStickRuleModel        `tfsdk:"stick_rule"`
-	StatsOptions     []haproxyStatsOptionsModel     `tfsdk:"stats_options"`
+	HttpResponseRules []haproxyHttpResponseRuleModel `tfsdk:"http_response_rules"`
+	TcpRequestRules   []haproxyTcpRequestRuleModel   `tfsdk:"tcp_request_rules"`
+	TcpResponseRules  []haproxyTcpResponseRuleModel  `tfsdk:"tcp_response_rules"`
+	DefaultServer     *haproxyDefaultServerModel     `tfsdk:"default_server"`
+	StickTable        *haproxyStickTableModel        `tfsdk:"stick_table"`
+	StickRule         []haproxyStickRuleModel        `tfsdk:"stick_rule"`
+	StatsOptions      []haproxyStatsOptionsModel     `tfsdk:"stats_options"`
 }
 
 // haproxyDefaultServerModel maps the default_server block schema data.
@@ -159,6 +159,8 @@ type haproxyFrontendModel struct {
 	Acls              []haproxyAclModel              `tfsdk:"acls"`
 	HttpRequestRules  []haproxyHttpRequestRuleModel  `tfsdk:"http_request_rules"`
 	HttpResponseRules []haproxyHttpResponseRuleModel `tfsdk:"http_response_rules"`
+	TcpRequestRules   []haproxyTcpRequestRuleModel   `tfsdk:"tcp_request_rules"`
+	TcpResponseRules  []haproxyTcpResponseRuleModel  `tfsdk:"tcp_response_rules"`
 	StatsOptions      []haproxyStatsOptionsModel     `tfsdk:"stats_options"`
 	MonitorFail       []haproxyMonitorFailModel      `tfsdk:"monitor_fail"`
 }
@@ -183,30 +185,74 @@ type haproxyForwardforModel struct {
 
 // haproxyHttpcheckModel maps the httpcheck block schema data.
 type haproxyHttpcheckModel struct {
-	Index           types.Int64  `tfsdk:"index"`
 	Type            types.String `tfsdk:"type"`
-	Method          types.String `tfsdk:"method"`
-	Uri             types.String `tfsdk:"uri"`
-	Version         types.String `tfsdk:"version"`
-	Timeout         types.Int64  `tfsdk:"timeout"`
-	Match           types.String `tfsdk:"match"`
-	Pattern         types.String `tfsdk:"pattern"`
 	Addr            types.String `tfsdk:"addr"`
-	Port            types.Int64  `tfsdk:"port"`
-	ExclamationMark types.String `tfsdk:"exclamation_mark"`
-	LogLevel        types.String `tfsdk:"log_level"`
-	SendProxy       types.String `tfsdk:"send_proxy"`
-	ViaSocks4       types.String `tfsdk:"via_socks4"`
+	Alpn            types.String `tfsdk:"alpn"`
+	Body            types.String `tfsdk:"body"`
+	BodyLogFormat   types.String `tfsdk:"body_log_format"`
 	CheckComment    types.String `tfsdk:"check_comment"`
+	Default         types.Bool   `tfsdk:"default"`
+	ErrorStatus     types.String `tfsdk:"error_status"`
+	ExclamationMark types.Bool   `tfsdk:"exclamation_mark"`
+	Headers         types.List   `tfsdk:"headers"`
+	Linger          types.Bool   `tfsdk:"linger"`
+	Match           types.String `tfsdk:"match"`
+	Method          types.String `tfsdk:"method"`
+	MinRecv         types.Int64  `tfsdk:"min_recv"`
+	OkStatus        types.String `tfsdk:"ok_status"`
+	OnError         types.String `tfsdk:"on_error"`
+	OnSuccess       types.String `tfsdk:"on_success"`
+	Pattern         types.String `tfsdk:"pattern"`
+	Port            types.Int64  `tfsdk:"port"`
+	PortString      types.String `tfsdk:"port_string"`
+	Proto           types.String `tfsdk:"proto"`
+	SendProxy       types.Bool   `tfsdk:"send_proxy"`
+	Sni             types.String `tfsdk:"sni"`
+	Ssl             types.Bool   `tfsdk:"ssl"`
+	StatusCode      types.String `tfsdk:"status_code"`
+	ToutStatus      types.String `tfsdk:"tout_status"`
+	Uri             types.String `tfsdk:"uri"`
+	UriLogFormat    types.String `tfsdk:"uri_log_format"`
+	VarExpr         types.String `tfsdk:"var_expr"`
+	VarFormat       types.String `tfsdk:"var_format"`
+	VarName         types.String `tfsdk:"var_name"`
+	VarScope        types.String `tfsdk:"var_scope"`
+	Version         types.String `tfsdk:"version"`
 }
 
 // haproxyTcpCheckModel maps the tcp_check block schema data.
 type haproxyTcpCheckModel struct {
-	Index    types.Int64  `tfsdk:"index"`
-	Type     types.String `tfsdk:"type"`
-	Action   types.String `tfsdk:"action"`
-	Cond     types.String `tfsdk:"cond"`
-	CondTest types.String `tfsdk:"cond_test"`
+	Action          types.String `tfsdk:"action"`
+	Addr            types.String `tfsdk:"addr"`
+	Alpn            types.String `tfsdk:"alpn"`
+	CheckComment    types.String `tfsdk:"check_comment"`
+	Data            types.String `tfsdk:"data"`
+	Default         types.Bool   `tfsdk:"default"`
+	ErrorStatus     types.String `tfsdk:"error_status"`
+	ExclamationMark types.Bool   `tfsdk:"exclamation_mark"`
+	Fmt             types.String `tfsdk:"fmt"`
+	HexFmt          types.String `tfsdk:"hex_fmt"`
+	HexString       types.String `tfsdk:"hex_string"`
+	Linger          types.Bool   `tfsdk:"linger"`
+	Match           types.String `tfsdk:"match"`
+	MinRecv         types.Int64  `tfsdk:"min_recv"`
+	OkStatus        types.String `tfsdk:"ok_status"`
+	OnError         types.String `tfsdk:"on_error"`
+	OnSuccess       types.String `tfsdk:"on_success"`
+	Pattern         types.String `tfsdk:"pattern"`
+	Port            types.Int64  `tfsdk:"port"`
+	PortString      types.String `tfsdk:"port_string"`
+	Proto           types.String `tfsdk:"proto"`
+	SendProxy       types.Bool   `tfsdk:"send_proxy"`
+	Sni             types.String `tfsdk:"sni"`
+	Ssl             types.Bool   `tfsdk:"ssl"`
+	StatusCode      types.String `tfsdk:"status_code"`
+	ToutStatus      types.String `tfsdk:"tout_status"`
+	VarExpr         types.String `tfsdk:"var_expr"`
+	VarFmt          types.String `tfsdk:"var_fmt"`
+	VarName         types.String `tfsdk:"var_name"`
+	VarScope        types.String `tfsdk:"var_scope"`
+	ViaSocks4       types.Bool   `tfsdk:"via_socks4"`
 }
 
 // haproxyReturnHdrModel maps the return_hdrs block schema data.
@@ -217,33 +263,125 @@ type haproxyReturnHdrModel struct {
 
 // haproxyHttpResponseRuleModel maps the http_response_rule block schema data.
 type haproxyHttpResponseRuleModel struct {
-	Index      types.Int64  `tfsdk:"index"` // For backward compatibility with existing state
-	Type       types.String `tfsdk:"type"`
-	RedirType  types.String `tfsdk:"redir_type"`
-	RedirValue types.String `tfsdk:"redir_value"`
-	Cond       types.String `tfsdk:"cond"`
-	CondTest   types.String `tfsdk:"cond_test"`
-	HdrName    types.String `tfsdk:"hdr_name"`
-	HdrFormat  types.String `tfsdk:"hdr_format"`
-	HdrMethod  types.String `tfsdk:"hdr_method"`
+	Index                types.Int64  `tfsdk:"index"` // For backward compatibility with existing state
+	Type                 types.String `tfsdk:"type"`
+	RedirType            types.String `tfsdk:"redir_type"`
+	RedirValue           types.String `tfsdk:"redir_value"`
+	Cond                 types.String `tfsdk:"cond"`
+	CondTest             types.String `tfsdk:"cond_test"`
+	HdrName              types.String `tfsdk:"hdr_name"`
+	HdrFormat            types.String `tfsdk:"hdr_format"`
+	HdrMatch             types.String `tfsdk:"hdr_match"`
+	HdrMethod            types.String `tfsdk:"hdr_method"`
+	RedirCode            types.Int64  `tfsdk:"redir_code"`
+	RedirOption          types.String `tfsdk:"redir_option"`
+	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
+	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
+	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
+	AclFile              types.String `tfsdk:"acl_file"`
+	AclKeyfmt            types.String `tfsdk:"acl_keyfmt"`
+	CacheName            types.String `tfsdk:"cache_name"`
+	CaptureId            types.Int64  `tfsdk:"capture_id"`
+	CaptureLen           types.Int64  `tfsdk:"capture_len"`
+	CaptureSample        types.String `tfsdk:"capture_sample"`
+	DenyStatus           types.Int64  `tfsdk:"deny_status"`
+	Expr                 types.String `tfsdk:"expr"`
+	LogLevel             types.String `tfsdk:"log_level"`
+	LuaAction            types.String `tfsdk:"lua_action"`
+	LuaParams            types.String `tfsdk:"lua_params"`
+	MapFile              types.String `tfsdk:"map_file"`
+	MapKeyfmt            types.String `tfsdk:"map_keyfmt"`
+	MapValuefmt          types.String `tfsdk:"map_valuefmt"`
+	MarkValue            types.String `tfsdk:"mark_value"`
+	NiceValue            types.Int64  `tfsdk:"nice_value"`
+	ReturnContent        types.String `tfsdk:"return_content"`
+	ReturnContentFormat  types.String `tfsdk:"return_content_format"`
+	ReturnContentType    types.String `tfsdk:"return_content_type"`
+	ReturnStatusCode     types.Int64  `tfsdk:"return_status_code"`
+	RstTtl               types.Int64  `tfsdk:"rst_ttl"`
+	ScExpr               types.String `tfsdk:"sc_expr"`
+	ScId                 types.Int64  `tfsdk:"sc_id"`
+	ScIdx                types.Int64  `tfsdk:"sc_idx"`
+	ScInt                types.Int64  `tfsdk:"sc_int"`
+	SpoeEngine           types.String `tfsdk:"spoe_engine"`
+	SpoeGroup            types.String `tfsdk:"spoe_group"`
+	Status               types.Int64  `tfsdk:"status"`
+	StatusReason         types.String `tfsdk:"status_reason"`
+	StrictMode           types.String `tfsdk:"strict_mode"`
+	Timeout              types.String `tfsdk:"timeout"`
+	TimeoutType          types.String `tfsdk:"timeout_type"`
+	TosValue             types.String `tfsdk:"tos_value"`
+	TrackScKey           types.String `tfsdk:"track_sc_key"`
+	TrackScStickCounter  types.Int64  `tfsdk:"track_sc_stick_counter"`
+	TrackScTable         types.String `tfsdk:"track_sc_table"`
+	VarExpr              types.String `tfsdk:"var_expr"`
+	VarFormat            types.String `tfsdk:"var_format"`
+	VarName              types.String `tfsdk:"var_name"`
+	VarScope             types.String `tfsdk:"var_scope"`
+	WaitAtLeast          types.Int64  `tfsdk:"wait_at_least"`
+	WaitTime             types.Int64  `tfsdk:"wait_time"`
 }
 
 // haproxyTcpRequestRuleModel maps the tcp_request_rule block schema data.
 type haproxyTcpRequestRuleModel struct {
-	Index    types.Int64  `tfsdk:"index"`
-	Type     types.String `tfsdk:"type"`
-	Action   types.String `tfsdk:"action"`
-	Cond     types.String `tfsdk:"cond"`
-	CondTest types.String `tfsdk:"cond_test"`
+	Type                 types.String `tfsdk:"type"`
+	Action               types.String `tfsdk:"action"`
+	Cond                 types.String `tfsdk:"cond"`
+	CondTest             types.String `tfsdk:"cond_test"`
+	Expr                 types.String `tfsdk:"expr"`
+	Timeout              types.Int64  `tfsdk:"timeout"`
+	LuaAction            types.String `tfsdk:"lua_action"`
+	LuaParams            types.String `tfsdk:"lua_params"`
+	LogLevel             types.String `tfsdk:"log_level"`
+	MarkValue            types.String `tfsdk:"mark_value"`
+	NiceValue            types.Int64  `tfsdk:"nice_value"`
+	TosValue             types.String `tfsdk:"tos_value"`
+	CaptureLen           types.Int64  `tfsdk:"capture_len"`
+	CaptureSample        types.String `tfsdk:"capture_sample"`
+	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
+	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
+	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
+	ResolveProtocol      types.String `tfsdk:"resolve_protocol"`
+	ResolveResolvers     types.String `tfsdk:"resolve_resolvers"`
+	ResolveVar           types.String `tfsdk:"resolve_var"`
+	RstTtl               types.Int64  `tfsdk:"rst_ttl"`
+	ScIdx                types.String `tfsdk:"sc_idx"`
+	ScIncId              types.String `tfsdk:"sc_inc_id"`
+	ScInt                types.Int64  `tfsdk:"sc_int"`
+	ServerName           types.String `tfsdk:"server_name"`
+	ServiceName          types.String `tfsdk:"service_name"`
+	VarName              types.String `tfsdk:"var_name"`
+	VarFormat            types.String `tfsdk:"var_format"`
+	VarScope             types.String `tfsdk:"var_scope"`
 }
 
 // haproxyTcpResponseRuleModel maps the tcp_response_rule block schema data.
 type haproxyTcpResponseRuleModel struct {
-	Index    types.Int64  `tfsdk:"index"`
-	Type     types.String `tfsdk:"type"`
-	Action   types.String `tfsdk:"action"`
-	Cond     types.String `tfsdk:"cond"`
-	CondTest types.String `tfsdk:"cond_test"`
+	Type                 types.String `tfsdk:"type"`
+	Action               types.String `tfsdk:"action"`
+	Cond                 types.String `tfsdk:"cond"`
+	CondTest             types.String `tfsdk:"cond_test"`
+	Expr                 types.String `tfsdk:"expr"`
+	LogLevel             types.String `tfsdk:"log_level"`
+	LuaAction            types.String `tfsdk:"lua_action"`
+	LuaParams            types.String `tfsdk:"lua_params"`
+	MarkValue            types.String `tfsdk:"mark_value"`
+	NiceValue            types.Int64  `tfsdk:"nice_value"`
+	RstTtl               types.Int64  `tfsdk:"rst_ttl"`
+	ScExpr               types.String `tfsdk:"sc_expr"`
+	ScId                 types.Int64  `tfsdk:"sc_id"`
+	ScIdx                types.Int64  `tfsdk:"sc_idx"`
+	ScInt                types.Int64  `tfsdk:"sc_int"`
+	SpoeEngine           types.String `tfsdk:"spoe_engine"`
+	SpoeGroup            types.String `tfsdk:"spoe_group"`
+	Timeout              types.Int64  `tfsdk:"timeout"`
+	TosValue             types.String `tfsdk:"tos_value"`
+	VarFormat            types.String `tfsdk:"var_format"`
+	VarName              types.String `tfsdk:"var_name"`
+	VarScope             types.String `tfsdk:"var_scope"`
+	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
+	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
+	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
 }
 
 // haproxyStickTableModel maps the stick_table block schema data.

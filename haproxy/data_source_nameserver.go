@@ -22,10 +22,7 @@ type nameserverDataSourceModel struct {
 }
 
 type nameserverItemModel struct {
-	Name     types.String `tfsdk:"name"`
-	Address  types.String `tfsdk:"address"`
-	Port     types.Int64  `tfsdk:"port"`
-	Resolver types.String `tfsdk:"resolver"`
+	Name types.String `tfsdk:"name"`
 }
 
 func (d *nameserverDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -42,18 +39,6 @@ func (d *nameserverDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 						"name": schema.StringAttribute{
 							Computed:    true,
 							Description: "The name of the nameserver.",
-						},
-						"address": schema.StringAttribute{
-							Computed:    true,
-							Description: "The address of the nameserver.",
-						},
-						"port": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The port of the nameserver.",
-						},
-						"resolver": schema.StringAttribute{
-							Computed:    true,
-							Description: "The resolver of the nameserver.",
 						},
 					},
 				},
@@ -108,10 +93,7 @@ func (d *nameserverDataSource) Read(ctx context.Context, req datasource.ReadRequ
 
 	for _, nameserver := range nameservers {
 		state.Nameservers = append(state.Nameservers, nameserverItemModel{
-			Name:     types.StringValue(nameserver.Name),
-			Address:  types.StringValue(nameserver.Address),
-			Port:     types.Int64Value(nameserver.Port),
-			Resolver: types.StringValue(resolverName),
+			Name: types.StringValue(nameserver.Name),
 		})
 	}
 
