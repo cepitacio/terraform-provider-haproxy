@@ -2929,7 +2929,7 @@ func (c *HAProxyClient) DeleteTcpRequestRule(ctx context.Context, index int64, p
 // CreateTcpResponseRule creates a new tcp_response_rule.
 func (c *HAProxyClient) CreateTcpResponseRule(ctx context.Context, parentType, parentName string, payload *TcpResponseRulePayload) error {
 	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
-		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
+		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&backend=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
@@ -2947,7 +2947,7 @@ func (c *HAProxyClient) ReadTcpResponseRules(ctx context.Context, parentType, pa
 		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_response_rules", parentTypePlural, parentName)
 	} else {
 		// v2: Use query parameter approach
-		url = fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&parent_name=%s", parentType, parentName)
+		url = fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&backend=%s", parentType, parentName)
 	}
 
 	log.Printf("DEBUG: ReadTcpResponseRules URL: %s (API version: %s)", url, c.apiVersion)
@@ -3010,7 +3010,7 @@ func (c *HAProxyClient) ReadTcpResponseRules(ctx context.Context, parentType, pa
 // UpdateTcpResponseRule updates a tcp_response_rule.
 func (c *HAProxyClient) UpdateTcpResponseRule(ctx context.Context, index int64, parentType, parentName string, payload *TcpResponseRulePayload) error {
 	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
-		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
+		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules/%d?parent_type=%s&backend=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
@@ -3022,7 +3022,7 @@ func (c *HAProxyClient) UpdateTcpResponseRule(ctx context.Context, index int64, 
 // DeleteTcpResponseRule deletes a tcp_response_rule.
 func (c *HAProxyClient) DeleteTcpResponseRule(ctx context.Context, index int64, parentType, parentName string) error {
 	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
-		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), nil)
+		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules/%d?parent_type=%s&backend=%s&transaction_id=%s", index, parentType, parentName, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
@@ -3650,7 +3650,7 @@ func (c *HAProxyClient) CreateAllTcpRequestRulesInTransaction(ctx context.Contex
 			}
 			defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
 				body, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed to create TCP request rule %d: status %d, body: %s", i+1, resp.StatusCode, string(body))
 			}
@@ -3658,6 +3658,48 @@ func (c *HAProxyClient) CreateAllTcpRequestRulesInTransaction(ctx context.Contex
 	}
 
 	log.Printf("TCP request rules created successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// UpdateTcpRequestRuleInTransaction updates an existing tcprequestrule using an existing transaction ID.
+func (c *HAProxyClient) UpdateTcpRequestRuleInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string, payload *TcpRequestRulePayload) error {
+	req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to update TCP request rule: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// CreateTcpRequestRuleInTransaction creates a new tcprequestrule using an existing transaction ID.
+func (c *HAProxyClient) CreateTcpRequestRuleInTransaction(ctx context.Context, transactionID string, parentType, parentName string, payload *TcpRequestRulePayload) error {
+	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create TCP request rule: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
 	return nil
 }
 
@@ -3735,7 +3777,7 @@ func (c *HAProxyClient) CreateAllTcpResponseRulesInTransaction(ctx context.Conte
 		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
 
 		for i, payload := range payloads {
-			url := fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
+			url := fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&backend=%s&transaction_id=%s",
 				parentType, parentName, transactionID)
 			method := "POST"
 
@@ -3757,7 +3799,7 @@ func (c *HAProxyClient) CreateAllTcpResponseRulesInTransaction(ctx context.Conte
 			}
 			defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
 				body, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed to create TCP response rule %d: status %d, body: %s", i+1, resp.StatusCode, string(body))
 			}
@@ -3765,6 +3807,48 @@ func (c *HAProxyClient) CreateAllTcpResponseRulesInTransaction(ctx context.Conte
 	}
 
 	log.Printf("TCP response rules created successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// UpdateTcpResponseRuleInTransaction updates an existing tcpresponserule using an existing transaction ID.
+func (c *HAProxyClient) UpdateTcpResponseRuleInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string, payload *TcpResponseRulePayload) error {
+	req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules/%d?parent_type=%s&backend=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to update TCP response rule: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// CreateTcpResponseRuleInTransaction creates a new tcpresponserule using an existing transaction ID.
+func (c *HAProxyClient) CreateTcpResponseRuleInTransaction(ctx context.Context, transactionID string, parentType, parentName string, payload *TcpResponseRulePayload) error {
+	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&backend=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create TCP response rule: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
 	return nil
 }
 
@@ -3779,7 +3863,7 @@ func (c *HAProxyClient) DeleteTcpResponseRuleInTransaction(ctx context.Context, 
 			parentTypePlural, parentName, index, transactionID)
 	} else {
 		// v2: Use query parameter approach
-		url = fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s",
+		url = fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules/%d?parent_type=%s&backend=%s&transaction_id=%s",
 			index, parentType, parentName, transactionID)
 	}
 
@@ -3864,7 +3948,7 @@ func (c *HAProxyClient) CreateAllHttpchecksInTransaction(ctx context.Context, tr
 			}
 			defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
 				body, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed to create HTTP check %d: status %d, body: %s", i+1, resp.StatusCode, string(body))
 			}
@@ -3971,7 +4055,7 @@ func (c *HAProxyClient) CreateAllTcpChecksInTransaction(ctx context.Context, tra
 			}
 			defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
 				body, _ := io.ReadAll(resp.Body)
 				return fmt.Errorf("failed to create TCP check %d: status %d, body: %s", i+1, resp.StatusCode, string(body))
 			}
@@ -3979,6 +4063,90 @@ func (c *HAProxyClient) CreateAllTcpChecksInTransaction(ctx context.Context, tra
 	}
 
 	log.Printf("TCP checks created successfully in transaction: %s", transactionID)
+	return nil
+}
+
+// UpdateHttpcheckInTransaction updates an existing httpcheck using an existing transaction ID.
+func (c *HAProxyClient) UpdateHttpcheckInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string, payload *HttpcheckPayload) error {
+	req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/http_checks/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to update HTTP check: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// CreateHttpcheckInTransaction creates a new httpcheck using an existing transaction ID.
+func (c *HAProxyClient) CreateHttpcheckInTransaction(ctx context.Context, transactionID string, parentType, parentName string, payload *HttpcheckPayload) error {
+	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/http_checks?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create HTTP check: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// UpdateTcpCheckInTransaction updates an existing tcpcheck using an existing transaction ID.
+func (c *HAProxyClient) UpdateTcpCheckInTransaction(ctx context.Context, transactionID string, index int64, parentType, parentName string, payload *TcpCheckPayload) error {
+	req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/tcp_checks/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to update TCP check: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// CreateTcpCheckInTransaction creates a new tcpcheck using an existing transaction ID.
+func (c *HAProxyClient) CreateTcpCheckInTransaction(ctx context.Context, transactionID string, parentType, parentName string, payload *TcpCheckPayload) error {
+	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_checks?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create TCP check: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
 	return nil
 }
 

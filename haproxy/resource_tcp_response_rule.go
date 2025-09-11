@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -47,6 +48,7 @@ type TcpResponseRuleResourceModel struct {
 	VarFormat            types.String `tfsdk:"var_format"`
 	VarName              types.String `tfsdk:"var_name"`
 	VarScope             types.String `tfsdk:"var_scope"`
+	VarExpr              types.String `tfsdk:"var_expr"`
 	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
 	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
 	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
@@ -120,23 +122,126 @@ func (r *TcpResponseRuleManager) Update(ctx context.Context, transactionID, pare
 
 	log.Printf("Updating %d TCP response rules for %s %s", len(rules), parentType, parentName)
 
-	// Sort rules by index to ensure proper ordering
+	// Get existing rules from the API
+	existingRules, err := r.client.ReadTcpResponseRules(ctx, parentType, parentName)
+	if err != nil {
+		return fmt.Errorf("failed to read existing TCP response rules: %w", err)
+	}
+
+	// Sort new rules by index to ensure proper ordering
 	sortedRules := r.processTcpResponseRulesBlock(rules)
 
-	// Convert all rules to payloads
-	allPayloads := make([]TcpResponseRulePayload, 0, len(sortedRules))
+	// Convert new rules to payloads
+	desiredPayloads := make([]TcpResponseRulePayload, 0, len(sortedRules))
 	for i, rule := range sortedRules {
 		rulePayload := r.convertToTcpResponseRulePayload(&rule, i)
-		allPayloads = append(allPayloads, *rulePayload)
+		desiredPayloads = append(desiredPayloads, *rulePayload)
 	}
 
-	// Use the existing transaction ID to send all rules in one request
-	if err := r.client.CreateAllTcpResponseRulesInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
-		return fmt.Errorf("failed to update all TCP response rules for %s %s: %w", parentType, parentName, err)
+	// Create maps for comparison
+	existingMap := make(map[string]TcpResponseRulePayload)
+	desiredMap := make(map[string]TcpResponseRulePayload)
+
+	// Populate existing rules map
+	for _, rule := range existingRules {
+		key := r.generateRuleKeyFromPayload(&rule)
+		existingMap[key] = rule
 	}
 
-	log.Printf("Updated %d TCP response rules for %s %s", len(allPayloads), parentType, parentName)
+	// Populate desired rules map
+	for _, rule := range desiredPayloads {
+		key := r.generateRuleKeyFromPayload(&rule)
+		desiredMap[key] = rule
+	}
+
+	// Find rules to delete, update, and create
+	var rulesToDelete, rulesToUpdate, rulesToCreate []TcpResponseRulePayload
+
+	// Rules to delete: exist in state but not in plan
+	for key, existingRule := range existingMap {
+		if _, exists := desiredMap[key]; !exists {
+			rulesToDelete = append(rulesToDelete, existingRule)
+		}
+	}
+
+	// Rules to update: exist in both but have changed
+	for key, desiredRule := range desiredMap {
+		if existingRule, exists := existingMap[key]; exists {
+			if r.hasRuleChangedFromPayload(&existingRule, &desiredRule) {
+				log.Printf("DEBUG: TCP response rule '%s' content changed, will update", key)
+				rulesToUpdate = append(rulesToUpdate, desiredRule)
+			} else if existingRule.Index != desiredRule.Index {
+				log.Printf("DEBUG: TCP response rule '%s' position changed from %d to %d, will reorder", key, existingRule.Index, desiredRule.Index)
+				rulesToUpdate = append(rulesToUpdate, desiredRule)
+			}
+		}
+	}
+
+	// Rules to create: exist in plan but not in state
+	for key, desiredRule := range desiredMap {
+		if _, exists := existingMap[key]; !exists {
+			rulesToCreate = append(rulesToCreate, desiredRule)
+		}
+	}
+
+	// Delete rules that are no longer needed
+	for _, rule := range rulesToDelete {
+		log.Printf("Deleting TCP response rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
+		if err := r.client.DeleteTcpResponseRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName); err != nil {
+			return fmt.Errorf("failed to delete TCP response rule: %w", err)
+		}
+	}
+
+	// Update rules that have changed
+	for _, rule := range rulesToUpdate {
+		log.Printf("Updating TCP response rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
+		if err := r.client.UpdateTcpResponseRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName, &rule); err != nil {
+			return fmt.Errorf("failed to update TCP response rule: %w", err)
+		}
+	}
+
+	// Create new rules
+	for _, rule := range rulesToCreate {
+		log.Printf("Creating TCP response rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
+		if err := r.client.CreateTcpResponseRuleInTransaction(ctx, transactionID, parentType, parentName, &rule); err != nil {
+			return fmt.Errorf("failed to create TCP response rule: %w", err)
+		}
+	}
+
+	log.Printf("Updated %d TCP response rules for %s %s (deleted: %d, updated: %d, created: %d)",
+		len(desiredPayloads), parentType, parentName, len(rulesToDelete), len(rulesToUpdate), len(rulesToCreate))
 	return nil
+}
+
+// generateRuleKeyFromPayload creates a unique key for a TCP response rule payload based on its content
+func (r *TcpResponseRuleManager) generateRuleKeyFromPayload(payload *TcpResponseRulePayload) string {
+	// Create a unique key based on the rule's content (excluding index)
+	key := fmt.Sprintf("%s-%s-%s", payload.Type, payload.Action, payload.Expr)
+	if payload.VarName != "" {
+		key += "-" + payload.VarName
+	}
+	if payload.VarScope != "" {
+		key += "-" + payload.VarScope
+	}
+	if payload.NiceValue != 0 {
+		key += fmt.Sprintf("-nice%d", payload.NiceValue)
+	}
+	if payload.MarkValue != "" {
+		key += "-mark" + payload.MarkValue
+	}
+	return key
+}
+
+// hasRuleChangedFromPayload checks if a rule has changed by comparing two payloads
+func (r *TcpResponseRuleManager) hasRuleChangedFromPayload(existing, desired *TcpResponseRulePayload) bool {
+	// Compare all fields except Index
+	return existing.Type != desired.Type ||
+		existing.Action != desired.Action ||
+		existing.Expr != desired.Expr ||
+		existing.VarName != desired.VarName ||
+		existing.VarScope != desired.VarScope ||
+		existing.NiceValue != desired.NiceValue ||
+		existing.MarkValue != desired.MarkValue
 }
 
 // Delete deletes TCP response rules
@@ -149,7 +254,11 @@ func (r *TcpResponseRuleManager) Delete(ctx context.Context, transactionID, pare
 		return fmt.Errorf("failed to read existing TCP response rules for deletion: %w", err)
 	}
 
-	// Delete each rule by index
+	// Delete each rule by index in reverse order (highest index first) to avoid shifting issues
+	sort.Slice(existingRules, func(i, j int) bool {
+		return existingRules[i].Index > existingRules[j].Index
+	})
+
 	for _, rule := range existingRules {
 		if err := r.client.DeleteTcpResponseRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName); err != nil {
 			return fmt.Errorf("failed to delete TCP response rule at index %d: %w", rule.Index, err)
@@ -248,6 +357,9 @@ func (r *TcpResponseRuleManager) convertToTcpResponseRulePayload(rule *TcpRespon
 	}
 	if !rule.VarScope.IsNull() && !rule.VarScope.IsUnknown() {
 		payload.VarScope = rule.VarScope.ValueString()
+	}
+	if !rule.VarExpr.IsNull() && !rule.VarExpr.IsUnknown() {
+		payload.VarExpr = rule.VarExpr.ValueString()
 	}
 	if !rule.BandwidthLimitLimit.IsNull() && !rule.BandwidthLimitLimit.IsUnknown() {
 		payload.BandwidthLimitLimit = rule.BandwidthLimitLimit.ValueString()
@@ -350,6 +462,9 @@ func (r *TcpResponseRuleManager) convertFromTcpResponseRulePayload(payload TcpRe
 	}
 	if payload.VarScope != "" {
 		rule.VarScope = types.StringValue(payload.VarScope)
+	}
+	if payload.VarExpr != "" {
+		rule.VarExpr = types.StringValue(payload.VarExpr)
 	}
 	if payload.BandwidthLimitLimit != "" {
 		rule.BandwidthLimitLimit = types.StringValue(payload.BandwidthLimitLimit)
@@ -481,6 +596,10 @@ func (r *TcpResponseRuleResource) Schema(_ context.Context, _ resource.SchemaReq
 			},
 			"var_scope": schema.StringAttribute{
 				MarkdownDescription: "Variable scope",
+				Optional:            true,
+			},
+			"var_expr": schema.StringAttribute{
+				MarkdownDescription: "Variable expression",
 				Optional:            true,
 			},
 			"bandwidth_limit_limit": schema.StringAttribute{

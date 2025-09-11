@@ -625,6 +625,38 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 							Optional:    true,
 							Description: "The condition test of the tcp-request rule.",
 						},
+						"expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The expression for the tcp-request rule.",
+						},
+						"timeout": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The timeout for the tcp-request rule.",
+						},
+						"lua_action": schema.StringAttribute{
+							Optional:    true,
+							Description: "The Lua action for the tcp-request rule.",
+						},
+						"lua_params": schema.StringAttribute{
+							Optional:    true,
+							Description: "The Lua parameters for the tcp-request rule.",
+						},
+						"log_level": schema.StringAttribute{
+							Optional:    true,
+							Description: "The log level for the tcp-request rule.",
+						},
+						"mark_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The mark value for the tcp-request rule.",
+						},
+						"nice_value": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The nice value for the tcp-request rule.",
+						},
+						"tos_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "The TOS value for the tcp-request rule.",
+						},
 						"capture_len": schema.Int64Attribute{
 							Optional:    true,
 							Description: "The capture length for the tcp-request rule.",
@@ -633,9 +665,65 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 							Optional:    true,
 							Description: "The capture sample for the tcp-request rule.",
 						},
+						"bandwidth_limit_limit": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit for the tcp-request rule.",
+						},
+						"bandwidth_limit_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit name for the tcp-request rule.",
+						},
+						"bandwidth_limit_period": schema.StringAttribute{
+							Optional:    true,
+							Description: "The bandwidth limit period for the tcp-request rule.",
+						},
+						"resolve_protocol": schema.StringAttribute{
+							Optional:    true,
+							Description: "The resolve protocol for the tcp-request rule.",
+						},
+						"resolve_resolvers": schema.StringAttribute{
+							Optional:    true,
+							Description: "The resolve resolvers for the tcp-request rule.",
+						},
+						"resolve_var": schema.StringAttribute{
+							Optional:    true,
+							Description: "The resolve variable for the tcp-request rule.",
+						},
+						"rst_ttl": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The RST TTL for the tcp-request rule.",
+						},
+						"sc_idx": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The SC index for the tcp-request rule.",
+						},
+						"sc_inc_id": schema.StringAttribute{
+							Optional:    true,
+							Description: "The SC increment ID for the tcp-request rule.",
+						},
+						"sc_int": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The SC integer for the tcp-request rule.",
+						},
+						"server_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The server name for the tcp-request rule.",
+						},
+						"service_name": schema.StringAttribute{
+							Optional:    true,
+							Description: "The service name for the tcp-request rule.",
+						},
 						"var_name": schema.StringAttribute{
 							Optional:    true,
 							Description: "The variable name for the tcp-request rule.",
+						},
+						"var_format": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable format for the tcp-request rule.",
+						},
+						"var_scope": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable scope for the tcp-request rule.",
 						},
 						"var_expr": schema.StringAttribute{
 							Optional:    true,
@@ -644,49 +732,6 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 						"index": schema.Int64Attribute{
 							Optional:    true,
 							Description: "The index/order of the tcp-request rule (for backward compatibility).",
-						},
-					},
-				},
-			},
-			"tcp_response_rules": schema.ListNestedBlock{
-				Description: "TCP response rule configuration for the frontend.",
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"type": schema.StringAttribute{
-							Required:    true,
-							Description: "The type of the tcp-response rule.",
-						},
-						"action": schema.StringAttribute{
-							Optional:    true,
-							Description: "The action of the tcp-response rule.",
-						},
-						"cond": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition of the tcp-response rule.",
-						},
-						"cond_test": schema.StringAttribute{
-							Optional:    true,
-							Description: "The condition test of the tcp-response rule.",
-						},
-						"capture_len": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The capture length for the tcp-response rule.",
-						},
-						"capture_sample": schema.StringAttribute{
-							Optional:    true,
-							Description: "The capture sample for the tcp-response rule.",
-						},
-						"var_name": schema.StringAttribute{
-							Optional:    true,
-							Description: "The variable name for the tcp-response rule.",
-						},
-						"var_expr": schema.StringAttribute{
-							Optional:    true,
-							Description: "The variable expression for the tcp-response rule.",
-						},
-						"index": schema.Int64Attribute{
-							Optional:    true,
-							Description: "The index/order of the tcp-response rule (for backward compatibility).",
 						},
 					},
 				},
