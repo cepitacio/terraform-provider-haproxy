@@ -2,6 +2,7 @@ package haproxy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -9,8 +10,127 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// HttpcheckSingleDataSource defines the single data source implementation.
+type HttpcheckSingleDataSource struct {
+	client *HAProxyClient
+}
+
+// HttpcheckSingleDataSourceModel describes the single data source data model.
+type HttpcheckSingleDataSourceModel struct {
+	ID         types.String `tfsdk:"id"`
+	ParentType types.String `tfsdk:"parent_type"`
+	ParentName types.String `tfsdk:"parent_name"`
+	Index      types.Int64  `tfsdk:"index"`
+	Httpcheck  types.String `tfsdk:"httpcheck"`
+}
+
+// Metadata returns the single data source type name.
+func (d *HttpcheckSingleDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_httpcheck_single"
+}
+
+// Schema defines the schema for the single data source.
+func (d *HttpcheckSingleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		MarkdownDescription: "Single HTTP Check data source",
+
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				MarkdownDescription: "HTTP Check identifier",
+				Computed:            true,
+			},
+			"parent_type": schema.StringAttribute{
+				MarkdownDescription: "Parent type (frontend or backend)",
+				Required:            true,
+			},
+			"parent_name": schema.StringAttribute{
+				MarkdownDescription: "Parent name",
+				Required:            true,
+			},
+			"index": schema.Int64Attribute{
+				MarkdownDescription: "HTTP Check index",
+				Required:            true,
+			},
+			"httpcheck": schema.StringAttribute{
+				MarkdownDescription: "Complete HTTP check data from HAProxy API as JSON string",
+				Computed:            true,
+			},
+		},
+	}
+}
+
+// Configure adds the provider configured client to the single data source.
+func (d *HttpcheckSingleDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	providerData, ok := req.ProviderData.(*ProviderData)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Data Source Configure Type",
+			fmt.Sprintf("Expected *ProviderData, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+		return
+	}
+
+	d.client = providerData.Client
+}
+
+// Read refreshes the Terraform state with the latest data for single data source.
+func (d *HttpcheckSingleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data HttpcheckSingleDataSourceModel
+
+	// Read Terraform configuration data into the model
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Read the HTTP checks
+	httpchecks, err := d.client.ReadHttpchecks(ctx, data.ParentType.ValueString(), data.ParentName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read HTTP checks, got error: %s", err))
+		return
+	}
+
+	// Find the specific HTTP check by array position (more predictable than API index)
+	var foundHttpcheck *HttpcheckPayload
+	if data.Index.ValueInt64() < int64(len(httpchecks)) {
+		foundHttpcheck = &httpchecks[data.Index.ValueInt64()]
+	}
+
+	if foundHttpcheck == nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("HTTP check at position %d not found", data.Index.ValueInt64()))
+		return
+	}
+
+	// Convert to data source model
+	data.ID = types.StringValue(fmt.Sprintf("%s/%s/%d", data.ParentType.ValueString(), data.ParentName.ValueString(), data.Index.ValueInt64()))
+
+	// Fix the index to use array position instead of API index
+	foundHttpcheck.Index = data.Index.ValueInt64()
+
+	// Convert HTTP check to JSON for dynamic output
+	jsonData, err := json.Marshal(foundHttpcheck)
+	if err != nil {
+		resp.Diagnostics.AddError("JSON Error", fmt.Sprintf("Unable to marshal HTTP check to JSON, got error: %s", err))
+		return
+	}
+	data.Httpcheck = types.StringValue(string(jsonData))
+
+	// Save data into Terraform state
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
 func NewHttpcheckDataSource() datasource.DataSource {
 	return &httpcheckDataSource{}
+}
+
+// NewHttpcheckSingleDataSource creates a new single HTTP check data source
+func NewHttpcheckSingleDataSource() datasource.DataSource {
+	return &HttpcheckSingleDataSource{}
 }
 
 type httpcheckDataSource struct {
@@ -18,15 +138,9 @@ type httpcheckDataSource struct {
 }
 
 type httpcheckDataSourceModel struct {
-	Httpchecks []httpcheckItemModel `tfsdk:"http_checks"`
-}
-
-type httpcheckItemModel struct {
-	Index   types.String `tfsdk:"index"`
-	Type    types.String `tfsdk:"type"`
-	Method  types.String `tfsdk:"method"`
-	Uri     types.String `tfsdk:"uri"`
-	Version types.String `tfsdk:"version"`
+	Httpchecks types.String `tfsdk:"http_checks"`
+	ParentType types.String `tfsdk:"parent_type"`
+	ParentName types.String `tfsdk:"parent_name"`
 }
 
 func (d *httpcheckDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -36,32 +150,9 @@ func (d *httpcheckDataSource) Metadata(_ context.Context, req datasource.Metadat
 func (d *httpcheckDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"http_checks": schema.ListNestedAttribute{
-				Computed: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"index": schema.StringAttribute{
-							Computed:    true,
-							Description: "The index of the HTTP check.",
-						},
-						"type": schema.StringAttribute{
-							Computed:    true,
-							Description: "The type of the HTTP check.",
-						},
-						"method": schema.StringAttribute{
-							Computed:    true,
-							Description: "The HTTP method of the check.",
-						},
-						"uri": schema.StringAttribute{
-							Computed:    true,
-							Description: "The URI of the HTTP check.",
-						},
-						"version": schema.StringAttribute{
-							Computed:    true,
-							Description: "The HTTP version of the check.",
-						},
-					},
-				},
+			"http_checks": schema.StringAttribute{
+				Computed:    true,
+				Description: "Complete HTTP checks data from HAProxy API as JSON string",
 			},
 			"parent_type": schema.StringAttribute{
 				Required:    true,
@@ -80,33 +171,29 @@ func (d *httpcheckDataSource) Configure(_ context.Context, req datasource.Config
 		return
 	}
 
-	client, ok := req.ProviderData.(*HAProxyClient)
+	providerData, ok := req.ProviderData.(*ProviderData)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *ProviderData, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
 
-	d.client = client
+	d.client = providerData.Client
 }
 
 func (d *httpcheckDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var state httpcheckDataSourceModel
 
-	var config struct {
-		ParentType types.String `tfsdk:"parent_type"`
-		ParentName types.String `tfsdk:"parent_name"`
-	}
-	diags := req.Config.Get(ctx, &config)
-	resp.Diagnostics.Append(diags...)
+	// Read Terraform configuration data into the model
+	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	parentType := config.ParentType.ValueString()
-	parentName := config.ParentName.ValueString()
+	parentType := state.ParentType.ValueString()
+	parentName := state.ParentName.ValueString()
 
 	httpchecks, err := d.client.ReadHttpchecks(ctx, parentType, parentName)
 	if err != nil {
@@ -117,16 +204,20 @@ func (d *httpcheckDataSource) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 
-	for _, httpcheck := range httpchecks {
-		state.Httpchecks = append(state.Httpchecks, httpcheckItemModel{
-			Index:   types.StringValue(fmt.Sprintf("%d", httpcheck.Index)),
-			Type:    types.StringValue(httpcheck.Type),
-			Method:  types.StringValue(httpcheck.Method),
-			Uri:     types.StringValue(httpcheck.Uri),
-			Version: types.StringValue(httpcheck.Version),
-		})
+	// Fix index field - use array position if API returns 0 for all rules
+	for i := range httpchecks {
+		httpchecks[i].Index = int64(i)
 	}
 
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	// Convert checks to JSON for dynamic output
+	jsonData, err := json.Marshal(httpchecks)
+	if err != nil {
+		resp.Diagnostics.AddError("JSON Error", fmt.Sprintf("Unable to marshal HTTP checks to JSON, got error: %s", err))
+		return
+	}
+
+	// Set JSON string directly
+	state.Httpchecks = types.StringValue(string(jsonData))
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

@@ -811,7 +811,7 @@ type TcpRequestRulePayload struct {
 	ResolveResolvers     string `json:"resolve_resolvers,omitempty"`
 	ResolveVar           string `json:"resolve_var,omitempty"`
 	RstTtl               int64  `json:"rst_ttl,omitempty"`
-	ScIdx                string `json:"sc_idx,omitempty"`
+	ScIdx                int64  `json:"sc_idx,omitempty"`
 	ScIncId              string `json:"sc_inc_id,omitempty"`
 	ScInt                int64  `json:"sc_int,omitempty"`
 	ServerName           string `json:"server_name,omitempty"`
@@ -827,6 +827,7 @@ type TcpRequestRulePayload struct {
 	VarFormat            string `json:"var_format,omitempty"`
 	VarName              string `json:"var_name,omitempty"`
 	VarScope             string `json:"var_scope,omitempty"`
+	VarExpr              string `json:"var_expr,omitempty"`
 }
 
 // TcpResponseRulePayload is the payload for the tcpresponserule resource.
@@ -857,6 +858,7 @@ type TcpResponseRulePayload struct {
 	VarFormat            string `json:"var_format,omitempty"`
 	VarName              string `json:"var_name,omitempty"`
 	VarScope             string `json:"var_scope,omitempty"`
+	VarExpr              string `json:"var_expr,omitempty"`
 }
 
 // LogForwardPayload is the payload for the logforward resource.

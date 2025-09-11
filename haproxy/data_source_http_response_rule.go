@@ -2,6 +2,7 @@ package haproxy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -9,8 +10,127 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// HttpResponseRuleSingleDataSource defines the single data source implementation.
+type HttpResponseRuleSingleDataSource struct {
+	client *HAProxyClient
+}
+
+// HttpResponseRuleSingleDataSourceModel describes the single data source data model.
+type HttpResponseRuleSingleDataSourceModel struct {
+	ID               types.String `tfsdk:"id"`
+	ParentType       types.String `tfsdk:"parent_type"`
+	ParentName       types.String `tfsdk:"parent_name"`
+	Index            types.Int64  `tfsdk:"index"`
+	HttpResponseRule types.String `tfsdk:"http_response_rule"`
+}
+
+// Metadata returns the single data source type name.
+func (d *HttpResponseRuleSingleDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_http_response_rule_single"
+}
+
+// Schema defines the schema for the single data source.
+func (d *HttpResponseRuleSingleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		MarkdownDescription: "Single HTTP Response Rule data source",
+
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				MarkdownDescription: "HTTP Response Rule identifier",
+				Computed:            true,
+			},
+			"parent_type": schema.StringAttribute{
+				MarkdownDescription: "Parent type (frontend or backend)",
+				Required:            true,
+			},
+			"parent_name": schema.StringAttribute{
+				MarkdownDescription: "Parent name",
+				Required:            true,
+			},
+			"index": schema.Int64Attribute{
+				MarkdownDescription: "HTTP Response Rule index",
+				Required:            true,
+			},
+			"http_response_rule": schema.StringAttribute{
+				MarkdownDescription: "Complete HTTP response rule data from HAProxy API as JSON string",
+				Computed:            true,
+			},
+		},
+	}
+}
+
+// Configure adds the provider configured client to the single data source.
+func (d *HttpResponseRuleSingleDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	providerData, ok := req.ProviderData.(*ProviderData)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Data Source Configure Type",
+			fmt.Sprintf("Expected *ProviderData, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+		return
+	}
+
+	d.client = providerData.Client
+}
+
+// Read refreshes the Terraform state with the latest data for single data source.
+func (d *HttpResponseRuleSingleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data HttpResponseRuleSingleDataSourceModel
+
+	// Read Terraform configuration data into the model
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Read the HTTP response rules
+	rules, err := d.client.ReadHttpResponseRules(ctx, data.ParentType.ValueString(), data.ParentName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read HTTP response rules, got error: %s", err))
+		return
+	}
+
+	// Find the specific rule by array position (more predictable than API index)
+	var foundRule *HttpResponseRulePayload
+	if data.Index.ValueInt64() < int64(len(rules)) {
+		foundRule = &rules[data.Index.ValueInt64()]
+	}
+
+	if foundRule == nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("HTTP response rule at position %d not found", data.Index.ValueInt64()))
+		return
+	}
+
+	// Convert to data source model
+	data.ID = types.StringValue(fmt.Sprintf("%s/%s/%d", data.ParentType.ValueString(), data.ParentName.ValueString(), data.Index.ValueInt64()))
+
+	// Fix the index to use array position instead of API index
+	foundRule.Index = data.Index.ValueInt64()
+
+	// Convert HTTP response rule to JSON for dynamic output
+	jsonData, err := json.Marshal(foundRule)
+	if err != nil {
+		resp.Diagnostics.AddError("JSON Error", fmt.Sprintf("Unable to marshal HTTP response rule to JSON, got error: %s", err))
+		return
+	}
+	data.HttpResponseRule = types.StringValue(string(jsonData))
+
+	// Save data into Terraform state
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
 func NewHttpResponseRuleDataSource() datasource.DataSource {
 	return &httpResponseRuleDataSource{}
+}
+
+// NewHttpResponseRuleSingleDataSource creates a new single HTTP response rule data source
+func NewHttpResponseRuleSingleDataSource() datasource.DataSource {
+	return &HttpResponseRuleSingleDataSource{}
 }
 
 type httpResponseRuleDataSource struct {
@@ -18,23 +138,9 @@ type httpResponseRuleDataSource struct {
 }
 
 type httpResponseRuleDataSourceModel struct {
-	HttpResponseRules []httpResponseRuleItemModel `tfsdk:"http_response_rules"`
-}
-
-type httpResponseRuleItemModel struct {
-	Index        types.Int64  `tfsdk:"index"`
-	Type         types.String `tfsdk:"type"`
-	Action       types.String `tfsdk:"action"`
-	Cond         types.String `tfsdk:"cond"`
-	CondTest     types.String `tfsdk:"cond_test"`
-	HdrName      types.String `tfsdk:"hdr_name"`
-	HdrFormat    types.String `tfsdk:"hdr_format"`
-	HdrMatch     types.String `tfsdk:"hdr_match"`
-	HdrMethod    types.String `tfsdk:"hdr_method"`
-	RedirType    types.String `tfsdk:"redir_type"`
-	RedirValue   types.String `tfsdk:"redir_value"`
-	StatusCode   types.Int64  `tfsdk:"status_code"`
-	StatusReason types.String `tfsdk:"status_reason"`
+	HttpResponseRules types.String `tfsdk:"http_response_rules"`
+	ParentType        types.String `tfsdk:"parent_type"`
+	ParentName        types.String `tfsdk:"parent_name"`
 }
 
 func (d *httpResponseRuleDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -44,68 +150,13 @@ func (d *httpResponseRuleDataSource) Metadata(_ context.Context, req datasource.
 func (d *httpResponseRuleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"http_response_rules": schema.ListNestedAttribute{
-				Computed: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"index": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The index of the HTTP response rule.",
-						},
-						"type": schema.StringAttribute{
-							Computed:    true,
-							Description: "The type of the HTTP response rule.",
-						},
-						"action": schema.StringAttribute{
-							Computed:    true,
-							Description: "The action of the HTTP response rule.",
-						},
-						"cond": schema.StringAttribute{
-							Computed:    true,
-							Description: "The condition of the HTTP response rule.",
-						},
-						"cond_test": schema.StringAttribute{
-							Computed:    true,
-							Description: "The condition test of the HTTP response rule.",
-						},
-						"hdr_name": schema.StringAttribute{
-							Computed:    true,
-							Description: "The header name of the HTTP response rule.",
-						},
-						"hdr_format": schema.StringAttribute{
-							Computed:    true,
-							Description: "The header format of the HTTP response rule.",
-						},
-						"hdr_match": schema.StringAttribute{
-							Computed:    true,
-							Description: "The header match of the HTTP response rule.",
-						},
-						"hdr_method": schema.StringAttribute{
-							Computed:    true,
-							Description: "The header method of the HTTP response rule.",
-						},
-						"redir_type": schema.StringAttribute{
-							Computed:    true,
-							Description: "The redirect type of the HTTP response rule.",
-						},
-						"redir_value": schema.StringAttribute{
-							Computed:    true,
-							Description: "The redirect value of the HTTP response rule.",
-						},
-						"status_code": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The status code of the HTTP response rule.",
-						},
-						"status_reason": schema.StringAttribute{
-							Computed:    true,
-							Description: "The status reason of the HTTP response rule.",
-						},
-					},
-				},
+			"http_response_rules": schema.StringAttribute{
+				Computed:    true,
+				Description: "Complete HTTP response rules data from HAProxy API as JSON string",
 			},
 			"parent_type": schema.StringAttribute{
 				Required:    true,
-				Description: "The parent type (frontend or backend).",
+				Description: "The parent type (backend or frontend).",
 			},
 			"parent_name": schema.StringAttribute{
 				Required:    true,
@@ -120,33 +171,29 @@ func (d *httpResponseRuleDataSource) Configure(_ context.Context, req datasource
 		return
 	}
 
-	client, ok := req.ProviderData.(*HAProxyClient)
+	providerData, ok := req.ProviderData.(*ProviderData)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *ProviderData, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
 
-	d.client = client
+	d.client = providerData.Client
 }
 
 func (d *httpResponseRuleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var state httpResponseRuleDataSourceModel
 
-	var config struct {
-		ParentType types.String `tfsdk:"parent_type"`
-		ParentName types.String `tfsdk:"parent_name"`
-	}
-	diags := req.Config.Get(ctx, &config)
-	resp.Diagnostics.Append(diags...)
+	// Read Terraform configuration data into the model
+	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	parentType := config.ParentType.ValueString()
-	parentName := config.ParentName.ValueString()
+	parentType := state.ParentType.ValueString()
+	parentName := state.ParentName.ValueString()
 
 	httpResponseRules, err := d.client.ReadHttpResponseRules(ctx, parentType, parentName)
 	if err != nil {
@@ -157,24 +204,20 @@ func (d *httpResponseRuleDataSource) Read(ctx context.Context, req datasource.Re
 		return
 	}
 
-	for _, rule := range httpResponseRules {
-		state.HttpResponseRules = append(state.HttpResponseRules, httpResponseRuleItemModel{
-			Index:        types.Int64Value(rule.Index),
-			Type:         types.StringValue(rule.Type),
-			Action:       types.StringValue(rule.Type), // Use Type as Action for now
-			Cond:         types.StringValue(rule.Cond),
-			CondTest:     types.StringValue(rule.CondTest),
-			HdrName:      types.StringValue(rule.HdrName),
-			HdrFormat:    types.StringValue(rule.HdrFormat),
-			HdrMatch:     types.StringValue(rule.HdrMatch),
-			HdrMethod:    types.StringValue(rule.HdrMethod),
-			RedirType:    types.StringValue(rule.RedirType),
-			RedirValue:   types.StringValue(rule.RedirValue),
-			StatusCode:   types.Int64Value(rule.StatusCode),
-			StatusReason: types.StringValue(rule.StatusReason),
-		})
+	// Fix index field - use array position if API returns 0 for all rules
+	for i := range httpResponseRules {
+		httpResponseRules[i].Index = int64(i)
 	}
 
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	// Convert rules to JSON for dynamic output
+	jsonData, err := json.Marshal(httpResponseRules)
+	if err != nil {
+		resp.Diagnostics.AddError("JSON Error", fmt.Sprintf("Unable to marshal HTTP response rules to JSON, got error: %s", err))
+		return
+	}
+
+	// Set JSON string directly
+	state.HttpResponseRules = types.StringValue(string(jsonData))
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

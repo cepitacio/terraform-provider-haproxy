@@ -450,15 +450,6 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
-	// Create Frontend TCP Response Rules AFTER TCP Request Rules
-	if data.Frontend != nil && data.Frontend.TcpResponseRules != nil && len(data.Frontend.TcpResponseRules) > 0 {
-		tcpResponseRules := o.convertTcpResponseRulesToResourceModels(data.Frontend.TcpResponseRules, "frontend", data.Frontend.Name.ValueString())
-		if err := o.tcpResponseRuleManager.Create(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), tcpResponseRules); err != nil {
-			resp.Diagnostics.AddError("Error creating frontend TCP response rules", err.Error())
-			return err
-		}
-	}
-
 	// Create Backend HTTP Response Rules AFTER HTTP Request Rules
 	if data.Backend != nil && data.Backend.HttpResponseRules != nil && len(data.Backend.HttpResponseRules) > 0 {
 		if err := o.httpResponseRuleManager.CreateHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpResponseRules); err != nil {
@@ -1190,29 +1181,6 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	// Update Frontend TCP Response Rules only if they changed in the plan
-	if data.Frontend != nil && data.Frontend.TcpResponseRules != nil && len(data.Frontend.TcpResponseRules) > 0 {
-		// Check if TCP Response Rules changed by comparing plan vs state
-		tcpResponseRulesChanged := o.tcpResponseRuleChanged(ctx, data.Frontend.TcpResponseRules, state.Frontend.TcpResponseRules)
-		if tcpResponseRulesChanged {
-			tflog.Info(ctx, "Frontend TCP response rules changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
-			tcpResponseRules := o.convertTcpResponseRulesToResourceModels(data.Frontend.TcpResponseRules, "frontend", data.Frontend.Name.ValueString())
-			if err = o.tcpResponseRuleManager.Update(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), tcpResponseRules); err != nil {
-				resp.Diagnostics.AddError("Error updating frontend TCP response rules", err.Error())
-				return err
-			}
-		} else {
-			tflog.Info(ctx, "Frontend TCP response rules unchanged, skipping update")
-		}
-	} else if data.Frontend != nil && state.Frontend != nil && state.Frontend.TcpResponseRules != nil && len(state.Frontend.TcpResponseRules) > 0 {
-		// Handle frontend TCP response rules deletion - plan has no rules but state does
-		tflog.Info(ctx, "Frontend TCP response rules removed, deleting", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
-		if err = o.tcpResponseRuleManager.Delete(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting frontend TCP response rules", err.Error())
-			return err
-		}
-	}
-
 	// Update Backend TCP Request Rules only if they changed in the plan
 	if data.Backend != nil && data.Backend.TcpRequestRules != nil && len(data.Backend.TcpRequestRules) > 0 {
 		// Check if TCP Request Rules changed by comparing plan vs state
@@ -1552,15 +1520,6 @@ func (o *StackOperations) frontendChanged(ctx context.Context, planFrontend *hap
 	// Compare TcpRequestRules field
 	if o.tcpRequestRuleChanged(ctx, planFrontend.TcpRequestRules, stateFrontend.TcpRequestRules) {
 		tflog.Info(ctx, "Frontend TcpRequestRules changed", map[string]interface{}{
-			"plan_name":  planFrontend.Name.ValueString(),
-			"state_name": stateFrontend.Name.ValueString(),
-		})
-		return true
-	}
-
-	// Compare TcpResponseRules field
-	if o.tcpResponseRuleChanged(ctx, planFrontend.TcpResponseRules, stateFrontend.TcpResponseRules) {
-		tflog.Info(ctx, "Frontend TcpResponseRules changed", map[string]interface{}{
 			"plan_name":  planFrontend.Name.ValueString(),
 			"state_name": stateFrontend.Name.ValueString(),
 		})
@@ -2035,7 +1994,7 @@ func (o *StackOperations) tcpRequestRuleChanged(ctx context.Context, planTcpRequ
 			planRule.ResolveResolvers.ValueString() != stateRule.ResolveResolvers.ValueString() ||
 			planRule.ResolveVar.ValueString() != stateRule.ResolveVar.ValueString() ||
 			planRule.RstTtl.ValueInt64() != stateRule.RstTtl.ValueInt64() ||
-			planRule.ScIdx.ValueString() != stateRule.ScIdx.ValueString() ||
+			planRule.ScIdx.ValueInt64() != stateRule.ScIdx.ValueInt64() ||
 			planRule.ScIncId.ValueString() != stateRule.ScIncId.ValueString() ||
 			planRule.ScInt.ValueInt64() != stateRule.ScInt.ValueInt64() ||
 			planRule.ServerName.ValueString() != stateRule.ServerName.ValueString() ||
@@ -2453,15 +2412,6 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 		}
 	}
 
-	// Delete Frontend TCP Response Rules if specified
-	if data.Frontend != nil && data.Frontend.TcpResponseRules != nil && len(data.Frontend.TcpResponseRules) > 0 {
-		tflog.Info(ctx, "Deleting frontend TCP response rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
-		if err = o.tcpResponseRuleManager.Delete(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting frontend TCP response rules", err.Error())
-			return err
-		}
-	}
-
 	// Delete Backend TCP Request Rules if specified
 	if data.Backend != nil && data.Backend.TcpRequestRules != nil && len(data.Backend.TcpRequestRules) > 0 {
 		tflog.Info(ctx, "Deleting backend TCP request rules", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
@@ -2603,6 +2553,7 @@ func (o *StackOperations) convertTcpRequestRulesToResourceModels(stackRules []ha
 			VarName:              stackRule.VarName,
 			VarFormat:            stackRule.VarFormat,
 			VarScope:             stackRule.VarScope,
+			VarExpr:              stackRule.VarExpr,
 		}
 	}
 	return resourceRules
@@ -2639,6 +2590,7 @@ func (o *StackOperations) convertTcpResponseRulesToResourceModels(stackRules []h
 			VarFormat:            stackRule.VarFormat,
 			VarName:              stackRule.VarName,
 			VarScope:             stackRule.VarScope,
+			VarExpr:              stackRule.VarExpr,
 			BandwidthLimitLimit:  stackRule.BandwidthLimitLimit,
 			BandwidthLimitName:   stackRule.BandwidthLimitName,
 			BandwidthLimitPeriod: stackRule.BandwidthLimitPeriod,

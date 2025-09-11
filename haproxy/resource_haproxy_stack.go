@@ -160,7 +160,6 @@ type haproxyFrontendModel struct {
 	HttpRequestRules  []haproxyHttpRequestRuleModel  `tfsdk:"http_request_rules"`
 	HttpResponseRules []haproxyHttpResponseRuleModel `tfsdk:"http_response_rules"`
 	TcpRequestRules   []haproxyTcpRequestRuleModel   `tfsdk:"tcp_request_rules"`
-	TcpResponseRules  []haproxyTcpResponseRuleModel  `tfsdk:"tcp_response_rules"`
 	StatsOptions      []haproxyStatsOptionsModel     `tfsdk:"stats_options"`
 	MonitorFail       []haproxyMonitorFailModel      `tfsdk:"monitor_fail"`
 }
@@ -345,7 +344,7 @@ type haproxyTcpRequestRuleModel struct {
 	ResolveResolvers     types.String `tfsdk:"resolve_resolvers"`
 	ResolveVar           types.String `tfsdk:"resolve_var"`
 	RstTtl               types.Int64  `tfsdk:"rst_ttl"`
-	ScIdx                types.String `tfsdk:"sc_idx"`
+	ScIdx                types.Int64  `tfsdk:"sc_idx"`
 	ScIncId              types.String `tfsdk:"sc_inc_id"`
 	ScInt                types.Int64  `tfsdk:"sc_int"`
 	ServerName           types.String `tfsdk:"server_name"`
@@ -353,6 +352,8 @@ type haproxyTcpRequestRuleModel struct {
 	VarName              types.String `tfsdk:"var_name"`
 	VarFormat            types.String `tfsdk:"var_format"`
 	VarScope             types.String `tfsdk:"var_scope"`
+	VarExpr              types.String `tfsdk:"var_expr"`
+	Index                types.Int64  `tfsdk:"index"`
 }
 
 // haproxyTcpResponseRuleModel maps the tcp_response_rule block schema data.
@@ -379,9 +380,13 @@ type haproxyTcpResponseRuleModel struct {
 	VarFormat            types.String `tfsdk:"var_format"`
 	VarName              types.String `tfsdk:"var_name"`
 	VarScope             types.String `tfsdk:"var_scope"`
+	VarExpr              types.String `tfsdk:"var_expr"`
 	BandwidthLimitLimit  types.String `tfsdk:"bandwidth_limit_limit"`
 	BandwidthLimitName   types.String `tfsdk:"bandwidth_limit_name"`
 	BandwidthLimitPeriod types.String `tfsdk:"bandwidth_limit_period"`
+	CaptureLen           types.Int64  `tfsdk:"capture_len"`
+	CaptureSample        types.String `tfsdk:"capture_sample"`
+	Index                types.Int64  `tfsdk:"index"`
 }
 
 // haproxyStickTableModel maps the stick_table block schema data.
@@ -493,6 +498,11 @@ func (r *haproxyStackResource) Read(ctx context.Context, req resource.ReadReques
 
 // Update resource.
 func (r *haproxyStackResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	// Validate configuration based on API version before updating
+	if err := r.validateConfigForAPIVersionUpdate(ctx, req, resp); err != nil {
+		return // Validation failed, don't proceed with update
+	}
+
 	if err := r.stackManager.Update(ctx, req, resp); err != nil {
 		resp.Diagnostics.AddError("Error updating HAProxy stack", err.Error())
 	}
@@ -538,6 +548,69 @@ func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, 
 			for bindName, bind := range config.Frontend.Binds {
 				validateBindV2ForCreate(ctx, &resp.Diagnostics, bind, fmt.Sprintf("frontend.binds[%s]", bindName))
 			}
+
+		}
+	} else if apiVersion == "v3" {
+		// Check for v2 fields that are deprecated in v3
+		if config.Backend != nil && config.Backend.DefaultServer != nil {
+			validateDefaultServerV3ForCreate(ctx, &resp.Diagnostics, config.Backend.DefaultServer, "backend.default_server")
+		}
+
+		if len(config.Servers) > 0 {
+			for i, server := range config.Servers {
+				validateServerV3ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("servers[%d]", i))
+			}
+		}
+
+		if config.Frontend != nil {
+			for bindName, bind := range config.Frontend.Binds {
+				validateBindV3ForCreate(ctx, &resp.Diagnostics, bind, fmt.Sprintf("frontend.binds[%s]", bindName))
+			}
+		}
+	}
+
+	// Check if validation produced any errors
+	if resp.Diagnostics.HasError() {
+		return fmt.Errorf("configuration validation failed")
+	}
+
+	return nil
+}
+
+// validateConfigForAPIVersionUpdate validates the configuration based on API version for updates
+func (r *haproxyStackResource) validateConfigForAPIVersionUpdate(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) error {
+	// Get the API version from the provider configuration
+	apiVersion := r.apiVersion
+	if apiVersion == "" {
+		apiVersion = "v3" // Default to v3
+	}
+
+	// Get the configuration data
+	var config haproxyStackResourceModel
+	diags := req.Config.Get(ctx, &config)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return fmt.Errorf("failed to get configuration")
+	}
+
+	// Validate based on API version
+	if apiVersion == "v2" {
+		// Check for v3 fields that are not supported in v2
+		if config.Backend != nil && config.Backend.DefaultServer != nil {
+			validateDefaultServerV2ForCreate(ctx, &resp.Diagnostics, config.Backend.DefaultServer, "backend.default_server")
+		}
+
+		if len(config.Servers) > 0 {
+			for i, server := range config.Servers {
+				validateServerV2ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("servers[%d]", i))
+			}
+		}
+
+		if config.Frontend != nil {
+			for bindName, bind := range config.Frontend.Binds {
+				validateBindV2ForCreate(ctx, &resp.Diagnostics, bind, fmt.Sprintf("frontend.binds[%s]", bindName))
+			}
+
 		}
 	} else if apiVersion == "v3" {
 		// Check for v2 fields that are deprecated in v3

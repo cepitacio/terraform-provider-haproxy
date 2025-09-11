@@ -978,7 +978,7 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 							Optional:    true,
 							Description: "The RST TTL for the tcp-request rule.",
 						},
-						"sc_idx": schema.StringAttribute{
+						"sc_idx": schema.Int64Attribute{
 							Optional:    true,
 							Description: "The SC index for the tcp-request rule.",
 						},
@@ -1009,6 +1009,14 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 						"var_scope": schema.StringAttribute{
 							Optional:    true,
 							Description: "The variable scope for the tcp-request rule.",
+						},
+						"var_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable expression for the tcp-request rule.",
+						},
+						"index": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The index/order of the tcp-request rule (for backward compatibility).",
 						},
 					},
 				},
@@ -1116,6 +1124,22 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 						"bandwidth_limit_period": schema.StringAttribute{
 							Optional:    true,
 							Description: "The bandwidth limit period for the tcp-response rule.",
+						},
+						"var_expr": schema.StringAttribute{
+							Optional:    true,
+							Description: "The variable expression for the tcp-response rule.",
+						},
+						"capture_len": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The capture length for the tcp-response rule.",
+						},
+						"capture_sample": schema.StringAttribute{
+							Optional:    true,
+							Description: "The capture sample for the tcp-response rule.",
+						},
+						"index": schema.Int64Attribute{
+							Optional:    true,
+							Description: "The index/order of the tcp-response rule (for backward compatibility).",
 						},
 					},
 				},

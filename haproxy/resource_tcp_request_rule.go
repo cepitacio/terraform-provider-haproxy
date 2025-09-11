@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -46,7 +47,7 @@ type TcpRequestRuleResourceModel struct {
 	ResolveResolvers     types.String `tfsdk:"resolve_resolvers"`
 	ResolveVar           types.String `tfsdk:"resolve_var"`
 	RstTtl               types.Int64  `tfsdk:"rst_ttl"`
-	ScIdx                types.String `tfsdk:"sc_idx"`
+	ScIdx                types.Int64  `tfsdk:"sc_idx"`
 	ScIncId              types.String `tfsdk:"sc_inc_id"`
 	ScInt                types.Int64  `tfsdk:"sc_int"`
 	ServerName           types.String `tfsdk:"server_name"`
@@ -60,6 +61,7 @@ type TcpRequestRuleResourceModel struct {
 	VarFormat            types.String `tfsdk:"var_format"`
 	VarName              types.String `tfsdk:"var_name"`
 	VarScope             types.String `tfsdk:"var_scope"`
+	VarExpr              types.String `tfsdk:"var_expr"`
 	GptValue             types.String `tfsdk:"gpt_value"`
 }
 
@@ -131,23 +133,126 @@ func (r *TcpRequestRuleManager) Update(ctx context.Context, transactionID, paren
 
 	log.Printf("Updating %d TCP request rules for %s %s", len(rules), parentType, parentName)
 
-	// Sort rules by index to ensure proper ordering
+	// Get existing rules from the API
+	existingRules, err := r.client.ReadTcpRequestRules(ctx, parentType, parentName)
+	if err != nil {
+		return fmt.Errorf("failed to read existing TCP request rules: %w", err)
+	}
+
+	// Sort new rules by index to ensure proper ordering
 	sortedRules := r.processTcpRequestRulesBlock(rules)
 
-	// Convert all rules to payloads
-	allPayloads := make([]TcpRequestRulePayload, 0, len(sortedRules))
+	// Convert new rules to payloads
+	desiredPayloads := make([]TcpRequestRulePayload, 0, len(sortedRules))
 	for i, rule := range sortedRules {
 		rulePayload := r.convertToTcpRequestRulePayload(&rule, i)
-		allPayloads = append(allPayloads, *rulePayload)
+		desiredPayloads = append(desiredPayloads, *rulePayload)
 	}
 
-	// Use the existing transaction ID to send all rules in one request
-	if err := r.client.CreateAllTcpRequestRulesInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
-		return fmt.Errorf("failed to update all TCP request rules for %s %s: %w", parentType, parentName, err)
+	// Create maps for comparison
+	existingMap := make(map[string]TcpRequestRulePayload)
+	desiredMap := make(map[string]TcpRequestRulePayload)
+
+	// Populate existing rules map
+	for _, rule := range existingRules {
+		key := r.generateRuleKeyFromPayload(&rule)
+		existingMap[key] = rule
 	}
 
-	log.Printf("Updated %d TCP request rules for %s %s", len(allPayloads), parentType, parentName)
+	// Populate desired rules map
+	for _, rule := range desiredPayloads {
+		key := r.generateRuleKeyFromPayload(&rule)
+		desiredMap[key] = rule
+	}
+
+	// Find rules to delete, update, and create
+	var rulesToDelete, rulesToUpdate, rulesToCreate []TcpRequestRulePayload
+
+	// Rules to delete: exist in state but not in plan
+	for key, existingRule := range existingMap {
+		if _, exists := desiredMap[key]; !exists {
+			rulesToDelete = append(rulesToDelete, existingRule)
+		}
+	}
+
+	// Rules to update: exist in both but have changed
+	for key, desiredRule := range desiredMap {
+		if existingRule, exists := existingMap[key]; exists {
+			if r.hasRuleChangedFromPayload(&existingRule, &desiredRule) {
+				log.Printf("DEBUG: TCP request rule '%s' content changed, will update", key)
+				rulesToUpdate = append(rulesToUpdate, desiredRule)
+			} else if existingRule.Index != desiredRule.Index {
+				log.Printf("DEBUG: TCP request rule '%s' position changed from %d to %d, will reorder", key, existingRule.Index, desiredRule.Index)
+				rulesToUpdate = append(rulesToUpdate, desiredRule)
+			}
+		}
+	}
+
+	// Rules to create: exist in plan but not in state
+	for key, desiredRule := range desiredMap {
+		if _, exists := existingMap[key]; !exists {
+			rulesToCreate = append(rulesToCreate, desiredRule)
+		}
+	}
+
+	// Delete rules that are no longer needed
+	for _, rule := range rulesToDelete {
+		log.Printf("Deleting TCP request rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
+		if err := r.client.DeleteTcpRequestRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName); err != nil {
+			return fmt.Errorf("failed to delete TCP request rule: %w", err)
+		}
+	}
+
+	// Update rules that have changed
+	for _, rule := range rulesToUpdate {
+		log.Printf("Updating TCP request rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
+		if err := r.client.UpdateTcpRequestRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName, &rule); err != nil {
+			return fmt.Errorf("failed to update TCP request rule: %w", err)
+		}
+	}
+
+	// Create new rules
+	for _, rule := range rulesToCreate {
+		log.Printf("Creating TCP request rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
+		if err := r.client.CreateTcpRequestRuleInTransaction(ctx, transactionID, parentType, parentName, &rule); err != nil {
+			return fmt.Errorf("failed to create TCP request rule: %w", err)
+		}
+	}
+
+	log.Printf("Updated %d TCP request rules for %s %s (deleted: %d, updated: %d, created: %d)",
+		len(desiredPayloads), parentType, parentName, len(rulesToDelete), len(rulesToUpdate), len(rulesToCreate))
 	return nil
+}
+
+// generateRuleKeyFromPayload creates a unique key for a TCP request rule payload based on its content
+func (r *TcpRequestRuleManager) generateRuleKeyFromPayload(payload *TcpRequestRulePayload) string {
+	// Create a unique key based on the rule's content (excluding index)
+	key := fmt.Sprintf("%s-%s-%s", payload.Type, payload.Action, payload.Expr)
+	if payload.VarName != "" {
+		key += "-" + payload.VarName
+	}
+	if payload.VarScope != "" {
+		key += "-" + payload.VarScope
+	}
+	if payload.NiceValue != 0 {
+		key += fmt.Sprintf("-nice%d", payload.NiceValue)
+	}
+	if payload.MarkValue != "" {
+		key += "-mark" + payload.MarkValue
+	}
+	return key
+}
+
+// hasRuleChangedFromPayload checks if a rule has changed by comparing two payloads
+func (r *TcpRequestRuleManager) hasRuleChangedFromPayload(existing, desired *TcpRequestRulePayload) bool {
+	// Compare all fields except Index
+	return existing.Type != desired.Type ||
+		existing.Action != desired.Action ||
+		existing.Expr != desired.Expr ||
+		existing.VarName != desired.VarName ||
+		existing.VarScope != desired.VarScope ||
+		existing.NiceValue != desired.NiceValue ||
+		existing.MarkValue != desired.MarkValue
 }
 
 // Delete deletes TCP request rules
@@ -160,7 +265,11 @@ func (r *TcpRequestRuleManager) Delete(ctx context.Context, transactionID, paren
 		return fmt.Errorf("failed to read existing TCP request rules for deletion: %w", err)
 	}
 
-	// Delete each rule by index
+	// Delete each rule by index in reverse order (highest index first) to avoid shifting issues
+	sort.Slice(existingRules, func(i, j int) bool {
+		return existingRules[i].Index > existingRules[j].Index
+	})
+
 	for _, rule := range existingRules {
 		if err := r.client.DeleteTcpRequestRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName); err != nil {
 			return fmt.Errorf("failed to delete TCP request rule at index %d: %w", rule.Index, err)
@@ -258,7 +367,7 @@ func (r *TcpRequestRuleManager) convertToTcpRequestRulePayload(rule *TcpRequestR
 		payload.RstTtl = rule.RstTtl.ValueInt64()
 	}
 	if !rule.ScIdx.IsNull() && !rule.ScIdx.IsUnknown() {
-		payload.ScIdx = rule.ScIdx.ValueString()
+		payload.ScIdx = rule.ScIdx.ValueInt64()
 	}
 	if !rule.ScIncId.IsNull() && !rule.ScIncId.IsUnknown() {
 		payload.ScIncId = rule.ScIncId.ValueString()
@@ -298,6 +407,9 @@ func (r *TcpRequestRuleManager) convertToTcpRequestRulePayload(rule *TcpRequestR
 	}
 	if !rule.VarScope.IsNull() && !rule.VarScope.IsUnknown() {
 		payload.VarScope = rule.VarScope.ValueString()
+	}
+	if !rule.VarExpr.IsNull() && !rule.VarExpr.IsUnknown() {
+		payload.VarExpr = rule.VarExpr.ValueString()
 	}
 	if !rule.GptValue.IsNull() && !rule.GptValue.IsUnknown() {
 		payload.GptValue = rule.GptValue.ValueString()
@@ -377,8 +489,8 @@ func (r *TcpRequestRuleManager) convertFromTcpRequestRulePayload(payload TcpRequ
 	if payload.RstTtl != 0 {
 		rule.RstTtl = types.Int64Value(payload.RstTtl)
 	}
-	if payload.ScIdx != "" {
-		rule.ScIdx = types.StringValue(payload.ScIdx)
+	if payload.ScIdx != 0 {
+		rule.ScIdx = types.Int64Value(payload.ScIdx)
 	}
 	if payload.ScIncId != "" {
 		rule.ScIncId = types.StringValue(payload.ScIncId)
@@ -418,6 +530,9 @@ func (r *TcpRequestRuleManager) convertFromTcpRequestRulePayload(payload TcpRequ
 	}
 	if payload.VarScope != "" {
 		rule.VarScope = types.StringValue(payload.VarScope)
+	}
+	if payload.VarExpr != "" {
+		rule.VarExpr = types.StringValue(payload.VarExpr)
 	}
 	if payload.GptValue != "" {
 		rule.GptValue = types.StringValue(payload.GptValue)
@@ -595,6 +710,10 @@ func (r *TcpRequestRuleResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"var_scope": schema.StringAttribute{
 				MarkdownDescription: "Variable scope",
+				Optional:            true,
+			},
+			"var_expr": schema.StringAttribute{
+				MarkdownDescription: "Variable expression",
 				Optional:            true,
 			},
 			"gpt_value": schema.StringAttribute{

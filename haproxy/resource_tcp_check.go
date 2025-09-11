@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -128,23 +129,126 @@ func (r *TcpCheckManager) Update(ctx context.Context, transactionID, parentType,
 
 	log.Printf("Updating %d TCP checks for %s %s", len(checks), parentType, parentName)
 
-	// Sort checks by index to ensure proper ordering
+	// Get existing checks from the API
+	existingChecks, err := r.client.ReadTcpChecks(ctx, parentType, parentName)
+	if err != nil {
+		return fmt.Errorf("failed to read existing TCP checks: %w", err)
+	}
+
+	// Sort new checks by index to ensure proper ordering
 	sortedChecks := r.processTcpCheckBlock(checks)
 
-	// Convert all checks to payloads
-	allPayloads := make([]TcpCheckPayload, 0, len(sortedChecks))
+	// Convert new checks to payloads
+	desiredPayloads := make([]TcpCheckPayload, 0, len(sortedChecks))
 	for i, check := range sortedChecks {
 		checkPayload := r.convertToTcpCheckPayload(&check, i)
-		allPayloads = append(allPayloads, *checkPayload)
+		desiredPayloads = append(desiredPayloads, *checkPayload)
 	}
 
-	// Use the existing transaction ID to send all checks in one request
-	if err := r.client.CreateAllTcpChecksInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
-		return fmt.Errorf("failed to update all TCP checks for %s %s: %w", parentType, parentName, err)
+	// Create maps for comparison
+	existingMap := make(map[string]TcpCheckPayload)
+	desiredMap := make(map[string]TcpCheckPayload)
+
+	// Populate existing checks map
+	for _, check := range existingChecks {
+		key := r.generateCheckKeyFromPayload(&check)
+		existingMap[key] = check
 	}
 
-	log.Printf("Updated %d TCP checks for %s %s", len(allPayloads), parentType, parentName)
+	// Populate desired checks map
+	for _, check := range desiredPayloads {
+		key := r.generateCheckKeyFromPayload(&check)
+		desiredMap[key] = check
+	}
+
+	// Find checks to delete, update, and create
+	var checksToDelete, checksToUpdate, checksToCreate []TcpCheckPayload
+
+	// Checks to delete: exist in state but not in plan
+	for key, existingCheck := range existingMap {
+		if _, exists := desiredMap[key]; !exists {
+			checksToDelete = append(checksToDelete, existingCheck)
+		}
+	}
+
+	// Checks to update: exist in both but have changed
+	for key, desiredCheck := range desiredMap {
+		if existingCheck, exists := existingMap[key]; exists {
+			if r.hasCheckChangedFromPayload(&existingCheck, &desiredCheck) {
+				log.Printf("DEBUG: TCP check '%s' content changed, will update", key)
+				checksToUpdate = append(checksToUpdate, desiredCheck)
+			} else if existingCheck.Index != desiredCheck.Index {
+				log.Printf("DEBUG: TCP check '%s' position changed from %d to %d, will reorder", key, existingCheck.Index, desiredCheck.Index)
+				checksToUpdate = append(checksToUpdate, desiredCheck)
+			}
+		}
+	}
+
+	// Checks to create: exist in plan but not in state
+	for key, desiredCheck := range desiredMap {
+		if _, exists := existingMap[key]; !exists {
+			checksToCreate = append(checksToCreate, desiredCheck)
+		}
+	}
+
+	// Delete checks that are no longer needed
+	for _, check := range checksToDelete {
+		log.Printf("Deleting TCP check '%s' at index %d", r.generateCheckKeyFromPayload(&check), check.Index)
+		if err := r.client.DeleteTcpCheckInTransaction(ctx, transactionID, check.Index, parentType, parentName); err != nil {
+			return fmt.Errorf("failed to delete TCP check: %w", err)
+		}
+	}
+
+	// Update checks that have changed
+	for _, check := range checksToUpdate {
+		log.Printf("Updating TCP check '%s' at index %d", r.generateCheckKeyFromPayload(&check), check.Index)
+		if err := r.client.UpdateTcpCheckInTransaction(ctx, transactionID, check.Index, parentType, parentName, &check); err != nil {
+			return fmt.Errorf("failed to update TCP check: %w", err)
+		}
+	}
+
+	// Create new checks
+	for _, check := range checksToCreate {
+		log.Printf("Creating TCP check '%s' at index %d", r.generateCheckKeyFromPayload(&check), check.Index)
+		if err := r.client.CreateTcpCheckInTransaction(ctx, transactionID, parentType, parentName, &check); err != nil {
+			return fmt.Errorf("failed to create TCP check: %w", err)
+		}
+	}
+
+	log.Printf("Updated %d TCP checks for %s %s (deleted: %d, updated: %d, created: %d)",
+		len(desiredPayloads), parentType, parentName, len(checksToDelete), len(checksToUpdate), len(checksToCreate))
 	return nil
+}
+
+// generateCheckKeyFromPayload creates a unique key for a TCP check payload based on its content
+func (r *TcpCheckManager) generateCheckKeyFromPayload(payload *TcpCheckPayload) string {
+	// Create a unique key based on the check's content (excluding index)
+	key := fmt.Sprintf("%s-%s", payload.Action, payload.Addr)
+	if payload.Port != 0 {
+		key += fmt.Sprintf("-port%d", payload.Port)
+	}
+	if payload.CheckComment != "" {
+		key += "-" + payload.CheckComment
+	}
+	return key
+}
+
+// hasCheckChangedFromPayload checks if a check has changed by comparing two payloads
+func (r *TcpCheckManager) hasCheckChangedFromPayload(existing, desired *TcpCheckPayload) bool {
+	// Compare all fields except Index
+	return existing.Action != desired.Action ||
+		existing.Addr != desired.Addr ||
+		existing.Port != desired.Port ||
+		existing.CheckComment != desired.CheckComment ||
+		existing.Proto != desired.Proto ||
+		existing.SendProxy != desired.SendProxy ||
+		existing.Sni != desired.Sni ||
+		existing.Ssl != desired.Ssl ||
+		existing.VarExpr != desired.VarExpr ||
+		existing.VarFmt != desired.VarFmt ||
+		existing.VarName != desired.VarName ||
+		existing.VarScope != desired.VarScope ||
+		existing.ViaSocks4 != desired.ViaSocks4
 }
 
 // Delete deletes TCP checks
@@ -157,7 +261,11 @@ func (r *TcpCheckManager) Delete(ctx context.Context, transactionID, parentType,
 		return fmt.Errorf("failed to read existing TCP checks for deletion: %w", err)
 	}
 
-	// Delete each check by index
+	// Delete each check by index in reverse order (highest index first) to avoid shifting issues
+	sort.Slice(existingChecks, func(i, j int) bool {
+		return existingChecks[i].Index > existingChecks[j].Index
+	})
+
 	for _, check := range existingChecks {
 		if err := r.client.DeleteTcpCheckInTransaction(ctx, transactionID, check.Index, parentType, parentName); err != nil {
 			return fmt.Errorf("failed to delete TCP check at index %d: %w", check.Index, err)
