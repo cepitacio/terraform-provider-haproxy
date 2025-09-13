@@ -93,7 +93,8 @@ func (r *TcpCheckManager) Create(ctx context.Context, transactionID, parentType,
 
 	// Send all checks in one request (same for both v2 and v3)
 	if err := r.client.CreateAllTcpChecksInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
-		return fmt.Errorf("failed to create all TCP checks for %s %s: %w", parentType, parentName, err)
+		// Return the original error to preserve error type for retry logic
+		return err
 	}
 
 	log.Printf("Created all %d TCP checks for %s %s in transaction %s", len(allPayloads), parentType, parentName, transactionID)

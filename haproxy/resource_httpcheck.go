@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -13,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // HttpcheckResource defines the resource implementation.
@@ -95,7 +93,8 @@ func (r *HttpcheckManager) Create(ctx context.Context, transactionID, parentType
 
 	// Send all checks in one request (same for both v2 and v3)
 	if err := r.client.CreateAllHttpchecksInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
-		return fmt.Errorf("failed to create all HTTP checks for %s %s: %w", parentType, parentName, err)
+		// Return the original error to preserve error type for retry logic
+		return err
 	}
 
 	log.Printf("Created all %d HTTP checks for %s %s in transaction %s", len(allPayloads), parentType, parentName, transactionID)
@@ -749,27 +748,10 @@ func (r *HttpcheckResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	// Create the check using transaction
-	manager := NewHttpcheckManager(r.client)
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := manager.Create(ctx, transactionID, data.ParentType.ValueString(), data.ParentName.ValueString(), []HttpcheckResourceModel{data}); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create HTTP check, got error: %s", err))
-		return
-	}
-
-	// Set ID
-	data.ID = types.StringValue(fmt.Sprintf("%s/%s/httpcheck/%d", data.ParentType.ValueString(), data.ParentName.ValueString(), data.Index.ValueInt64()))
-
-	// Write logs using the tflog package
-	tflog.Trace(ctx, "created an HTTP check resource")
-
-	// Save data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	// Individual HTTP check resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -823,21 +805,10 @@ func (r *HttpcheckResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	// Update the check using transaction
-	manager := NewHttpcheckManager(r.client)
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := manager.Update(ctx, transactionID, data.ParentType.ValueString(), data.ParentName.ValueString(), []HttpcheckResourceModel{data}); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update HTTP check, got error: %s", err))
-		return
-	}
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	// Individual HTTP check resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -851,15 +822,8 @@ func (r *HttpcheckResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	// Delete the check using transaction
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := r.client.DeleteHttpcheckInTransaction(ctx, transactionID, data.Index.ValueInt64(), data.ParentType.ValueString(), data.ParentName.ValueString()); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete HTTP check, got error: %s", err))
-		return
-	}
+	// Individual HTTP check resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }

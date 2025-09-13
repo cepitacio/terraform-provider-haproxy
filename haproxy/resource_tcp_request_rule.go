@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -12,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // TcpRequestRuleResource defines the resource implementation.
@@ -113,6 +111,11 @@ func (r *TcpRequestRuleManager) Read(ctx context.Context, parentType, parentName
 		return nil, fmt.Errorf("failed to read TCP request rules for %s %s: %w", parentType, parentName, err)
 	}
 
+	// Fix index field - use array position if API returns 0 for all rules
+	for i := range payloads {
+		payloads[i].Index = int64(i)
+	}
+
 	// Convert payloads to resource models
 	rules := make([]TcpRequestRuleResourceModel, 0, len(payloads))
 	for _, payload := range payloads {
@@ -137,6 +140,11 @@ func (r *TcpRequestRuleManager) Update(ctx context.Context, transactionID, paren
 	existingRules, err := r.client.ReadTcpRequestRules(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read existing TCP request rules: %w", err)
+	}
+
+	// Fix index field - use array position if API returns 0 for all rules
+	for i := range existingRules {
+		existingRules[i].Index = int64(i)
 	}
 
 	// Sort new rules by index to ensure proper ordering
@@ -195,6 +203,40 @@ func (r *TcpRequestRuleManager) Update(ctx context.Context, transactionID, paren
 		}
 	}
 
+	// For version 3, use bulk replace approach (same as create)
+	// Version 3 doesn't support individual rule operations
+	if r.client.apiVersion == "v3" {
+		// Combine all desired rules into final array
+		var finalRules []TcpRequestRulePayload
+
+		// Add rules in the correct order (by index)
+		allRules := make([]TcpRequestRulePayload, 0, len(desiredMap))
+		for _, rule := range desiredMap {
+			allRules = append(allRules, rule)
+		}
+
+		// Sort by index to maintain order
+		sort.Slice(allRules, func(i, j int) bool {
+			return allRules[i].Index < allRules[j].Index
+		})
+
+		// Reset indices to be sequential (0, 1, 2, ...)
+		for i := range allRules {
+			allRules[i].Index = int64(i)
+		}
+
+		finalRules = allRules
+
+		log.Printf("Updating all %d TCP request rules for %s %s using v3 bulk replace", len(finalRules), parentType, parentName)
+		if err := r.client.CreateAllTcpRequestRulesInTransaction(ctx, transactionID, parentType, parentName, finalRules); err != nil {
+			return fmt.Errorf("failed to update all TCP request rules for %s %s: %w", parentType, parentName, err)
+		}
+
+		log.Printf("Updated all %d TCP request rules for %s %s using v3 bulk replace", len(finalRules), parentType, parentName)
+		return nil
+	}
+
+	// Version 2: Use individual operations
 	// Delete rules that are no longer needed
 	for _, rule := range rulesToDelete {
 		log.Printf("Deleting TCP request rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
@@ -756,27 +798,10 @@ func (r *TcpRequestRuleResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	// Create the rule using transaction
-	manager := NewTcpRequestRuleManager(r.client)
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := manager.Create(ctx, transactionID, data.ParentType.ValueString(), data.ParentName.ValueString(), []TcpRequestRuleResourceModel{data}); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create TCP request rule, got error: %s", err))
-		return
-	}
-
-	// Set ID
-	data.ID = types.StringValue(fmt.Sprintf("%s/%s/tcp_request_rule/%d", data.ParentType.ValueString(), data.ParentName.ValueString(), data.Index.ValueInt64()))
-
-	// Write logs using the tflog package
-	tflog.Trace(ctx, "created a TCP request rule resource")
-
-	// Save data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	// Individual TCP request rule resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "TCP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -830,21 +855,10 @@ func (r *TcpRequestRuleResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	// Update the rule using transaction
-	manager := NewTcpRequestRuleManager(r.client)
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := manager.Update(ctx, transactionID, data.ParentType.ValueString(), data.ParentName.ValueString(), []TcpRequestRuleResourceModel{data}); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update TCP request rule, got error: %s", err))
-		return
-	}
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	// Individual TCP request rule resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "TCP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -858,15 +872,8 @@ func (r *TcpRequestRuleResource) Delete(ctx context.Context, req resource.Delete
 		return
 	}
 
-	// Delete the rule using transaction
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := r.client.DeleteTcpRequestRuleInTransaction(ctx, transactionID, data.Index.ValueInt64(), data.ParentType.ValueString(), data.ParentName.ValueString()); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete TCP request rule, got error: %s", err))
-		return
-	}
+	// Individual TCP request rule resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "TCP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }

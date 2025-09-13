@@ -6,7 +6,11 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
+	"terraform-provider-haproxy/haproxy/utils"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -339,14 +343,118 @@ func (o *StackOperations) convertServerModelToPayload(serverName string, server 
 
 // Create performs the create operation for the haproxy_stack resource
 func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse, data *haproxyStackResourceModel) error {
+	return o.createWithRetry(ctx, req, resp, data)
+}
+
+// createWithRetry wraps the create operation with retry logic for transaction conflicts
+func (o *StackOperations) createWithRetry(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse, data *haproxyStackResourceModel) error {
+	maxRetries := 3
+	retryDelay := 2 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Clear diagnostics before each retry attempt
+		if attempt > 0 {
+			resp.Diagnostics = diag.Diagnostics{}
+		}
+
+		tflog.Info(ctx, "Creating HAProxy stack", map[string]interface{}{"attempt": attempt + 1, "max_retries": maxRetries})
+
+		err := o.createSingle(ctx, req, resp, data)
+		if err == nil {
+			tflog.Info(ctx, "Stack created successfully", map[string]interface{}{"attempt": attempt + 1})
+			return nil
+		}
+
+		// Check if this is a retryable error
+		if !o.isTransactionRetryableError(err) {
+			tflog.Error(ctx, "Non-retryable error occurred", map[string]interface{}{"error": err.Error()})
+			resp.Diagnostics.AddError("Error creating stack", err.Error())
+			return err
+		}
+
+		tflog.Info(ctx, "Retryable error occurred, will retry", map[string]interface{}{
+			"attempt": attempt + 1,
+			"error":   err.Error(),
+		})
+
+		if attempt < maxRetries-1 {
+			tflog.Info(ctx, "Sleeping before retry", map[string]interface{}{"delay_seconds": retryDelay.Seconds()})
+			time.Sleep(retryDelay)
+		}
+	}
+
+	// If we get here, all retries failed
+	resp.Diagnostics.AddError("Error creating stack", fmt.Sprintf("failed to create stack after %d attempts", maxRetries))
+	return fmt.Errorf("failed to create stack after %d attempts", maxRetries)
+}
+
+// isTransactionRetryableError checks if an error is retryable for transaction operations
+func (o *StackOperations) isTransactionRetryableError(err error) bool {
+	// Debug logging
+	tflog.Info(context.Background(), "Checking if error is retryable", map[string]interface{}{
+		"error_type": fmt.Sprintf("%T", err),
+		"error_msg":  err.Error(),
+	})
+
+	// Check for CustomError first
+	if customErr, ok := err.(*utils.CustomError); ok && customErr.APIError != nil {
+		tflog.Info(context.Background(), "Found CustomError", map[string]interface{}{
+			"code":    customErr.APIError.Code,
+			"message": customErr.APIError.Message,
+		})
+		// Check for transaction does not exist (400)
+		if customErr.APIError.Code == 400 && strings.Contains(customErr.APIError.Message, "transaction does not exist") {
+			tflog.Info(context.Background(), "Detected retryable CustomError: transaction does not exist")
+			return true
+		}
+		// Check for transaction outdated (406)
+		if customErr.APIError.Code == 406 && strings.Contains(customErr.APIError.Message, "transaction") && strings.Contains(customErr.APIError.Message, "is outdated and cannot be committed") {
+			tflog.Info(context.Background(), "Detected retryable CustomError: transaction outdated")
+			return true
+		}
+		// Check for version mismatch (409)
+		if customErr.APIError.Code == 409 && strings.Contains(customErr.APIError.Message, "version mismatch") {
+			tflog.Info(context.Background(), "Detected retryable CustomError: version mismatch")
+			return true
+		}
+		// Check for version or transaction not specified (400)
+		if customErr.APIError.Code == 400 && strings.Contains(customErr.APIError.Message, "version or transaction not specified") {
+			tflog.Info(context.Background(), "Detected retryable CustomError: version or transaction not specified")
+			return true
+		}
+	}
+
+	// Check for regular errors that contain retryable error messages
+	errStr := err.Error()
+	tflog.Info(context.Background(), "Checking error string for retryable patterns", map[string]interface{}{
+		"error_string":                        errStr,
+		"contains_transaction_does_not_exist": strings.Contains(errStr, "transaction does not exist"),
+		"contains_transaction_outdated":       strings.Contains(errStr, "transaction") && strings.Contains(errStr, "is outdated and cannot be committed"),
+		"contains_version_mismatch":           strings.Contains(errStr, "version mismatch"),
+		"contains_version_not_specified":      strings.Contains(errStr, "version or transaction not specified"),
+	})
+
+	if strings.Contains(errStr, "transaction does not exist") ||
+		strings.Contains(errStr, "transaction") && strings.Contains(errStr, "is outdated and cannot be committed") ||
+		strings.Contains(errStr, "version mismatch") ||
+		strings.Contains(errStr, "version or transaction not specified") {
+		tflog.Info(context.Background(), "Detected retryable error from string matching")
+		return true
+	}
+
+	tflog.Info(context.Background(), "Error is not retryable")
+	return false
+}
+
+// createSingle performs a single create operation without retry
+func (o *StackOperations) createSingle(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse, data *haproxyStackResourceModel) error {
 	tflog.Info(ctx, "Creating HAProxy stack")
 
 	// Begin a single transaction for all resources
 	tflog.Info(ctx, "Beginning single transaction for all resources")
 	transactionID, err := o.client.BeginTransaction()
 	if err != nil {
-		resp.Diagnostics.AddError("Error beginning transaction", err.Error())
-		return err
+		return fmt.Errorf("error beginning transaction: %w", err)
 	}
 	tflog.Info(ctx, "Transaction created", map[string]interface{}{"transaction_id": transactionID})
 	defer func() {
@@ -363,8 +471,7 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	if data.Backend != nil {
 		tflog.Info(ctx, "Creating backend in transaction", map[string]interface{}{"transaction_id": transactionID})
 		if err := o.backendManager.CreateBackendInTransaction(ctx, transactionID, data.Backend); err != nil {
-			resp.Diagnostics.AddError("Error creating backend", err.Error())
-			return err
+			return fmt.Errorf("error creating backend: %w", err)
 		}
 		tflog.Info(ctx, "Backend created successfully in transaction", map[string]interface{}{"transaction_id": transactionID})
 	}
@@ -378,8 +485,7 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 				"backend_name": data.Backend.Name.ValueString(),
 			})
 			if err := o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
-				resp.Diagnostics.AddError("Error creating server", err.Error())
-				return err
+				return fmt.Errorf("error creating server %s: %w", serverName, err)
 			}
 		}
 	}
@@ -387,16 +493,14 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	// Create frontend if specified
 	if data.Frontend != nil {
 		if err := o.frontendManager.CreateFrontendInTransaction(ctx, transactionID, data.Frontend); err != nil {
-			resp.Diagnostics.AddError("Error creating frontend", err.Error())
-			return err
+			return fmt.Errorf("error creating frontend: %w", err)
 		}
 	}
 
 	// Create binds for frontend if specified
 	if data.Frontend != nil && data.Frontend.Binds != nil && len(data.Frontend.Binds) > 0 {
 		if err := o.bindManager.CreateBindsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Binds); err != nil {
-			resp.Diagnostics.AddError("Error creating binds", err.Error())
-			return err
+			return fmt.Errorf("error creating binds: %w", err)
 		}
 	}
 
@@ -404,40 +508,35 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	if data.Frontend != nil && data.Frontend.Acls != nil && len(data.Frontend.Acls) > 0 {
 		tflog.Info(ctx, "Creating frontend ACLs in transaction", map[string]interface{}{"transaction_id": transactionID})
 		if err := o.aclManager.CreateACLsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Acls); err != nil {
-			resp.Diagnostics.AddError("Error creating frontend ACLs", err.Error())
-			return err
+			return fmt.Errorf("error creating frontend ACLs: %w", err)
 		}
 	}
 
 	if data.Backend != nil && data.Backend.Acls != nil && len(data.Backend.Acls) > 0 {
 		tflog.Info(ctx, "Creating backend ACLs in transaction", map[string]interface{}{"transaction_id": transactionID})
 		if err := o.aclManager.CreateACLsInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.Acls); err != nil {
-			resp.Diagnostics.AddError("Error creating backend ACLs", err.Error())
-			return err
+			return fmt.Errorf("error creating backend ACLs: %w", err)
 		}
 	}
 
 	// Create HTTP Request Rules AFTER ACLs (so they can reference existing ACLs)
 	if data.Frontend != nil && data.Frontend.HttpRequestRules != nil && len(data.Frontend.HttpRequestRules) > 0 {
 		if err := o.httpRequestRuleManager.CreateHttpRequestRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpRequestRules); err != nil {
-			resp.Diagnostics.AddError("Error creating HTTP request rules", err.Error())
-			return err
+			return fmt.Errorf("error creating HTTP request rules: %w", err)
 		}
 	}
 
 	// Create Backend HTTP Request Rules AFTER ACLs (so they can reference existing ACLs)
 	if data.Backend != nil && data.Backend.HttpRequestRules != nil && len(data.Backend.HttpRequestRules) > 0 {
 		if err := o.httpRequestRuleManager.CreateHttpRequestRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpRequestRules); err != nil {
-			resp.Diagnostics.AddError("Error creating backend HTTP request rules", err.Error())
-			return err
+			return fmt.Errorf("error creating backend HTTP request rules: %w", err)
 		}
 	}
 
 	// Create Frontend HTTP Response Rules AFTER HTTP Request Rules
 	if data.Frontend != nil && data.Frontend.HttpResponseRules != nil && len(data.Frontend.HttpResponseRules) > 0 {
 		if err := o.httpResponseRuleManager.CreateHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpResponseRules); err != nil {
-			resp.Diagnostics.AddError("Error creating frontend HTTP response rules", err.Error())
-			return err
+			return fmt.Errorf("error creating frontend HTTP response rules: %w", err)
 		}
 	}
 
@@ -445,16 +544,14 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	if data.Frontend != nil && data.Frontend.TcpRequestRules != nil && len(data.Frontend.TcpRequestRules) > 0 {
 		tcpRequestRules := o.convertTcpRequestRulesToResourceModels(data.Frontend.TcpRequestRules, "frontend", data.Frontend.Name.ValueString())
 		if err := o.tcpRequestRuleManager.Create(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), tcpRequestRules); err != nil {
-			resp.Diagnostics.AddError("Error creating frontend TCP request rules", err.Error())
-			return err
+			return fmt.Errorf("error creating frontend TCP request rules: %w", err)
 		}
 	}
 
 	// Create Backend HTTP Response Rules AFTER HTTP Request Rules
 	if data.Backend != nil && data.Backend.HttpResponseRules != nil && len(data.Backend.HttpResponseRules) > 0 {
 		if err := o.httpResponseRuleManager.CreateHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpResponseRules); err != nil {
-			resp.Diagnostics.AddError("Error creating backend HTTP response rules", err.Error())
-			return err
+			return fmt.Errorf("error creating backend HTTP response rules: %w", err)
 		}
 	}
 
@@ -462,8 +559,7 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	if data.Backend != nil && data.Backend.TcpRequestRules != nil && len(data.Backend.TcpRequestRules) > 0 {
 		tcpRequestRules := o.convertTcpRequestRulesToResourceModels(data.Backend.TcpRequestRules, "backend", data.Backend.Name.ValueString())
 		if err := o.tcpRequestRuleManager.Create(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpRequestRules); err != nil {
-			resp.Diagnostics.AddError("Error creating backend TCP request rules", err.Error())
-			return err
+			return fmt.Errorf("error creating backend TCP request rules: %w", err)
 		}
 	}
 
@@ -471,8 +567,7 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	if data.Backend != nil && data.Backend.TcpResponseRules != nil && len(data.Backend.TcpResponseRules) > 0 {
 		tcpResponseRules := o.convertTcpResponseRulesToResourceModels(data.Backend.TcpResponseRules, "backend", data.Backend.Name.ValueString())
 		if err := o.tcpResponseRuleManager.Create(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpResponseRules); err != nil {
-			resp.Diagnostics.AddError("Error creating backend TCP response rules", err.Error())
-			return err
+			return fmt.Errorf("error creating backend TCP response rules: %w", err)
 		}
 	}
 
@@ -480,8 +575,7 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	if data.Backend != nil && data.Backend.Httpchecks != nil && len(data.Backend.Httpchecks) > 0 {
 		httpChecks := o.convertHttpchecksToResourceModels(data.Backend.Httpchecks, "backend", data.Backend.Name.ValueString())
 		if err := o.httpcheckManager.Create(ctx, transactionID, "backend", data.Backend.Name.ValueString(), httpChecks); err != nil {
-			resp.Diagnostics.AddError("Error creating backend HTTP checks", err.Error())
-			return err
+			return fmt.Errorf("error creating backend HTTP checks: %w", err)
 		}
 	}
 
@@ -489,8 +583,7 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	if data.Backend != nil && data.Backend.TcpChecks != nil && len(data.Backend.TcpChecks) > 0 {
 		tcpChecks := o.convertTcpChecksToResourceModels(data.Backend.TcpChecks, "backend", data.Backend.Name.ValueString())
 		if err := o.tcpCheckManager.Create(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpChecks); err != nil {
-			resp.Diagnostics.AddError("Error creating backend TCP checks", err.Error())
-			return err
+			return fmt.Errorf("error creating backend TCP checks: %w", err)
 		}
 	}
 
@@ -498,8 +591,7 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	tflog.Info(ctx, "Committing transaction", map[string]interface{}{"transaction_id": transactionID})
 	if err := o.client.CommitTransaction(transactionID); err != nil {
 		tflog.Error(ctx, "Failed to commit transaction", map[string]interface{}{"transaction_id": transactionID, "error": err.Error()})
-		resp.Diagnostics.AddError("Error committing transaction", err.Error())
-		return err
+		return fmt.Errorf("error committing transaction: %w", err)
 	}
 	tflog.Info(ctx, "Transaction committed successfully", map[string]interface{}{"transaction_id": transactionID})
 
@@ -515,8 +607,7 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 	if data.Backend != nil {
 		_, err := o.backendManager.ReadBackend(ctx, data.Backend.Name.ValueString(), data.Backend)
 		if err != nil {
-			resp.Diagnostics.AddError("Error reading backend", err.Error())
-			return err
+			return fmt.Errorf("error reading backend: %w", err)
 		}
 	}
 
@@ -872,6 +963,53 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 
 // Update performs the update operation for the haproxy_stack resource
 func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse, data *haproxyStackResourceModel) error {
+	return o.updateWithRetry(ctx, req, resp, data)
+}
+
+// updateWithRetry wraps the update operation with retry logic for transaction conflicts
+func (o *StackOperations) updateWithRetry(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse, data *haproxyStackResourceModel) error {
+	maxRetries := 3
+	retryDelay := 2 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Clear diagnostics before each retry attempt
+		if attempt > 0 {
+			resp.Diagnostics = diag.Diagnostics{}
+		}
+
+		tflog.Info(ctx, "Updating HAProxy stack", map[string]interface{}{"attempt": attempt + 1, "max_retries": maxRetries})
+
+		err := o.updateSingle(ctx, req, resp, data)
+		if err == nil {
+			tflog.Info(ctx, "Stack updated successfully", map[string]interface{}{"attempt": attempt + 1})
+			return nil
+		}
+
+		// Check if this is a retryable error
+		if !o.isTransactionRetryableError(err) {
+			tflog.Error(ctx, "Non-retryable error occurred", map[string]interface{}{"error": err.Error()})
+			resp.Diagnostics.AddError("Error updating stack", err.Error())
+			return err
+		}
+
+		tflog.Info(ctx, "Retryable error occurred, will retry", map[string]interface{}{
+			"attempt": attempt + 1,
+			"error":   err.Error(),
+		})
+
+		if attempt < maxRetries-1 {
+			tflog.Info(ctx, "Sleeping before retry", map[string]interface{}{"delay_seconds": retryDelay.Seconds()})
+			time.Sleep(retryDelay)
+		}
+	}
+
+	// If we get here, all retries failed
+	resp.Diagnostics.AddError("Error updating stack", fmt.Sprintf("failed to update stack after %d attempts", maxRetries))
+	return fmt.Errorf("failed to update stack after %d attempts", maxRetries)
+}
+
+// updateSingle performs a single update operation without retry
+func (o *StackOperations) updateSingle(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse, data *haproxyStackResourceModel) error {
 	// Get the previous state to compare with the plan
 	var state haproxyStackResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -883,8 +1021,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 	// Begin transaction for all updates
 	transactionID, err := o.client.BeginTransaction()
 	if err != nil {
-		resp.Diagnostics.AddError("Error beginning transaction", err.Error())
-		return err
+		return fmt.Errorf("error beginning transaction: %w", err)
 	}
 
 	// Use defer to ensure rollback on error
@@ -904,8 +1041,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		if backendChanged {
 			tflog.Info(ctx, "Backend changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 			if err = o.backendManager.UpdateBackendInTransaction(ctx, transactionID, data.Backend); err != nil {
-				resp.Diagnostics.AddError("Error updating backend", err.Error())
-				return err
+				return fmt.Errorf("error updating backend: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Backend unchanged, skipping update")
@@ -947,8 +1083,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 				if _, exists := desiredServerMap[serverName]; !exists {
 					tflog.Info(ctx, "Deleting server", map[string]interface{}{"server_name": serverName})
 					if err = o.client.DeleteServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverName); err != nil {
-						resp.Diagnostics.AddError("Error deleting server", err.Error())
-						return err
+						return fmt.Errorf("error deleting server %s: %w", serverName, err)
 					}
 				}
 			}
@@ -976,8 +1111,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 					if o.serverNeedsUpdate(existingServer, *serverPayload) {
 						tflog.Info(ctx, "Updating server", map[string]interface{}{"server_name": serverName})
 						if err = o.client.UpdateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
-							resp.Diagnostics.AddError("Error updating server", err.Error())
-							return err
+							return fmt.Errorf("error updating server %s: %w", serverName, err)
 						}
 					} else {
 						tflog.Info(ctx, "Server unchanged", map[string]interface{}{"server_name": serverName})
@@ -986,8 +1120,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 					// Server doesn't exist, create it
 					tflog.Info(ctx, "Creating new server", map[string]interface{}{"server_name": serverName})
 					if err = o.client.CreateServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), serverPayload); err != nil {
-						resp.Diagnostics.AddError("Error creating server", err.Error())
-						return err
+						return fmt.Errorf("error creating server %s: %w", serverName, err)
 					}
 				}
 			}
@@ -1003,8 +1136,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		if frontendChanged {
 			tflog.Info(ctx, "Frontend changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 			if err = o.frontendManager.UpdateFrontendInTransaction(ctx, transactionID, data.Frontend); err != nil {
-				resp.Diagnostics.AddError("Error updating frontend", err.Error())
-				return err
+				return fmt.Errorf("error updating frontend: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Frontend unchanged, skipping update")
@@ -1018,8 +1150,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		if bindsChanged {
 			tflog.Info(ctx, "Binds changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 			if err = o.bindManager.UpdateBindsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Binds); err != nil {
-				resp.Diagnostics.AddError("Error updating binds", err.Error())
-				return err
+				return fmt.Errorf("error updating binds: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Binds unchanged, skipping update")
@@ -1033,8 +1164,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		if frontendACLsChanged {
 			tflog.Info(ctx, "Frontend ACLs changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 			if err = o.aclManager.UpdateACLsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.Acls); err != nil {
-				resp.Diagnostics.AddError("Error updating frontend ACLs", err.Error())
-				return err
+				return fmt.Errorf("error updating frontend ACLs: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Frontend ACLs unchanged, skipping update")
@@ -1043,8 +1173,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		// Handle frontend ACLs deletion - plan has no ACLs but state does
 		tflog.Info(ctx, "Frontend ACLs removed, deleting", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.aclManager.DeleteACLsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting frontend ACLs", err.Error())
-			return err
+			return fmt.Errorf("error deleting frontend ACLs: %w", err)
 		}
 	}
 
@@ -1055,8 +1184,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		if backendACLsChanged {
 			tflog.Info(ctx, "Backend ACLs changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 			if err = o.aclManager.UpdateACLsInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.Acls); err != nil {
-				resp.Diagnostics.AddError("Error updating backend ACLs", err.Error())
-				return err
+				return fmt.Errorf("error updating backend ACLs: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Backend ACLs unchanged, skipping update")
@@ -1065,8 +1193,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		// Handle backend ACLs deletion - plan has no ACLs but state does
 		tflog.Info(ctx, "Backend ACLs removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.aclManager.DeleteACLsInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend ACLs", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend ACLs: %w", err)
 		}
 	}
 
@@ -1077,8 +1204,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		if httpRequestRulesChanged {
 			tflog.Info(ctx, "HTTP request rules changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 			if err = o.httpRequestRuleManager.UpdateHttpRequestRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpRequestRules); err != nil {
-				resp.Diagnostics.AddError("Error updating HTTP request rules", err.Error())
-				return err
+				return fmt.Errorf("error updating HTTP request rules: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "HTTP request rules unchanged, skipping update")
@@ -1087,8 +1213,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		// Handle HTTP request rules deletion - plan has no rules but state does
 		tflog.Info(ctx, "HTTP request rules removed, deleting", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.httpRequestRuleManager.DeleteHttpRequestRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting HTTP request rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting HTTP request rules: %w", err)
 		}
 	}
 
@@ -1099,8 +1224,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		if httpRequestRulesChanged {
 			tflog.Info(ctx, "Backend HTTP request rules changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 			if err = o.httpRequestRuleManager.UpdateHttpRequestRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpRequestRules); err != nil {
-				resp.Diagnostics.AddError("Error updating backend HTTP request rules", err.Error())
-				return err
+				return fmt.Errorf("error updating backend HTTP request rules: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Backend HTTP request rules unchanged, skipping update")
@@ -1109,8 +1233,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		// Handle backend HTTP request rules deletion - plan has no rules but state does
 		tflog.Info(ctx, "Backend HTTP request rules removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.httpRequestRuleManager.DeleteHttpRequestRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend HTTP request rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend HTTP request rules: %w", err)
 		}
 	}
 
@@ -1121,8 +1244,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		if httpResponseRulesChanged {
 			tflog.Info(ctx, "Frontend HTTP response rules changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 			if err = o.httpResponseRuleManager.UpdateHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), data.Frontend.HttpResponseRules); err != nil {
-				resp.Diagnostics.AddError("Error updating frontend HTTP response rules", err.Error())
-				return err
+				return fmt.Errorf("error updating frontend HTTP response rules: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Frontend HTTP response rules unchanged, skipping update")
@@ -1131,8 +1253,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		// Handle frontend HTTP response rules deletion - plan has no rules but state does
 		tflog.Info(ctx, "Frontend HTTP response rules removed, deleting", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.httpResponseRuleManager.DeleteHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting frontend HTTP response rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting frontend HTTP response rules: %w", err)
 		}
 	}
 
@@ -1143,8 +1264,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		if httpResponseRulesChanged {
 			tflog.Info(ctx, "Backend HTTP response rules changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 			if err = o.httpResponseRuleManager.UpdateHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), data.Backend.HttpResponseRules); err != nil {
-				resp.Diagnostics.AddError("Error updating backend HTTP response rules", err.Error())
-				return err
+				return fmt.Errorf("error updating backend HTTP response rules: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Backend HTTP response rules unchanged, skipping update")
@@ -1153,8 +1273,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		// Handle backend HTTP response rules deletion - plan has no rules but state does
 		tflog.Info(ctx, "Backend HTTP response rules removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.httpResponseRuleManager.DeleteHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend HTTP response rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend HTTP response rules: %w", err)
 		}
 	}
 
@@ -1166,8 +1285,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 			tflog.Info(ctx, "Frontend TCP request rules changed, updating", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 			tcpRequestRules := o.convertTcpRequestRulesToResourceModels(data.Frontend.TcpRequestRules, "frontend", data.Frontend.Name.ValueString())
 			if err = o.tcpRequestRuleManager.Update(ctx, transactionID, "frontend", data.Frontend.Name.ValueString(), tcpRequestRules); err != nil {
-				resp.Diagnostics.AddError("Error updating frontend TCP request rules", err.Error())
-				return err
+				return fmt.Errorf("error updating frontend TCP request rules: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Frontend TCP request rules unchanged, skipping update")
@@ -1176,8 +1294,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		// Handle frontend TCP request rules deletion - plan has no rules but state does
 		tflog.Info(ctx, "Frontend TCP request rules removed, deleting", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.tcpRequestRuleManager.Delete(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting frontend TCP request rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting frontend TCP request rules: %w", err)
 		}
 	}
 
@@ -1189,8 +1306,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 			tflog.Info(ctx, "Backend TCP request rules changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 			tcpRequestRules := o.convertTcpRequestRulesToResourceModels(data.Backend.TcpRequestRules, "backend", data.Backend.Name.ValueString())
 			if err = o.tcpRequestRuleManager.Update(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpRequestRules); err != nil {
-				resp.Diagnostics.AddError("Error updating backend TCP request rules", err.Error())
-				return err
+				return fmt.Errorf("error updating backend TCP request rules: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Backend TCP request rules unchanged, skipping update")
@@ -1199,8 +1315,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		// Handle backend TCP request rules deletion - plan has no rules but state does
 		tflog.Info(ctx, "Backend TCP request rules removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.tcpRequestRuleManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend TCP request rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend TCP request rules: %w", err)
 		}
 	}
 
@@ -1212,8 +1327,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 			tflog.Info(ctx, "Backend TCP response rules changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 			tcpResponseRules := o.convertTcpResponseRulesToResourceModels(data.Backend.TcpResponseRules, "backend", data.Backend.Name.ValueString())
 			if err = o.tcpResponseRuleManager.Update(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpResponseRules); err != nil {
-				resp.Diagnostics.AddError("Error updating backend TCP response rules", err.Error())
-				return err
+				return fmt.Errorf("error updating backend TCP response rules: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Backend TCP response rules unchanged, skipping update")
@@ -1222,8 +1336,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		// Handle backend TCP response rules deletion - plan has no rules but state does
 		tflog.Info(ctx, "Backend TCP response rules removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.tcpResponseRuleManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend TCP response rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend TCP response rules: %w", err)
 		}
 	}
 
@@ -1235,8 +1348,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 			tflog.Info(ctx, "Backend HTTP checks changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 			httpChecks := o.convertHttpchecksToResourceModels(data.Backend.Httpchecks, "backend", data.Backend.Name.ValueString())
 			if err = o.httpcheckManager.Update(ctx, transactionID, "backend", data.Backend.Name.ValueString(), httpChecks); err != nil {
-				resp.Diagnostics.AddError("Error updating backend HTTP checks", err.Error())
-				return err
+				return fmt.Errorf("error updating backend HTTP checks: %w", err)
 			}
 		} else {
 			tflog.Info(ctx, "Backend HTTP checks unchanged, skipping update")
@@ -1245,8 +1357,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 		// Handle HTTP checks deletion - plan has no HTTP checks but state does
 		tflog.Info(ctx, "Backend HTTP checks removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.httpcheckManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend HTTP checks", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend HTTP checks: %w", err)
 		}
 	}
 
@@ -1264,8 +1375,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 			// Handle TCP checks deletion
 			tflog.Info(ctx, "Backend TCP checks removed, deleting", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 			if err = o.tcpCheckManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-				resp.Diagnostics.AddError("Error deleting backend TCP checks", err.Error())
-				return err
+				return fmt.Errorf("error deleting backend TCP checks: %w", err)
 			}
 		} else if data.Backend.TcpChecks != nil && len(data.Backend.TcpChecks) > 0 {
 			// Check if TCP Checks changed by comparing plan vs state
@@ -1274,8 +1384,7 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 				tflog.Info(ctx, "Backend TCP checks changed, updating", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 				tcpChecks := o.convertTcpChecksToResourceModels(data.Backend.TcpChecks, "backend", data.Backend.Name.ValueString())
 				if err = o.tcpCheckManager.Update(ctx, transactionID, "backend", data.Backend.Name.ValueString(), tcpChecks); err != nil {
-					resp.Diagnostics.AddError("Error updating backend TCP checks", err.Error())
-					return err
+					return fmt.Errorf("error updating backend TCP checks: %w", err)
 				}
 
 				// Debug: Read back the TCP checks to see what HAProxy actually stored
@@ -2340,13 +2449,59 @@ func (o *StackOperations) serversChanged(ctx context.Context, planServers map[st
 
 // Delete performs the delete operation for the haproxy_stack resource
 func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse, data *haproxyStackResourceModel) error {
+	return o.deleteWithRetry(ctx, req, resp, data)
+}
+
+// deleteWithRetry wraps the delete operation with retry logic for transaction conflicts
+func (o *StackOperations) deleteWithRetry(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse, data *haproxyStackResourceModel) error {
+	maxRetries := 3
+	retryDelay := 2 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Clear diagnostics before each retry attempt
+		if attempt > 0 {
+			resp.Diagnostics = diag.Diagnostics{}
+		}
+
+		tflog.Info(ctx, "Deleting HAProxy stack", map[string]interface{}{"attempt": attempt + 1, "max_retries": maxRetries})
+
+		err := o.deleteSingle(ctx, req, resp, data)
+		if err == nil {
+			tflog.Info(ctx, "Stack deleted successfully", map[string]interface{}{"attempt": attempt + 1})
+			return nil
+		}
+
+		// Check if this is a retryable error
+		if !o.isTransactionRetryableError(err) {
+			tflog.Error(ctx, "Non-retryable error occurred", map[string]interface{}{"error": err.Error()})
+			resp.Diagnostics.AddError("Error deleting stack", err.Error())
+			return err
+		}
+
+		tflog.Info(ctx, "Retryable error occurred, will retry", map[string]interface{}{
+			"attempt": attempt + 1,
+			"error":   err.Error(),
+		})
+
+		if attempt < maxRetries-1 {
+			tflog.Info(ctx, "Sleeping before retry", map[string]interface{}{"delay_seconds": retryDelay.Seconds()})
+			time.Sleep(retryDelay)
+		}
+	}
+
+	// If we get here, all retries failed
+	resp.Diagnostics.AddError("Error deleting stack", fmt.Sprintf("failed to delete stack after %d attempts", maxRetries))
+	return fmt.Errorf("failed to delete stack after %d attempts", maxRetries)
+}
+
+// deleteSingle performs a single delete operation without retry
+func (o *StackOperations) deleteSingle(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse, data *haproxyStackResourceModel) error {
 	tflog.Info(ctx, "Deleting HAProxy stack")
 
 	// Begin transaction for all deletes
 	transactionID, err := o.client.BeginTransaction()
 	if err != nil {
-		resp.Diagnostics.AddError("Error beginning transaction", err.Error())
-		return err
+		return fmt.Errorf("error beginning transaction: %w", err)
 	}
 
 	// Use defer to ensure rollback on error
@@ -2363,16 +2518,14 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Frontend != nil && data.Frontend.Acls != nil && len(data.Frontend.Acls) > 0 {
 		tflog.Info(ctx, "Deleting frontend ACLs", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.aclManager.DeleteACLsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting frontend ACLs", err.Error())
-			return err
+			return fmt.Errorf("error deleting frontend ACLs: %w", err)
 		}
 	}
 
 	if data.Backend != nil && data.Backend.Acls != nil && len(data.Backend.Acls) > 0 {
 		tflog.Info(ctx, "Deleting backend ACLs", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.aclManager.DeleteACLsInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend ACLs", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend ACLs: %w", err)
 		}
 	}
 
@@ -2380,8 +2533,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Frontend != nil && data.Frontend.HttpRequestRules != nil && len(data.Frontend.HttpRequestRules) > 0 {
 		tflog.Info(ctx, "Deleting HTTP request rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.httpRequestRuleManager.DeleteHttpRequestRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting HTTP request rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting HTTP request rules: %w", err)
 		}
 	}
 
@@ -2389,8 +2541,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Frontend != nil && data.Frontend.HttpResponseRules != nil && len(data.Frontend.HttpResponseRules) > 0 {
 		tflog.Info(ctx, "Deleting frontend HTTP response rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.httpResponseRuleManager.DeleteHttpResponseRulesInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting frontend HTTP response rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting frontend HTTP response rules: %w", err)
 		}
 	}
 
@@ -2398,8 +2549,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Backend != nil && data.Backend.HttpResponseRules != nil && len(data.Backend.HttpResponseRules) > 0 {
 		tflog.Info(ctx, "Deleting backend HTTP response rules", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.httpResponseRuleManager.DeleteHttpResponseRulesInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend HTTP response rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend HTTP response rules: %w", err)
 		}
 	}
 
@@ -2407,8 +2557,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Frontend != nil && data.Frontend.TcpRequestRules != nil && len(data.Frontend.TcpRequestRules) > 0 {
 		tflog.Info(ctx, "Deleting frontend TCP request rules", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.tcpRequestRuleManager.Delete(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting frontend TCP request rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting frontend TCP request rules: %w", err)
 		}
 	}
 
@@ -2416,8 +2565,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Backend != nil && data.Backend.TcpRequestRules != nil && len(data.Backend.TcpRequestRules) > 0 {
 		tflog.Info(ctx, "Deleting backend TCP request rules", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.tcpRequestRuleManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend TCP request rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend TCP request rules: %w", err)
 		}
 	}
 
@@ -2425,8 +2573,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Backend != nil && data.Backend.TcpResponseRules != nil && len(data.Backend.TcpResponseRules) > 0 {
 		tflog.Info(ctx, "Deleting backend TCP response rules", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.tcpResponseRuleManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend TCP response rules", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend TCP response rules: %w", err)
 		}
 	}
 
@@ -2434,8 +2581,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Backend != nil && data.Backend.Httpchecks != nil && len(data.Backend.Httpchecks) > 0 {
 		tflog.Info(ctx, "Deleting backend HTTP checks", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.httpcheckManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend HTTP checks", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend HTTP checks: %w", err)
 		}
 	}
 
@@ -2443,8 +2589,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Backend != nil && data.Backend.TcpChecks != nil && len(data.Backend.TcpChecks) > 0 {
 		tflog.Info(ctx, "Deleting backend TCP checks", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.tcpCheckManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend TCP checks", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend TCP checks: %w", err)
 		}
 	}
 
@@ -2452,8 +2597,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Frontend != nil && data.Frontend.Binds != nil && len(data.Frontend.Binds) > 0 {
 		tflog.Info(ctx, "Deleting binds", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.bindManager.DeleteBindsInTransaction(ctx, transactionID, "frontend", data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting binds", err.Error())
-			return err
+			return fmt.Errorf("error deleting binds: %w", err)
 		}
 	}
 
@@ -2461,8 +2605,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Frontend != nil {
 		tflog.Info(ctx, "Deleting frontend", map[string]interface{}{"frontend_name": data.Frontend.Name.ValueString()})
 		if err = o.frontendManager.DeleteFrontendInTransaction(ctx, transactionID, data.Frontend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting frontend", err.Error())
-			return err
+			return fmt.Errorf("error deleting frontend: %w", err)
 		}
 	}
 
@@ -2486,8 +2629,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 			if !desiredServerMap[existingServer.Name] {
 				tflog.Info(ctx, "Deleting server", map[string]interface{}{"server_name": existingServer.Name})
 				if err = o.client.DeleteServerInTransaction(ctx, transactionID, "backend", data.Backend.Name.ValueString(), existingServer.Name); err != nil {
-					resp.Diagnostics.AddError("Error deleting server", err.Error())
-					return err
+					return fmt.Errorf("error deleting server %s: %w", existingServer.Name, err)
 				}
 			}
 		}
@@ -2497,8 +2639,7 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	if data.Backend != nil {
 		tflog.Info(ctx, "Deleting backend", map[string]interface{}{"backend_name": data.Backend.Name.ValueString()})
 		if err = o.backendManager.DeleteBackendInTransaction(ctx, transactionID, data.Backend.Name.ValueString()); err != nil {
-			resp.Diagnostics.AddError("Error deleting backend", err.Error())
-			return err
+			return fmt.Errorf("error deleting backend: %w", err)
 		}
 	}
 

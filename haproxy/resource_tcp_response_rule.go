@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -12,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // TcpResponseRuleResource defines the resource implementation.
@@ -650,27 +648,10 @@ func (r *TcpResponseRuleResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	// Create the rule using transaction
-	manager := NewTcpResponseRuleManager(r.client)
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := manager.Create(ctx, transactionID, data.ParentType.ValueString(), data.ParentName.ValueString(), []TcpResponseRuleResourceModel{data}); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create TCP response rule, got error: %s", err))
-		return
-	}
-
-	// Set ID
-	data.ID = types.StringValue(fmt.Sprintf("%s/%s/tcp_response_rule/%d", data.ParentType.ValueString(), data.ParentName.ValueString(), data.Index.ValueInt64()))
-
-	// Write logs using the tflog package
-	tflog.Trace(ctx, "created a TCP response rule resource")
-
-	// Save data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	// Individual TCP response rule resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "TCP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -724,21 +705,10 @@ func (r *TcpResponseRuleResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	// Update the rule using transaction
-	manager := NewTcpResponseRuleManager(r.client)
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := manager.Update(ctx, transactionID, data.ParentType.ValueString(), data.ParentName.ValueString(), []TcpResponseRuleResourceModel{data}); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update TCP response rule, got error: %s", err))
-		return
-	}
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	// Individual TCP response rule resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "TCP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -752,15 +722,8 @@ func (r *TcpResponseRuleResource) Delete(ctx context.Context, req resource.Delet
 		return
 	}
 
-	// Delete the rule using transaction
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := r.client.DeleteTcpResponseRuleInTransaction(ctx, transactionID, data.Index.ValueInt64(), data.ParentType.ValueString(), data.ParentName.ValueString()); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete TCP response rule, got error: %s", err))
-		return
-	}
+	// Individual TCP response rule resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "TCP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }
