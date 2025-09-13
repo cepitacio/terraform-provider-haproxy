@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -727,17 +726,8 @@ func (r *HttpRequestRuleManager) updateHttpRequestRulesWithIndexing(ctx context.
 			allPayloads = append(allPayloads, *rulePayload)
 		}
 
-		// Use transaction to get consistent formatting
-		_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-			// Send all rules in one request (same as create)
-			if err := r.client.CreateAllHttpRequestRulesInTransaction(ctx, transactionID, parentType, parentName, allPayloads); err != nil {
-				return nil, fmt.Errorf("failed to update all HTTP request rules for %s %s: %w", parentType, parentName, err)
-			}
-			return nil, nil
-		})
-		if err != nil {
-			return err
-		}
+		// Individual HTTP request rule resources should not be used - use haproxy_stack instead
+		return fmt.Errorf("HTTP request rule resources should not be used directly. Use haproxy_stack resource instead.")
 
 		log.Printf("Updated all %d HTTP request rules for %s %s", len(allPayloads), parentType, parentName)
 		return nil

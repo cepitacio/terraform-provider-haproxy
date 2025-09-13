@@ -6,6 +6,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"terraform-provider-haproxy/haproxy/utils"
@@ -15,6 +16,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
+
+// Global mutex for all HAProxy transactions
+var globalTransactionMutex sync.Mutex
 
 // StackOperations handles all CRUD operations for the haproxy_stack resource
 type StackOperations struct {
@@ -33,7 +37,7 @@ type StackOperations struct {
 
 // CreateStackOperations creates a new StackOperations instance
 func CreateStackOperations(client *HAProxyClient, aclManager *ACLManager, frontendManager *FrontendManager, backendManager *BackendManager, httpRequestRuleManager *HttpRequestRuleManager, httpResponseRuleManager *HttpResponseRuleManager, tcpRequestRuleManager *TcpRequestRuleManager, tcpResponseRuleManager *TcpResponseRuleManager, httpcheckManager *HttpcheckManager, tcpCheckManager *TcpCheckManager, bindManager *BindManager) *StackOperations {
-	return &StackOperations{
+	stackOps := &StackOperations{
 		client:                  client,
 		aclManager:              aclManager,
 		backendManager:          backendManager,
@@ -46,6 +50,8 @@ func CreateStackOperations(client *HAProxyClient, aclManager *ACLManager, fronte
 		tcpCheckManager:         tcpCheckManager,
 		bindManager:             bindManager,
 	}
+
+	return stackOps
 }
 
 // equalBoolPtr compares two bool pointers for equality
@@ -343,7 +349,11 @@ func (o *StackOperations) convertServerModelToPayload(serverName string, server 
 
 // Create performs the create operation for the haproxy_stack resource
 func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse, data *haproxyStackResourceModel) error {
-	return o.createWithRetry(ctx, req, resp, data)
+	// Serialize all HAProxy operations to prevent transaction conflicts
+	globalTransactionMutex.Lock()
+	defer globalTransactionMutex.Unlock()
+
+	return o.createSingle(ctx, req, resp, data)
 }
 
 // createWithRetry wraps the create operation with retry logic for transaction conflicts
@@ -959,7 +969,11 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 
 // Update performs the update operation for the haproxy_stack resource
 func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse, data *haproxyStackResourceModel) error {
-	return o.updateWithRetry(ctx, req, resp, data)
+	// Serialize all HAProxy operations to prevent transaction conflicts
+	globalTransactionMutex.Lock()
+	defer globalTransactionMutex.Unlock()
+
+	return o.updateSingle(ctx, req, resp, data)
 }
 
 // updateWithRetry wraps the update operation with retry logic for transaction conflicts
@@ -2445,7 +2459,11 @@ func (o *StackOperations) serversChanged(ctx context.Context, planServers map[st
 
 // Delete performs the delete operation for the haproxy_stack resource
 func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse, data *haproxyStackResourceModel) error {
-	return o.deleteWithRetry(ctx, req, resp, data)
+	// Serialize all HAProxy operations to prevent transaction conflicts
+	globalTransactionMutex.Lock()
+	defer globalTransactionMutex.Unlock()
+
+	return o.deleteSingle(ctx, req, resp, data)
 }
 
 // deleteWithRetry wraps the delete operation with retry logic for transaction conflicts
