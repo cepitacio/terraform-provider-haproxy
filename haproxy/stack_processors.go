@@ -11,7 +11,7 @@ import (
 type StackProcessors struct{}
 
 // NewStackProcessors creates a new StackProcessors instance
-func NewStackProcessors() *StackProcessors {
+func CreateStackProcessors() *StackProcessors {
 	return &StackProcessors{}
 }
 
@@ -116,12 +116,7 @@ func (p *StackProcessors) processStackData(ctx context.Context, data *haproxySta
 		}
 	}
 
-	// Process ACLs data if present
-	if len(data.Acls) > 0 {
-		if err := p.processACLsData(ctx, data.Acls); err != nil {
-			return fmt.Errorf("failed to process ACLs data: %w", err)
-		}
-	}
+	// ACLs are now processed within frontend/backend blocks
 
 	return nil
 }

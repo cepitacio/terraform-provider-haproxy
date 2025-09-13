@@ -359,7 +359,7 @@ type HttpResponseRuleManager struct {
 }
 
 // NewHttpResponseRuleManager creates a new HttpResponseRuleManager instance
-func NewHttpResponseRuleManager(client *HAProxyClient) *HttpResponseRuleManager {
+func CreateHttpResponseRuleManager(client *HAProxyClient) *HttpResponseRuleManager {
 	return &HttpResponseRuleManager{
 		client: client,
 	}

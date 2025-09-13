@@ -420,7 +420,7 @@ type HttpRequestRuleManager struct {
 }
 
 // NewHttpRequestRuleManager creates a new HttpRequestRuleManager instance
-func NewHttpRequestRuleManager(client *HAProxyClient) *HttpRequestRuleManager {
+func CreateHttpRequestRuleManager(client *HAProxyClient) *HttpRequestRuleManager {
 	return &HttpRequestRuleManager{
 		client: client,
 	}

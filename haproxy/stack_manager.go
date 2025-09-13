@@ -16,24 +16,24 @@ type StackManager struct {
 }
 
 // NewStackManager creates a new StackManager instance
-func NewStackManager(client *HAProxyClient, aclManager *ACLManager, frontendManager *FrontendManager, backendManager *BackendManager) *StackManager {
-	httpRequestRuleManager := NewHttpRequestRuleManager(client)
-	httpResponseRuleManager := NewHttpResponseRuleManager(client)
-	tcpRequestRuleManager := NewTcpRequestRuleManager(client)
-	tcpResponseRuleManager := NewTcpResponseRuleManager(client)
-	httpcheckManager := NewHttpcheckManager(client)
-	tcpCheckManager := NewTcpCheckManager(client)
-	bindManager := NewBindManager(client)
+func CreateStackManager(client *HAProxyClient, aclManager *ACLManager, frontendManager *FrontendManager, backendManager *BackendManager) *StackManager {
+	httpRequestRuleManager := CreateHttpRequestRuleManager(client)
+	httpResponseRuleManager := CreateHttpResponseRuleManager(client)
+	tcpRequestRuleManager := CreateTcpRequestRuleManager(client)
+	tcpResponseRuleManager := CreateTcpResponseRuleManager(client)
+	httpcheckManager := CreateHttpcheckManager(client)
+	tcpCheckManager := CreateTcpCheckManager(client)
+	bindManager := CreateBindManager(client)
 	return &StackManager{
-		operations: NewStackOperations(client, aclManager, frontendManager, backendManager, httpRequestRuleManager, httpResponseRuleManager, tcpRequestRuleManager, tcpResponseRuleManager, httpcheckManager, tcpCheckManager, bindManager),
-		validation: NewStackValidation(),
-		processors: NewStackProcessors(),
+		operations: CreateStackOperations(client, aclManager, frontendManager, backendManager, httpRequestRuleManager, httpResponseRuleManager, tcpRequestRuleManager, tcpResponseRuleManager, httpcheckManager, tcpCheckManager, bindManager),
+		validation: CreateStackValidation(),
+		processors: CreateStackProcessors(),
 	}
 }
 
 // GetSchema returns the complete schema for the haproxy_stack resource
 func (m *StackManager) GetSchema(apiVersion string) schema.Schema {
-	schemaBuilder := NewVersionAwareSchemaBuilder(apiVersion)
+	schemaBuilder := CreateVersionAwareSchemaBuilder(apiVersion)
 
 	return schema.Schema{
 		Description: "Manages a complete HAProxy stack including backend, server, frontend, and ACLs.",
@@ -47,7 +47,6 @@ func (m *StackManager) GetSchema(apiVersion string) schema.Schema {
 			"backend":  GetBackendSchema(schemaBuilder),
 			"server":   GetServerSchema(schemaBuilder),
 			"frontend": GetFrontendSchema(schemaBuilder),
-			"acls":     GetACLSchema(),
 		},
 	}
 }

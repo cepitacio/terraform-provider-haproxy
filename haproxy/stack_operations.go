@@ -31,8 +31,8 @@ type StackOperations struct {
 	bindManager             *BindManager
 }
 
-// NewStackOperations creates a new StackOperations instance
-func NewStackOperations(client *HAProxyClient, aclManager *ACLManager, frontendManager *FrontendManager, backendManager *BackendManager, httpRequestRuleManager *HttpRequestRuleManager, httpResponseRuleManager *HttpResponseRuleManager, tcpRequestRuleManager *TcpRequestRuleManager, tcpResponseRuleManager *TcpResponseRuleManager, httpcheckManager *HttpcheckManager, tcpCheckManager *TcpCheckManager, bindManager *BindManager) *StackOperations {
+// CreateStackOperations creates a new StackOperations instance
+func CreateStackOperations(client *HAProxyClient, aclManager *ACLManager, frontendManager *FrontendManager, backendManager *BackendManager, httpRequestRuleManager *HttpRequestRuleManager, httpResponseRuleManager *HttpResponseRuleManager, tcpRequestRuleManager *TcpRequestRuleManager, tcpResponseRuleManager *TcpResponseRuleManager, httpcheckManager *HttpcheckManager, tcpCheckManager *TcpCheckManager, bindManager *BindManager) *StackOperations {
 	return &StackOperations{
 		client:                  client,
 		aclManager:              aclManager,
@@ -947,11 +947,7 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 		}
 	}
 
-	// Read ACLs if specified
-	if len(data.Acls) > 0 {
-		// ACLs reading would need to be implemented
-		tflog.Info(ctx, "ACLs reading not yet implemented")
-	}
+	// ACLs are now handled within frontend/backend blocks
 
 	// HTTP Request and Response Rules are managed by Terraform state
 	// We don't read them from HAProxy to avoid state drift issues
