@@ -67,7 +67,7 @@ type TcpCheckManager struct {
 }
 
 // NewTcpCheckManager creates a new TCP check manager
-func NewTcpCheckManager(client *HAProxyClient) *TcpCheckManager {
+func CreateTcpCheckManager(client *HAProxyClient) *TcpCheckManager {
 	return &TcpCheckManager{
 		client: client,
 	}
@@ -742,7 +742,7 @@ func (r *TcpCheckResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	// Create the check using transaction
-	manager := NewTcpCheckManager(r.client)
+	manager := CreateTcpCheckManager(r.client)
 	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
 		if err := manager.Create(ctx, transactionID, data.ParentType.ValueString(), data.ParentName.ValueString(), []TcpCheckResourceModel{data}); err != nil {
 			return nil, err
@@ -776,7 +776,7 @@ func (r *TcpCheckResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	// Read the check
-	manager := NewTcpCheckManager(r.client)
+	manager := CreateTcpCheckManager(r.client)
 	checks, err := manager.Read(ctx, data.ParentType.ValueString(), data.ParentName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read TCP check, got error: %s", err))
@@ -816,7 +816,7 @@ func (r *TcpCheckResource) Update(ctx context.Context, req resource.UpdateReques
 	}
 
 	// Update the check using transaction
-	manager := NewTcpCheckManager(r.client)
+	manager := CreateTcpCheckManager(r.client)
 	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
 		if err := manager.Update(ctx, transactionID, data.ParentType.ValueString(), data.ParentName.ValueString(), []TcpCheckResourceModel{data}); err != nil {
 			return nil, err

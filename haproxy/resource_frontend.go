@@ -16,7 +16,7 @@ import (
 func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNestedBlock {
 	// If no schema builder is provided, include all fields for backward compatibility
 	if schemaBuilder == nil {
-		schemaBuilder = NewVersionAwareSchemaBuilder("v3") // Default to v3
+		schemaBuilder = CreateVersionAwareSchemaBuilder("v3") // Default to v3
 	}
 	return schema.SingleNestedBlock{
 		Description: "Frontend configuration.",
@@ -787,7 +787,7 @@ type FrontendManager struct {
 }
 
 // NewFrontendManager creates a new FrontendManager instance
-func NewFrontendManager(client *HAProxyClient) *FrontendManager {
+func CreateFrontendManager(client *HAProxyClient) *FrontendManager {
 	return &FrontendManager{
 		client: client,
 	}
@@ -843,7 +843,7 @@ func (r *FrontendManager) UpdateFrontendInTransaction(ctx context.Context, trans
 // DeleteFrontendInTransaction deletes a frontend using an existing transaction ID
 func (r *FrontendManager) DeleteFrontendInTransaction(ctx context.Context, transactionID string, frontendName string) error {
 	// Delete ACLs first (if any)
-	aclManager := NewACLManager(r.client)
+	aclManager := CreateACLManager(r.client)
 	if err := aclManager.DeleteACLsInTransaction(ctx, transactionID, "frontend", frontendName); err != nil {
 		log.Printf("Warning: Failed to delete frontend ACLs: %v", err)
 		// Continue with frontend deletion even if ACL deletion fails
@@ -869,7 +869,7 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 	// Read ACLs for the frontend
 	var frontendAcls []ACLPayload
 	if frontend != nil {
-		aclManager := NewACLManager(r.client)
+		aclManager := CreateACLManager(r.client)
 		frontendAcls, err = aclManager.ReadACLs(ctx, "frontend", frontendName)
 		if err != nil {
 			log.Printf("Warning: Failed to read ACLs for frontend %s: %v", frontendName, err)
@@ -918,7 +918,7 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 		frontendModel.HttpRequestRules = existingFrontend.HttpRequestRules
 	} else {
 		// Read HTTP request rules from HAProxy
-		httpRequestRuleManager := NewHttpRequestRuleManager(r.client)
+		httpRequestRuleManager := CreateHttpRequestRuleManager(r.client)
 		httpRequestRules, err := httpRequestRuleManager.ReadHttpRequestRules(ctx, "frontend", frontendName)
 		if err != nil {
 			log.Printf("Warning: Failed to read HTTP request rules for frontend %s: %v", frontendName, err)
@@ -950,7 +950,7 @@ func (r *FrontendManager) UpdateFrontend(ctx context.Context, plan *haproxyFront
 
 	// Update ACLs if specified
 	if plan.Acls != nil && len(plan.Acls) > 0 {
-		aclManager := NewACLManager(r.client)
+		aclManager := CreateACLManager(r.client)
 		if err := aclManager.UpdateACLs(ctx, "frontend", plan.Name.ValueString(), plan.Acls); err != nil {
 			return fmt.Errorf("failed to update frontend ACLs: %w", err)
 		}
@@ -958,7 +958,7 @@ func (r *FrontendManager) UpdateFrontend(ctx context.Context, plan *haproxyFront
 
 	// Update HTTP Request Rules if specified
 	if plan.HttpRequestRules != nil && len(plan.HttpRequestRules) > 0 {
-		httpRequestRuleManager := NewHttpRequestRuleManager(r.client)
+		httpRequestRuleManager := CreateHttpRequestRuleManager(r.client)
 		if err := httpRequestRuleManager.UpdateHttpRequestRules(ctx, "frontend", plan.Name.ValueString(), plan.HttpRequestRules); err != nil {
 			return fmt.Errorf("failed to update frontend HTTP request rules: %w", err)
 		}
@@ -970,14 +970,14 @@ func (r *FrontendManager) UpdateFrontend(ctx context.Context, plan *haproxyFront
 // DeleteFrontend deletes a frontend and its components
 func (r *FrontendManager) DeleteFrontend(ctx context.Context, frontendName string) error {
 	// Delete ACLs first
-	aclManager := NewACLManager(r.client)
+	aclManager := CreateACLManager(r.client)
 	if err := aclManager.DeleteACLs(ctx, "frontend", frontendName); err != nil {
 		log.Printf("Warning: Failed to delete frontend ACLs: %v", err)
 		// Continue with frontend deletion even if ACL deletion fails
 	}
 
 	// Delete HTTP Request Rules first
-	httpRequestRuleManager := NewHttpRequestRuleManager(r.client)
+	httpRequestRuleManager := CreateHttpRequestRuleManager(r.client)
 	if err := httpRequestRuleManager.DeleteHttpRequestRules(ctx, "frontend", frontendName); err != nil {
 		log.Printf("Warning: Failed to delete frontend HTTP request rules: %v", err)
 		// Continue with frontend deletion even if HTTP request rules deletion fails

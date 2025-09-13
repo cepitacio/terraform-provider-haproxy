@@ -14,7 +14,7 @@ import (
 func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNestedBlock {
 	// If no schema builder is provided, include all fields for backward compatibility
 	if schemaBuilder == nil {
-		schemaBuilder = NewVersionAwareSchemaBuilder("v3") // Default to v3
+		schemaBuilder = CreateVersionAwareSchemaBuilder("v3") // Default to v3
 	}
 	return schema.SingleNestedBlock{
 		Description: "Backend configuration.",
@@ -1332,7 +1332,7 @@ type BackendManager struct {
 }
 
 // NewBackendManager creates a new BackendManager instance
-func NewBackendManager(client *HAProxyClient) *BackendManager {
+func CreateBackendManager(client *HAProxyClient) *BackendManager {
 	return &BackendManager{
 		client: client,
 	}
@@ -1453,7 +1453,7 @@ func (r *BackendManager) ReadBackend(ctx context.Context, backendName string, ex
 
 	// Read ACLs for the backend
 	var backendAcls []ACLPayload
-	aclManager := NewACLManager(r.client)
+	aclManager := CreateACLManager(r.client)
 	backendAcls, err = aclManager.ReadACLs(ctx, "backend", backendName)
 	if err != nil {
 		log.Printf("Warning: Failed to read ACLs for backend %s: %v", backendName, err)
@@ -1661,7 +1661,7 @@ func (r *BackendManager) UpdateBackend(ctx context.Context, plan *haproxyBackend
 
 	// Update ACLs if specified
 	if plan.Acls != nil && len(plan.Acls) > 0 {
-		aclManager := NewACLManager(r.client)
+		aclManager := CreateACLManager(r.client)
 		if err := aclManager.UpdateACLs(ctx, "backend", plan.Name.ValueString(), plan.Acls); err != nil {
 			return fmt.Errorf("failed to update backend ACLs: %w", err)
 		}
@@ -1673,7 +1673,7 @@ func (r *BackendManager) UpdateBackend(ctx context.Context, plan *haproxyBackend
 // DeleteBackend deletes a backend and its components
 func (r *BackendManager) DeleteBackend(ctx context.Context, backendName string) error {
 	// Delete ACLs first
-	aclManager := NewACLManager(r.client)
+	aclManager := CreateACLManager(r.client)
 	if err := aclManager.DeleteACLs(ctx, "backend", backendName); err != nil {
 		log.Printf("Warning: Failed to delete backend ACLs: %v", err)
 		// Continue with backend deletion even if ACL deletion fails
@@ -1691,7 +1691,7 @@ func (r *BackendManager) DeleteBackend(ctx context.Context, backendName string) 
 // DeleteBackendInTransaction deletes a backend using an existing transaction ID
 func (r *BackendManager) DeleteBackendInTransaction(ctx context.Context, transactionID string, backendName string) error {
 	// Delete ACLs first (if any)
-	aclManager := NewACLManager(r.client)
+	aclManager := CreateACLManager(r.client)
 	if err := aclManager.DeleteACLsInTransaction(ctx, transactionID, "backend", backendName); err != nil {
 		log.Printf("Warning: Failed to delete backend ACLs: %v", err)
 		// Continue with backend deletion even if ACL deletion fails

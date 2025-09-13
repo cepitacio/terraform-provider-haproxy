@@ -11,7 +11,7 @@ import (
 type StackValidation struct{}
 
 // NewStackValidation creates a new StackValidation instance
-func NewStackValidation() *StackValidation {
+func CreateStackValidation() *StackValidation {
 	return &StackValidation{}
 }
 
@@ -25,10 +25,10 @@ func (v *StackValidation) ValidateResourceConfig(ctx context.Context, req resour
 	}
 
 	// Validate that at least one resource is specified
-	if data.Backend == nil && len(data.Servers) == 0 && data.Frontend == nil && len(data.Acls) == 0 {
+	if data.Backend == nil && len(data.Servers) == 0 && data.Frontend == nil {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
-			"At least one of backend, servers, frontend, or acls must be specified",
+			"At least one of backend, servers, or frontend must be specified",
 		)
 		return
 	}
@@ -42,14 +42,7 @@ func (v *StackValidation) ValidateResourceConfig(ctx context.Context, req resour
 		return
 	}
 
-	// Validate ACLs have parent resource
-	if len(data.Acls) > 0 && data.Frontend == nil && data.Backend == nil {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"ACLs must have a parent frontend or backend specified",
-		)
-		return
-	}
+	// ACLs are now validated within their parent frontend/backend blocks
 
 	// ACL indices are now handled by array position, no validation needed
 

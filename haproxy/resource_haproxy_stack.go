@@ -33,7 +33,6 @@ type haproxyStackResourceModel struct {
 	Backend  *haproxyBackendModel          `tfsdk:"backend"`
 	Servers  map[string]haproxyServerModel `tfsdk:"servers"` // Multiple servers
 	Frontend *haproxyFrontendModel         `tfsdk:"frontend"`
-	Acls     []haproxyAclModel             `tfsdk:"acls"`
 }
 
 // haproxyBackendModel maps the backend block schema data.
@@ -433,7 +432,7 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 		apiVersion = "v3"
 	}
 
-	schemaBuilder := NewVersionAwareSchemaBuilder(apiVersion)
+	schemaBuilder := CreateVersionAwareSchemaBuilder(apiVersion)
 
 	resp.Schema = schema.Schema{
 		Description: "Manages a complete HAProxy stack including backend, server, frontend, and ACLs.",
@@ -447,7 +446,6 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 		Blocks: map[string]schema.Block{
 			"backend":  GetBackendSchema(schemaBuilder),
 			"frontend": GetFrontendSchema(schemaBuilder),
-			"acls":     GetACLSchema(),
 		},
 	}
 }
@@ -468,10 +466,10 @@ func (r *haproxyStackResource) Configure(_ context.Context, req resource.Configu
 	}
 
 	// Initialize the stack manager with all required components
-	aclManager := NewACLManager(providerData.Client)
-	frontendManager := NewFrontendManager(providerData.Client)
-	backendManager := NewBackendManager(providerData.Client)
-	r.stackManager = NewStackManager(providerData.Client, aclManager, frontendManager, backendManager)
+	aclManager := CreateACLManager(providerData.Client)
+	frontendManager := CreateFrontendManager(providerData.Client)
+	backendManager := CreateBackendManager(providerData.Client)
+	r.stackManager = CreateStackManager(providerData.Client, aclManager, frontendManager, backendManager)
 
 	// Store the API version for schema generation
 	r.apiVersion = providerData.APIVersion

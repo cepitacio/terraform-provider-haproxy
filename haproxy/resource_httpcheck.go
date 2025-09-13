@@ -67,7 +67,7 @@ type HttpcheckManager struct {
 }
 
 // NewHttpcheckManager creates a new HTTP check manager
-func NewHttpcheckManager(client *HAProxyClient) *HttpcheckManager {
+func CreateHttpcheckManager(client *HAProxyClient) *HttpcheckManager {
 	return &HttpcheckManager{
 		client: client,
 	}
@@ -766,7 +766,7 @@ func (r *HttpcheckResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	// Read the check
-	manager := NewHttpcheckManager(r.client)
+	manager := CreateHttpcheckManager(r.client)
 	checks, err := manager.Read(ctx, data.ParentType.ValueString(), data.ParentName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read HTTP check, got error: %s", err))

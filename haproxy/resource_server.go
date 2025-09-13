@@ -8,7 +8,7 @@ import (
 func GetServerSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNestedBlock {
 	// If no schema builder is provided, include all fields for backward compatibility
 	if schemaBuilder == nil {
-		schemaBuilder = NewVersionAwareSchemaBuilder("v3") // Default to v3
+		schemaBuilder = CreateVersionAwareSchemaBuilder("v3") // Default to v3
 	}
 	attributes := map[string]schema.Attribute{
 		"name": schema.StringAttribute{
@@ -152,7 +152,7 @@ func GetServerSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNest
 func GetServersSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.MapNestedAttribute {
 	// If no schema builder is provided, include all fields for backward compatibility
 	if schemaBuilder == nil {
-		schemaBuilder = NewVersionAwareSchemaBuilder("v3") // Default to v3
+		schemaBuilder = CreateVersionAwareSchemaBuilder("v3") // Default to v3
 	}
 	attributes := map[string]schema.Attribute{
 		// Note: "name" is now the map key, not a field

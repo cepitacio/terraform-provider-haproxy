@@ -52,7 +52,7 @@ type ACLManager struct {
 }
 
 // NewACLManager creates a new ACL manager
-func NewACLManager(client *HAProxyClient) *ACLManager {
+func CreateACLManager(client *HAProxyClient) *ACLManager {
 	return &ACLManager{
 		client: client,
 	}

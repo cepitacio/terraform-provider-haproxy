@@ -379,7 +379,7 @@ type BindManager struct {
 }
 
 // NewBindManager creates a new BindManager instance
-func NewBindManager(client *HAProxyClient) *BindManager {
+func CreateBindManager(client *HAProxyClient) *BindManager {
 	return &BindManager{
 		client: client,
 	}

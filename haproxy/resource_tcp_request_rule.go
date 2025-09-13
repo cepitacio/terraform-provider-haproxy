@@ -69,7 +69,7 @@ type TcpRequestRuleManager struct {
 }
 
 // NewTcpRequestRuleManager creates a new TCP request rule manager
-func NewTcpRequestRuleManager(client *HAProxyClient) *TcpRequestRuleManager {
+func CreateTcpRequestRuleManager(client *HAProxyClient) *TcpRequestRuleManager {
 	return &TcpRequestRuleManager{
 		client: client,
 	}
@@ -816,7 +816,7 @@ func (r *TcpRequestRuleResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	// Read the rule
-	manager := NewTcpRequestRuleManager(r.client)
+	manager := CreateTcpRequestRuleManager(r.client)
 	rules, err := manager.Read(ctx, data.ParentType.ValueString(), data.ParentName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read TCP request rule, got error: %s", err))
