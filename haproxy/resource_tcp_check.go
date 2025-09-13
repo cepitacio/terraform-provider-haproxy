@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -741,18 +740,9 @@ func (r *TcpCheckResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	// Create the check using transaction
-	manager := CreateTcpCheckManager(r.client)
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := manager.Create(ctx, transactionID, data.ParentType.ValueString(), data.ParentName.ValueString(), []TcpCheckResourceModel{data}); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create TCP check, got error: %s", err))
-		return
-	}
+	// Individual TCP check resources should not be used - use haproxy_stack instead
+	resp.Diagnostics.AddError("Invalid Usage", "TCP check resources should not be used directly. Use haproxy_stack resource instead.")
+	return
 
 	// Set ID
 	data.ID = types.StringValue(fmt.Sprintf("%s/%s/tcp_check/%d", data.ParentType.ValueString(), data.ParentName.ValueString(), data.Index.ValueInt64()))
@@ -815,18 +805,9 @@ func (r *TcpCheckResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	// Update the check using transaction
-	manager := CreateTcpCheckManager(r.client)
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := manager.Update(ctx, transactionID, data.ParentType.ValueString(), data.ParentName.ValueString(), []TcpCheckResourceModel{data}); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update TCP check, got error: %s", err))
-		return
-	}
+	// Individual TCP check resources should not be used - use haproxy_stack instead
+	resp.Diagnostics.AddError("Invalid Usage", "TCP check resources should not be used directly. Use haproxy_stack resource instead.")
+	return
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -843,15 +824,7 @@ func (r *TcpCheckResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	// Delete the check using transaction
-	_, err := r.client.Transaction(func(transactionID string) (*http.Response, error) {
-		if err := r.client.DeleteTcpCheckInTransaction(ctx, transactionID, data.Index.ValueInt64(), data.ParentType.ValueString(), data.ParentName.ValueString()); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete TCP check, got error: %s", err))
-		return
-	}
+	// Individual TCP check resources should not be used - use haproxy_stack instead
+	resp.Diagnostics.AddError("Invalid Usage", "TCP check resources should not be used directly. Use haproxy_stack resource instead.")
+	return
 }

@@ -9,6 +9,9 @@ A comprehensive Terraform provider for managing HAProxy configuration using the 
 - **Atomic Operations**: Stack resource for creating complete HAProxy configurations in single transactions
 - **Multi-Version Support**: Compatible with HAProxy Data Plane API v2 and v3 (v3 recommended for full feature support)
 - **Comprehensive Coverage**: Support for HTTP/TCP rules, health checks, binds, and advanced features
+- **Concurrent Operations**: Support for multiple `haproxy_stack` resources with `for_each`
+- **Transaction Retry Logic**: Robust error handling with automatic retry for transaction conflicts
+- **Version-Aware Operations**: Different handling for API v2 (individual operations) vs v3 (bulk operations)
 
 ## Quick Start
 

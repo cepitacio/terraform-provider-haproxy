@@ -1451,6 +1451,11 @@ func (r *BackendManager) ReadBackend(ctx context.Context, backendName string, ex
 		return nil, fmt.Errorf("failed to read backend: %w", err)
 	}
 
+	// Check if backend is nil
+	if backend == nil {
+		return nil, fmt.Errorf("backend %s not found", backendName)
+	}
+
 	// Read ACLs for the backend
 	var backendAcls []ACLPayload
 	aclManager := CreateACLManager(r.client)
