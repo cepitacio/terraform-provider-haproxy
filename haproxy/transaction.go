@@ -232,14 +232,81 @@ func (c *HAProxyClient) RollbackTransaction(transactionID string) error {
 
 // CommitTransaction commits a transaction by its ID.
 func (c *HAProxyClient) CommitTransaction(transactionID string) error {
-	log.Printf("Committing transaction: %s", transactionID)
 	resp, err := c.commitTransactionID(transactionID)
 	if err != nil {
-		return fmt.Errorf("failed to commit transaction %s: %v", transactionID, err)
+		return err
 	}
 
-	log.Printf("Transaction %s committed successfully with status: %d", transactionID, resp.StatusCode)
+	// Check if commit was successful
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("transaction commit failed with status %d", resp.StatusCode)
+	}
+
 	return nil
+}
+
+// CommitTransactionWithRetry commits a transaction with retry logic for concurrency errors
+func (c *HAProxyClient) CommitTransactionWithRetry(transactionID string) error {
+	maxRetries := 3
+	retryDelay := 2 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		log.Printf("Committing transaction: %s (attempt %d/%d)", transactionID, attempt+1, maxRetries)
+
+		resp, err := c.commitTransactionID(transactionID)
+		if err == nil {
+			log.Printf("Transaction %s committed successfully with status: %d", transactionID, resp.StatusCode)
+			return nil
+		}
+
+		// Check if this is a retryable error
+		if !isRetryableCommitError(err) {
+			return fmt.Errorf("failed to commit transaction %s: %v", transactionID, err)
+		}
+
+		log.Printf("Retryable error committing transaction %s (attempt %d/%d): %v", transactionID, attempt+1, maxRetries, err)
+
+		if attempt < maxRetries-1 {
+			log.Printf("Sleeping %v before retry", retryDelay)
+			time.Sleep(retryDelay)
+		}
+	}
+
+	return fmt.Errorf("failed to commit transaction %s after %d attempts", transactionID, maxRetries)
+}
+
+// isRetryableCommitError checks if a commit error is retryable
+func isRetryableCommitError(err error) bool {
+	// Check for CustomError first
+	if customErr, ok := err.(*utils.CustomError); ok && customErr.APIError != nil {
+		// Check for transaction does not exist (400)
+		if customErr.APIError.Code == 400 && strings.Contains(customErr.APIError.Message, "transaction does not exist") {
+			return true
+		}
+		// Check for transaction outdated (406)
+		if customErr.APIError.Code == 406 && strings.Contains(customErr.APIError.Message, "transaction") && strings.Contains(customErr.APIError.Message, "is outdated and cannot be committed") {
+			return true
+		}
+		// Check for version mismatch (409)
+		if customErr.APIError.Code == 409 && strings.Contains(customErr.APIError.Message, "version mismatch") {
+			return true
+		}
+		// Check for version or transaction not specified (400)
+		if customErr.APIError.Code == 400 && strings.Contains(customErr.APIError.Message, "version or transaction not specified") {
+			return true
+		}
+	}
+
+	// Check for regular errors that contain retryable error messages
+	errStr := err.Error()
+	if strings.Contains(errStr, "transaction does not exist") ||
+		strings.Contains(errStr, "transaction") && strings.Contains(errStr, "is outdated and cannot be committed") ||
+		strings.Contains(errStr, "version mismatch") ||
+		strings.Contains(errStr, "version or transaction not specified") {
+		return true
+	}
+
+	return false
 }
 
 func (c *HAProxyClient) getCurrentConfigurationVersion() (string, error) {

@@ -233,48 +233,10 @@ func (r *HttpRequestRuleResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	// Convert to payload
-	payload := &HttpRequestRulePayload{
-		Index:        plan.Index.ValueInt64(),
-		Type:         plan.Type.ValueString(),
-		Cond:         plan.Cond.ValueString(),
-		CondTest:     plan.CondTest.ValueString(),
-		HdrName:      plan.HdrName.ValueString(),
-		HdrFormat:    plan.HdrFormat.ValueString(),
-		HdrMatch:     plan.HdrMatch.ValueString(),
-		RedirType:    plan.RedirType.ValueString(),
-		RedirValue:   plan.RedirValue.ValueString(),
-		StatusCode:   plan.ReturnStatusCode.ValueInt64(),
-		StatusReason: plan.ReturnContent.ValueString(),
-	}
-
-	// Create the HTTP request rule using single transaction approach
-	transactionID, err := r.client.BeginTransaction()
-	if err != nil {
-		resp.Diagnostics.AddError("Error beginning transaction", err.Error())
-		return
-	}
-	defer r.client.RollbackTransaction(transactionID)
-
-	if err := r.client.CreateHttpRequestRuleInTransaction(ctx, transactionID, plan.ParentType.ValueString(), plan.ParentName.ValueString(), payload); err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating HTTP request rule",
-			fmt.Sprintf("Could not create HTTP request rule: %s", err),
-		)
-		return
-	}
-
-	if err := r.client.CommitTransaction(transactionID); err != nil {
-		resp.Diagnostics.AddError("Error committing transaction", err.Error())
-		return
-	}
-
-	// Set the ID
-	plan.ID = types.StringValue(fmt.Sprintf("%s/%s/%d", plan.ParentType.ValueString(), plan.ParentName.ValueString(), plan.Index.ValueInt64()))
-
-	// Set state
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	// Individual HTTP request rule resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -336,54 +298,10 @@ func (r *HttpRequestRuleResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	// Convert to payload
-	payload := &HttpRequestRulePayload{
-		Index:        plan.Index.ValueInt64(),
-		Type:         plan.Type.ValueString(),
-		Cond:         plan.Cond.ValueString(),
-		CondTest:     plan.CondTest.ValueString(),
-		HdrName:      plan.HdrName.ValueString(),
-		HdrFormat:    plan.HdrFormat.ValueString(),
-		HdrMatch:     plan.HdrMatch.ValueString(),
-		RedirType:    plan.RedirType.ValueString(),
-		RedirValue:   plan.RedirValue.ValueString(),
-		StatusCode:   plan.ReturnStatusCode.ValueInt64(),
-		StatusReason: plan.ReturnContent.ValueString(),
-	}
-
-	// Update the HTTP request rule using single transaction approach
-	transactionID, err := r.client.BeginTransaction()
-	if err != nil {
-		resp.Diagnostics.AddError("Error beginning transaction", err.Error())
-		return
-	}
-	defer r.client.RollbackTransaction(transactionID)
-
-	// For HTTP request rules, we need to delete and recreate since there's no direct update
-	if err := r.client.DeleteHttpRequestRuleInTransaction(ctx, transactionID, plan.Index.ValueInt64(), plan.ParentType.ValueString(), plan.ParentName.ValueString()); err != nil {
-		resp.Diagnostics.AddError(
-			"Error deleting HTTP request rule for update",
-			fmt.Sprintf("Could not delete HTTP request rule: %s", err),
-		)
-		return
-	}
-
-	if err := r.client.CreateHttpRequestRuleInTransaction(ctx, transactionID, plan.ParentType.ValueString(), plan.ParentName.ValueString(), payload); err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating HTTP request rule for update",
-			fmt.Sprintf("Could not create HTTP request rule: %s", err),
-		)
-		return
-	}
-
-	if err := r.client.CommitTransaction(transactionID); err != nil {
-		resp.Diagnostics.AddError("Error committing transaction", err.Error())
-		return
-	}
-
-	// Set state
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	// Individual HTTP request rule resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -395,26 +313,10 @@ func (r *HttpRequestRuleResource) Delete(ctx context.Context, req resource.Delet
 		return
 	}
 
-	// Delete the HTTP request rule using single transaction approach
-	transactionID, err := r.client.BeginTransaction()
-	if err != nil {
-		resp.Diagnostics.AddError("Error beginning transaction", err.Error())
-		return
-	}
-	defer r.client.RollbackTransaction(transactionID)
-
-	if err := r.client.DeleteHttpRequestRuleInTransaction(ctx, transactionID, state.Index.ValueInt64(), state.ParentType.ValueString(), state.ParentName.ValueString()); err != nil {
-		resp.Diagnostics.AddError(
-			"Error deleting HTTP request rule",
-			fmt.Sprintf("Could not delete HTTP request rule: %s", err),
-		)
-		return
-	}
-
-	if err := r.client.CommitTransaction(transactionID); err != nil {
-		resp.Diagnostics.AddError("Error committing transaction", err.Error())
-		return
-	}
+	// Individual HTTP request rule resources should only be used within haproxy_stack context
+	// This resource is not registered and should not be used standalone
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+	return
 }
 
 // ImportState configures the resource for import.
