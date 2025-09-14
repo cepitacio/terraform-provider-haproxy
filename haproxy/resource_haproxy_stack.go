@@ -154,6 +154,7 @@ type haproxyFrontendModel struct {
 	Tfo               types.Bool                     `tfsdk:"tfo"`
 	V4v6              types.Bool                     `tfsdk:"v4v6"`
 	V6only            types.Bool                     `tfsdk:"v6only"`
+	MonitorUri        types.String                   `tfsdk:"monitor_uri"`
 	Binds             map[string]haproxyBindModel    `tfsdk:"binds"`
 	Acls              []haproxyAclModel              `tfsdk:"acls"`
 	HttpRequestRules  []haproxyHttpRequestRuleModel  `tfsdk:"http_request_rules"`
