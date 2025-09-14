@@ -993,6 +993,20 @@ func (r *BindManager) hasBindChanged(existing *BindPayload, new *haproxyBindMode
 		return true
 	}
 
+	// Check TLS version fields
+	if existing.ForceTlsv12 != new.ForceTlsv12.ValueBool() {
+		return true
+	}
+	if existing.ForceTlsv13 != new.ForceTlsv13.ValueBool() {
+		return true
+	}
+	if existing.ForceTlsv11 != new.ForceTlsv11.ValueBool() {
+		return true
+	}
+	if existing.ForceTlsv10 != new.ForceTlsv10.ValueBool() {
+		return true
+	}
+
 	// Add more field comparisons as needed
 	return false
 }

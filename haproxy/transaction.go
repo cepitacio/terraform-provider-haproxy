@@ -147,58 +147,56 @@ func (c *HAProxyClient) Transaction(fn func(transactionID string) (*http.Respons
 		}
 
 		// Log successful commit
-		log.Printf("Transaction %s committed successfully with status: %d", id, resp.StatusCode)
-		log.Printf("Transaction %s response body: %+v", id, resp)
-		log.Printf("Transaction %s response headers: %+v", id, resp.Header)
+		if resp != nil {
+			log.Printf("Transaction %s committed successfully with status: %d", id, resp.StatusCode)
+			log.Printf("Transaction %s response body: %+v", id, resp)
+			log.Printf("Transaction %s response headers: %+v", id, resp.Header)
 
-		// Log the commit response body for debugging
-		if resp != nil && resp.Body != nil {
-			commitBody, _ := io.ReadAll(resp.Body)
-			log.Printf("Transaction %s commit response body content: %s", id, sanitizeResponseBody(string(commitBody)))
+			// Log the commit response body for debugging
+			if resp.Body != nil {
+				commitBody, _ := io.ReadAll(resp.Body)
+				log.Printf("Transaction %s commit response body content: %s", id, sanitizeResponseBody(string(commitBody)))
+			}
 		}
 
 		return resp, nil
 	}
 }
 
-// BeginTransaction creates a new transaction and returns its ID.
+// BeginTransaction creates a new transaction and returns its ID with retry logic.
 func (c *HAProxyClient) BeginTransaction() (string, error) {
-	configMutex.Lock()
-	defer configMutex.Unlock()
-
-	version, err := c.getCurrentConfigurationVersion()
-	if err != nil {
-		return "", fmt.Errorf("failed to get configuration version: %v", err)
-	}
-	log.Printf("Creating transaction with version: %s", version)
-
-	// Try to create transaction ID with retry logic for version conflicts
-	for createRetry := 0; createRetry < 3; createRetry++ {
-		id, err := c.createTransactionID(version)
+	retryCount := 0
+	for {
+		configMutex.Lock()
+		version, err := c.getCurrentConfigurationVersion()
 		if err != nil {
-			// Check if it's a version mismatch error that we can retry
-			if customErr, ok := err.(*utils.CustomError); ok && customErr.APIError != nil {
-				if customErr.APIError.Code == 409 && strings.Contains(customErr.APIError.Message, "version mismatch") {
-					log.Printf("Version mismatch creating transaction, retrying with fresh version (attempt %d)", createRetry+1)
-					// Get fresh version and retry
-					version, err = c.getCurrentConfigurationVersion()
-					if err != nil {
-						return "", fmt.Errorf("failed to get fresh configuration version: %v", err)
-					}
-					log.Printf("Fresh transaction version: %s", version)
-					time.Sleep(retryDelay)
-					continue
-				}
-			}
-			// If not a retryable error or max retries reached, return error
-			return "", fmt.Errorf("failed to create transaction ID after retries: %v", err)
+			configMutex.Unlock()
+			return "", fmt.Errorf("failed to get configuration version: %v", err)
 		}
-		// Successfully created transaction ID
-		log.Printf("Transaction created successfully with ID: %s", id)
+		log.Printf("Current Transaction version: %s", version)
+
+		id, err := c.createTransactionID(version)
+		configMutex.Unlock()
+
+		if err != nil {
+			if isVersionMismatch(err) {
+				log.Printf("Retrying transaction due to version mismatch %v", id)
+				retryCount++
+				time.Sleep(retryDelay)
+				continue
+			}
+			if isVersionOrTransSpecified(err) {
+				log.Printf("Retrying transaction due to version or transaction not specified %v", id)
+				retryCount++
+				time.Sleep(retryDelay)
+				continue
+			}
+			return "", fmt.Errorf("failed to create transaction ID: %v", err)
+		}
+
+		log.Printf("Current Transaction ID: %s", id)
 		return id, nil
 	}
-
-	return "", fmt.Errorf("failed to create transaction after max retries")
 }
 
 // RollbackTransaction rolls back a transaction by its ID.
@@ -242,6 +240,7 @@ func (c *HAProxyClient) CommitTransaction(transactionID string) error {
 		return fmt.Errorf("transaction commit failed with status %d", resp.StatusCode)
 	}
 
+	log.Printf("Transaction %s committed successfully with status: %d", transactionID, resp.StatusCode)
 	return nil
 }
 
@@ -467,5 +466,9 @@ func isVersionMismatch(err error) bool {
 }
 
 func isVersionOrTransSpecified(err error) bool {
-	return strings.Contains(err.Error(), "version or transaction not specified")
+	fmt.Printf("Received error version or transaction not specified: %T, %+v\n", err, err)
+	if customErr, ok := err.(*utils.CustomError); ok && customErr.APIError != nil {
+		return customErr.APIError.Code == 400 && strings.Contains(customErr.APIError.Message, "version or transaction not specified")
+	}
+	return false
 }

@@ -456,8 +456,28 @@ func (o *StackOperations) isTransactionRetryableError(err error) bool {
 	return false
 }
 
-// createSingle performs a single create operation without retry
+// createSingle performs a single create operation with transaction retry logic
 func (o *StackOperations) createSingle(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse, data *haproxyStackResourceModel) error {
+	// Retry the entire operation if transaction becomes outdated
+	for {
+		err := o.createSingleInternal(ctx, req, resp, data)
+		if err == nil {
+			return nil
+		}
+
+		// Check if this is a retryable transaction error
+		if o.isTransactionRetryableError(err) {
+			tflog.Info(ctx, "Transaction outdated, retrying entire operation", map[string]interface{}{"error": err.Error()})
+			continue
+		}
+
+		// Non-retryable error, return it
+		return err
+	}
+}
+
+// createSingleInternal performs the actual create operation without retry
+func (o *StackOperations) createSingleInternal(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse, data *haproxyStackResourceModel) error {
 	tflog.Info(ctx, "Creating HAProxy stack")
 
 	// Begin a single transaction for all resources
@@ -1018,8 +1038,28 @@ func (o *StackOperations) updateWithRetry(ctx context.Context, req resource.Upda
 	return fmt.Errorf("failed to update stack after %d attempts", maxRetries)
 }
 
-// updateSingle performs a single update operation without retry
+// updateSingle performs a single update operation with transaction retry logic
 func (o *StackOperations) updateSingle(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse, data *haproxyStackResourceModel) error {
+	// Retry the entire operation if transaction becomes outdated
+	for {
+		err := o.updateSingleInternal(ctx, req, resp, data)
+		if err == nil {
+			return nil
+		}
+
+		// Check if this is a retryable transaction error
+		if o.isTransactionRetryableError(err) {
+			tflog.Info(ctx, "Transaction outdated, retrying entire operation", map[string]interface{}{"error": err.Error()})
+			continue
+		}
+
+		// Non-retryable error, return it
+		return err
+	}
+}
+
+// updateSingleInternal performs the actual update operation without retry
+func (o *StackOperations) updateSingleInternal(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse, data *haproxyStackResourceModel) error {
 	// Get the previous state to compare with the plan
 	var state haproxyStackResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -1426,7 +1466,6 @@ func (o *StackOperations) updateSingle(ctx context.Context, req resource.UpdateR
 	// Commit all updates
 	tflog.Info(ctx, "Committing transaction", map[string]interface{}{"transaction_id": transactionID})
 	if err = o.client.CommitTransaction(transactionID); err != nil {
-		resp.Diagnostics.AddError("Error committing transaction", err.Error())
 		return err
 	}
 
@@ -2508,8 +2547,28 @@ func (o *StackOperations) deleteWithRetry(ctx context.Context, req resource.Dele
 	return fmt.Errorf("failed to delete stack after %d attempts", maxRetries)
 }
 
-// deleteSingle performs a single delete operation without retry
+// deleteSingle performs a single delete operation with transaction retry logic
 func (o *StackOperations) deleteSingle(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse, data *haproxyStackResourceModel) error {
+	// Retry the entire operation if transaction becomes outdated
+	for {
+		err := o.deleteSingleInternal(ctx, req, resp, data)
+		if err == nil {
+			return nil
+		}
+
+		// Check if this is a retryable transaction error
+		if o.isTransactionRetryableError(err) {
+			tflog.Info(ctx, "Transaction outdated, retrying entire operation", map[string]interface{}{"error": err.Error()})
+			continue
+		}
+
+		// Non-retryable error, return it
+		return err
+	}
+}
+
+// deleteSingleInternal performs the actual delete operation without retry
+func (o *StackOperations) deleteSingleInternal(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse, data *haproxyStackResourceModel) error {
 	tflog.Info(ctx, "Deleting HAProxy stack")
 
 	// Begin transaction for all deletes
@@ -2660,7 +2719,6 @@ func (o *StackOperations) deleteSingle(ctx context.Context, req resource.DeleteR
 	// Commit all deletes
 	tflog.Info(ctx, "Committing transaction", map[string]interface{}{"transaction_id": transactionID})
 	if err = o.client.CommitTransaction(transactionID); err != nil {
-		resp.Diagnostics.AddError("Error committing transaction", err.Error())
 		return err
 	}
 

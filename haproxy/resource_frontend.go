@@ -97,6 +97,10 @@ func GetFrontendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNe
 				Optional:    true,
 				Description: "Whether to use IPv6 only.",
 			},
+			"monitor_uri": schema.StringAttribute{
+				Optional:    true,
+				Description: "The URI to use for health monitoring of the frontend.",
+			},
 			"binds": GetBindSchema(),
 		},
 		Blocks: map[string]schema.Block{
@@ -885,6 +889,7 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 		Maxconn:        types.Int64Value(frontend.MaxConn),
 		Backlog:        types.Int64Value(frontend.Backlog),
 		MonitorFail:    r.convertMonitorFailFromPayload(frontend.MonitorFail),
+		MonitorUri:     types.StringValue(frontend.MonitorUri),
 	}
 
 	// Handle ACLs - prioritize existing state to preserve user's exact order
@@ -1009,6 +1014,7 @@ func (r *FrontendManager) processFrontendBlock(frontend *haproxyFrontendModel) *
 		MaxConn:        frontend.Maxconn.ValueInt64(),
 		Backlog:        frontend.Backlog.ValueInt64(),
 		MonitorFail:    monitorFail,
+		MonitorUri:     frontend.MonitorUri.ValueString(),
 	}
 
 	log.Printf("DEBUG: processFrontendBlock - Final payload MonitorFail: %+v", payload.MonitorFail)
