@@ -3277,7 +3277,7 @@ func (c *HAProxyClient) CreateHttpRequestRuleInTransaction(ctx context.Context, 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("HTTP request rule creation failed with status %d", resp.StatusCode, string(body))
+			return fmt.Errorf("HTTP request rule creation failed with status %d: %s", resp.StatusCode, string(body))
 		}
 		return fmt.Errorf("HTTP request rule creation failed with status %d: %s", resp.StatusCode, string(body))
 	}
