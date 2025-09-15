@@ -507,8 +507,8 @@ func (o *StackOperations) createSingleInternal(ctx context.Context, req resource
 	}
 
 	// Create servers if specified
-	if len(data.Servers) > 0 && data.Backend != nil {
-		for serverName, server := range data.Servers {
+	if data.Backend != nil && len(data.Backend.Servers) > 0 {
+		for serverName, server := range data.Backend.Servers {
 			serverPayload := o.convertServerModelToPayload(serverName, server)
 			tflog.Info(ctx, "Creating server", map[string]interface{}{
 				"server_name":  serverName,
@@ -645,22 +645,22 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 	if data.Backend != nil {
 		tflog.Info(ctx, "Reading servers from HAProxy", map[string]interface{}{
 			"backend_name":          data.Backend.Name.ValueString(),
-			"current_servers_count": len(data.Servers),
+			"current_servers_count": len(data.Backend.Servers),
 		})
 
 		servers, err := o.client.ReadServers(ctx, "backend", data.Backend.Name.ValueString())
 		if err != nil {
 			tflog.Warn(ctx, "Could not read servers, preserving existing state", map[string]interface{}{"error": err.Error()})
-			// Don't overwrite data.Servers if we can't read from HAProxy
+			// Don't overwrite data.Backend.Servers if we can't read from HAProxy
 			// This preserves the existing state
 		} else {
 			tflog.Info(ctx, "Successfully read servers from HAProxy", map[string]interface{}{
 				"servers_found": len(servers),
 			})
 			// Convert servers to map format
-			data.Servers = make(map[string]haproxyServerModel)
+			data.Backend.Servers = make(map[string]haproxyServerModel)
 			for _, server := range servers {
-				data.Servers[server.Name] = o.convertServerPayloadToModel(server)
+				data.Backend.Servers[server.Name] = o.convertServerPayloadToModel(server)
 				tflog.Info(ctx, "Converted server", map[string]interface{}{
 					"server_name": server.Name,
 				})
@@ -1099,13 +1099,17 @@ func (o *StackOperations) updateSingleInternal(ctx context.Context, req resource
 	}
 
 	// Update servers only if they changed in the plan
-	if len(data.Servers) > 0 && data.Backend != nil {
+	if data.Backend != nil && len(data.Backend.Servers) > 0 {
 		// Check if servers changed by comparing plan vs state
-		serversChanged := o.serversChanged(ctx, data.Servers, state.Servers)
+		var stateServers map[string]haproxyServerModel
+		if state.Backend != nil {
+			stateServers = state.Backend.Servers
+		}
+		serversChanged := o.serversChanged(ctx, data.Backend.Servers, stateServers)
 		if serversChanged {
 			tflog.Info(ctx, "Servers changed, updating", map[string]interface{}{
 				"backend_name":          data.Backend.Name.ValueString(),
-				"desired_servers_count": len(data.Servers),
+				"desired_servers_count": len(data.Backend.Servers),
 			})
 
 			// First, read existing servers to get current state
@@ -1125,8 +1129,8 @@ func (o *StackOperations) updateSingleInternal(ctx context.Context, req resource
 				existingServerMap[existingServer.Name] = existingServer
 			}
 
-			// Create a map of desired servers by name (data.Servers is already a map)
-			desiredServerMap := data.Servers
+			// Create a map of desired servers by name (data.Backend.Servers is already a map)
+			desiredServerMap := data.Backend.Servers
 
 			// Delete servers that are no longer in the desired state
 			for serverName := range existingServerMap {
@@ -2428,6 +2432,17 @@ func (o *StackOperations) bindsChanged(ctx context.Context, planBinds map[string
 
 // serversChanged compares plan vs state servers to detect changes
 func (o *StackOperations) serversChanged(ctx context.Context, planServers map[string]haproxyServerModel, stateServers map[string]haproxyServerModel) bool {
+	// Handle nil stateServers (first time creation)
+	if stateServers == nil {
+		if len(planServers) > 0 {
+			tflog.Info(ctx, "Servers added (first time)", map[string]interface{}{
+				"plan_count": len(planServers),
+			})
+			return true
+		}
+		return false
+	}
+
 	// If counts are different, there's definitely a change
 	if len(planServers) != len(stateServers) {
 		tflog.Info(ctx, "Servers count changed", map[string]interface{}{
@@ -2683,7 +2698,7 @@ func (o *StackOperations) deleteSingleInternal(ctx context.Context, req resource
 	}
 
 	// Delete servers if specified - use name-based management
-	if len(data.Servers) > 0 && data.Backend != nil {
+	if data.Backend != nil && len(data.Backend.Servers) > 0 {
 		// Read existing servers to get current state
 		existingServers, err := o.client.ReadServers(ctx, "backend", data.Backend.Name.ValueString())
 		if err != nil {
@@ -2691,9 +2706,9 @@ func (o *StackOperations) deleteSingleInternal(ctx context.Context, req resource
 			existingServers = []ServerPayload{}
 		}
 
-		// Create a map of desired servers by name (data.Servers is already a map)
+		// Create a map of desired servers by name (data.Backend.Servers is already a map)
 		desiredServerMap := make(map[string]bool)
-		for serverName := range data.Servers {
+		for serverName := range data.Backend.Servers {
 			desiredServerMap[serverName] = true
 		}
 

@@ -29,10 +29,9 @@ type haproxyStackResource struct {
 
 // haproxyStackResourceModel maps the resource schema data.
 type haproxyStackResourceModel struct {
-	Name     types.String                  `tfsdk:"name"`
-	Backend  *haproxyBackendModel          `tfsdk:"backend"`
-	Servers  map[string]haproxyServerModel `tfsdk:"servers"` // Multiple servers
-	Frontend *haproxyFrontendModel         `tfsdk:"frontend"`
+	Name     types.String          `tfsdk:"name"`
+	Backend  *haproxyBackendModel  `tfsdk:"backend"`
+	Frontend *haproxyFrontendModel `tfsdk:"frontend"`
 }
 
 // haproxyBackendModel maps the backend block schema data.
@@ -48,6 +47,7 @@ type haproxyBackendModel struct {
 	TunnelTimeout      types.Int64                   `tfsdk:"tunnel_timeout"`
 	TarpitTimeout      types.Int64                   `tfsdk:"tarpit_timeout"`
 	Checkcache         types.String                  `tfsdk:"checkcache"`
+	Servers            map[string]haproxyServerModel `tfsdk:"servers"` // Multiple servers
 	Retries            types.Int64                   `tfsdk:"retries"`
 	Balance            []haproxyBalanceModel         `tfsdk:"balance"`
 	HttpchkParams      []haproxyHttpchkParamsModel   `tfsdk:"httpchk_params"`
@@ -442,7 +442,6 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 				Required:    true,
 				Description: "The name of the HAProxy stack.",
 			},
-			"servers": GetServersSchema(schemaBuilder), // Multiple servers
 		},
 		Blocks: map[string]schema.Block{
 			"backend":  GetBackendSchema(schemaBuilder),
@@ -537,9 +536,9 @@ func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, 
 			validateDefaultServerV2ForCreate(ctx, &resp.Diagnostics, config.Backend.DefaultServer, "backend.default_server")
 		}
 
-		if len(config.Servers) > 0 {
-			for i, server := range config.Servers {
-				validateServerV2ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("servers[%d]", i))
+		if config.Backend != nil && len(config.Backend.Servers) > 0 {
+			for serverName, server := range config.Backend.Servers {
+				validateServerV2ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("backend.servers[%s]", serverName))
 			}
 		}
 
@@ -555,9 +554,9 @@ func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, 
 			validateDefaultServerV3ForCreate(ctx, &resp.Diagnostics, config.Backend.DefaultServer, "backend.default_server")
 		}
 
-		if len(config.Servers) > 0 {
-			for i, server := range config.Servers {
-				validateServerV3ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("servers[%d]", i))
+		if config.Backend != nil && len(config.Backend.Servers) > 0 {
+			for serverName, server := range config.Backend.Servers {
+				validateServerV3ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("backend.servers[%s]", serverName))
 			}
 		}
 
@@ -599,9 +598,9 @@ func (r *haproxyStackResource) validateConfigForAPIVersionUpdate(ctx context.Con
 			validateDefaultServerV2ForCreate(ctx, &resp.Diagnostics, config.Backend.DefaultServer, "backend.default_server")
 		}
 
-		if len(config.Servers) > 0 {
-			for i, server := range config.Servers {
-				validateServerV2ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("servers[%d]", i))
+		if config.Backend != nil && len(config.Backend.Servers) > 0 {
+			for serverName, server := range config.Backend.Servers {
+				validateServerV2ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("backend.servers[%s]", serverName))
 			}
 		}
 
@@ -617,9 +616,9 @@ func (r *haproxyStackResource) validateConfigForAPIVersionUpdate(ctx context.Con
 			validateDefaultServerV3ForCreate(ctx, &resp.Diagnostics, config.Backend.DefaultServer, "backend.default_server")
 		}
 
-		if len(config.Servers) > 0 {
-			for i, server := range config.Servers {
-				validateServerV3ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("servers[%d]", i))
+		if config.Backend != nil && len(config.Backend.Servers) > 0 {
+			for serverName, server := range config.Backend.Servers {
+				validateServerV3ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("backend.servers[%s]", serverName))
 			}
 		}
 

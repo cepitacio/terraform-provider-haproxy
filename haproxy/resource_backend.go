@@ -67,6 +67,136 @@ func GetBackendSchema(schemaBuilder *VersionAwareSchemaBuilder) schema.SingleNes
 				Optional:    true,
 				Description: "Number of retries for failed operations.",
 			},
+			"servers": schema.MapNestedAttribute{
+				Optional:    true,
+				Description: "Server configuration blocks for backend servers.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"address": schema.StringAttribute{
+							Required:    true,
+							Description: "The address of the server.",
+						},
+						"port": schema.Int64Attribute{
+							Required:    true,
+							Description: "The port of the server.",
+						},
+						"check": schema.StringAttribute{
+							Optional:    true,
+							Description: "Whether to enable health checks for the server.",
+						},
+						"backup": schema.StringAttribute{
+							Optional:    true,
+							Description: "Whether the server is a backup server.",
+						},
+						"maxconn": schema.Int64Attribute{
+							Optional:    true,
+							Description: "Maximum number of connections for the server.",
+						},
+						"weight": schema.Int64Attribute{
+							Optional:    true,
+							Description: "Load balancing weight for the server.",
+						},
+						"rise": schema.Int64Attribute{
+							Optional:    true,
+							Description: "Number of successful health checks to mark server as up.",
+						},
+						"fall": schema.Int64Attribute{
+							Optional:    true,
+							Description: "Number of failed health checks to mark server as down.",
+						},
+						"inter": schema.Int64Attribute{
+							Optional:    true,
+							Description: "Interval between health checks in milliseconds.",
+						},
+						"fastinter": schema.Int64Attribute{
+							Optional:    true,
+							Description: "Fast interval between health checks in milliseconds.",
+						},
+						"downinter": schema.Int64Attribute{
+							Optional:    true,
+							Description: "Down interval between health checks in milliseconds.",
+						},
+						"ssl": schema.StringAttribute{
+							Optional:    true,
+							Description: "SSL configuration for the server.",
+						},
+						"verify": schema.StringAttribute{
+							Optional:    true,
+							Description: "SSL verification for the server.",
+						},
+						"cookie": schema.StringAttribute{
+							Optional:    true,
+							Description: "Cookie for the server.",
+						},
+						// SSL/TLS Protocol Control (v3 fields)
+						"sslv3": schema.StringAttribute{
+							Optional:    true,
+							Description: "SSLv3 support for the server (v3 only).",
+						},
+						"tlsv10": schema.StringAttribute{
+							Optional:    true,
+							Description: "TLSv1.0 support for the server (v3 only).",
+						},
+						"tlsv11": schema.StringAttribute{
+							Optional:    true,
+							Description: "TLSv1.1 support for the server (v3 only).",
+						},
+						"tlsv12": schema.StringAttribute{
+							Optional:    true,
+							Description: "TLSv1.2 support for the server (v3 only).",
+						},
+						"tlsv13": schema.StringAttribute{
+							Optional:    true,
+							Description: "TLSv1.3 support for the server (v3 only).",
+						},
+						// SSL/TLS Protocol Control (deprecated v2 fields)
+						"no_sslv3": schema.StringAttribute{
+							Optional:    true,
+							Description: "Disable SSLv3 for the server (v2 only, deprecated in v3).",
+						},
+						"no_tlsv10": schema.StringAttribute{
+							Optional:    true,
+							Description: "Disable TLSv1.0 for the server (v2 only, deprecated in v3).",
+						},
+						"no_tlsv11": schema.StringAttribute{
+							Optional:    true,
+							Description: "Disable TLSv1.1 for the server (v2 only, deprecated in v3).",
+						},
+						"no_tlsv12": schema.StringAttribute{
+							Optional:    true,
+							Description: "Disable TLSv1.2 for the server (v2 only, deprecated in v3).",
+						},
+						"no_tlsv13": schema.StringAttribute{
+							Optional:    true,
+							Description: "Disable TLSv1.3 for the server (v2 only, deprecated in v3).",
+						},
+						"force_sslv3": schema.StringAttribute{
+							Optional:    true,
+							Description: "Force SSLv3 for the server (v2 only, deprecated in v3).",
+						},
+						"force_tlsv10": schema.StringAttribute{
+							Optional:    true,
+							Description: "Force TLSv1.0 for the server (v2 only, deprecated in v3).",
+						},
+						"force_tlsv11": schema.StringAttribute{
+							Optional:    true,
+							Description: "Force TLSv1.1 for the server (v2 only, deprecated in v3).",
+						},
+						"force_tlsv12": schema.StringAttribute{
+							Optional:    true,
+							Description: "Force TLSv1.2 for the server (v2 only, deprecated in v3).",
+						},
+						"force_tlsv13": schema.StringAttribute{
+							Optional:    true,
+							Description: "Force TLSv1.3 for the server (v2 only, deprecated in v3).",
+						},
+						"force_strict_sni": schema.StringAttribute{
+							Optional:    true,
+							Description: "Force strict SNI for the server (v2 only, deprecated in v3).",
+						},
+					},
+				},
+			},
 		},
 		Blocks: map[string]schema.Block{
 			"balance": schema.ListNestedBlock{

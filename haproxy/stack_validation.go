@@ -25,19 +25,13 @@ func (v *StackValidation) ValidateResourceConfig(ctx context.Context, req resour
 	}
 
 	// Validate that at least one resource is specified
-	if data.Backend == nil && len(data.Servers) == 0 && data.Frontend == nil {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"At least one of backend, servers, or frontend must be specified",
-		)
-		return
-	}
+	hasBackend := data.Backend != nil
+	hasFrontend := data.Frontend != nil
 
-	// Validate servers have parent backend
-	if len(data.Servers) > 0 && data.Backend == nil {
+	if !hasBackend && !hasFrontend {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
-			"Servers must have a parent backend specified",
+			"At least one of backend or frontend must be specified",
 		)
 		return
 	}
