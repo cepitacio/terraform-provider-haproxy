@@ -11,11 +11,11 @@ terraform {
 }
 
 provider "haproxy" {
-  host        = "localhost"
-  port        = 5555
+  url         = "http://localhost:5555"
   username    = "admin"
   password    = "admin"
   api_version = "v3"
+  insecure    = false
 }
 
 # Multiple applications using for_each
@@ -46,13 +46,6 @@ resource "haproxy_stack" "apps" {
   
   name = each.key
 
-  # Servers for this application
-  servers = {
-    for name, server in each.value.servers : name => merge(server, {
-      check = "enabled"
-    })
-  }
-
   # Backend configuration
   backend {
     name = each.value.backend_name
@@ -63,6 +56,13 @@ resource "haproxy_stack" "apps" {
       type = "connect"
       port = each.value.servers[keys(each.value.servers)[0]].port
     }
+
+    # Servers for this application
+    servers = {
+      for name, server in each.value.servers : name => merge(server, {
+        check = "enabled"
+      })
+    }
   }
 
   # Frontend configuration
@@ -71,10 +71,10 @@ resource "haproxy_stack" "apps" {
     mode = "http"
     default_backend = each.value.backend_name
     
-    binds = {
-      "http" = {
-        address = "*:80"
-      }
+    bind {
+      name    = "http_bind"
+      address = "0.0.0.0"
+      port    = 80
     }
   }
 }

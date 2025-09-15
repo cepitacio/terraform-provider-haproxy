@@ -21,24 +21,8 @@ Manages a complete HAProxy stack including backend, server, frontend, and ACLs.
 
 ### Optional
 
-- `acls` (Block List) Access Control List (ACL) configuration blocks for content switching and decision making. (see [below for nested schema](#nestedblock--acls))
 - `backend` (Block, Optional) Backend configuration. (see [below for nested schema](#nestedblock--backend))
 - `frontend` (Block, Optional) Frontend configuration. (see [below for nested schema](#nestedblock--frontend))
-- `servers` (Attributes Map) Multiple server configurations. (see [below for nested schema](#nestedatt--servers))
-
-<a id="nestedblock--acls"></a>
-### Nested Schema for `acls`
-
-Required:
-
-- `acl_name` (String) The name of the ACL rule.
-- `criterion` (String) The criterion for the ACL rule (e.g., 'path', 'hdr', 'src').
-- `value` (String) The value for the ACL rule.
-
-Read-Only:
-
-- `index` (Number) The index/order of the ACL rule (automatically managed by the provider).
-
 
 <a id="nestedblock--backend"></a>
 ### Nested Schema for `backend`
@@ -66,6 +50,7 @@ Optional:
 - `queue_timeout` (Number) Queue timeout in milliseconds.
 - `retries` (Number) Number of retries for failed operations.
 - `server_timeout` (Number) Server timeout in milliseconds.
+- `servers` (Attributes Map) Server configuration blocks for backend servers. (see [below for nested schema](#nestedatt--backend--servers))
 - `stats_options` (Block List) Stats options configuration for the backend. (see [below for nested schema](#nestedblock--backend--stats_options))
 - `stick_rule` (Block List) Stick rule configuration for the backend. (see [below for nested schema](#nestedblock--backend--stick_rule))
 - `stick_table` (Block, Optional) Stick table configuration for the backend. (see [below for nested schema](#nestedblock--backend--stick_table))
@@ -84,9 +69,9 @@ Required:
 - `criterion` (String) The criterion for the ACL rule (e.g., 'path', 'hdr', 'src').
 - `value` (String) The value for the ACL rule.
 
-Read-Only:
+Optional:
 
-- `index` (Number) The index/order of the ACL rule (automatically managed by the provider).
+- `index` (Number) The index/order of the ACL rule. If not specified, will be auto-assigned.
 
 
 <a id="nestedblock--backend--balance"></a>
@@ -213,6 +198,7 @@ Optional:
 - `hdr_name` (String) The header name of the http-request rule.
 - `hint_format` (String) The hint format of the http-request rule.
 - `hint_name` (String) The hint name of the http-request rule.
+- `index` (Number) The index of the http-request rule (for backward compatibility).
 - `log_level` (String) The log level of the http-request rule.
 - `lua_action` (String) The Lua action of the http-request rule.
 - `lua_params` (String) The Lua parameters of the http-request rule.
@@ -252,10 +238,6 @@ Optional:
 - `wait_at_least` (Number) The wait at least of the http-request rule.
 - `wait_time` (Number) The wait time of the http-request rule.
 
-Read-Only:
-
-- `index` (Number) The index of the http-request rule (automatically managed by the provider).
-
 
 <a id="nestedblock--backend--http_response_rules"></a>
 ### Nested Schema for `backend.http_response_rules`
@@ -283,6 +265,7 @@ Optional:
 - `hdr_match` (String) The header match of the http-response rule.
 - `hdr_method` (String) The header method of the http-response rule.
 - `hdr_name` (String) The header name of the http-response rule.
+- `index` (Number) The index of the http-response rule (for backward compatibility).
 - `log_level` (String) The log level of the http-response rule.
 - `lua_action` (String) The Lua action of the http-response rule.
 - `lua_params` (String) The Lua parameters of the http-response rule.
@@ -322,10 +305,6 @@ Optional:
 - `wait_at_least` (Number) The wait at least of the http-response rule.
 - `wait_time` (Number) The wait time of the http-response rule.
 
-Read-Only:
-
-- `index` (Number) The index of the http-response rule (automatically managed by the provider).
-
 
 <a id="nestedblock--backend--httpchk_params"></a>
 ### Nested Schema for `backend.httpchk_params`
@@ -338,6 +317,46 @@ Required:
 Optional:
 
 - `version` (String) The HTTP version for health checks.
+
+
+<a id="nestedatt--backend--servers"></a>
+### Nested Schema for `backend.servers`
+
+Required:
+
+- `address` (String) The address of the server.
+- `port` (Number) The port of the server.
+
+Optional:
+
+- `backup` (String) Whether the server is a backup server.
+- `check` (String) Whether to enable health checks for the server.
+- `cookie` (String) Cookie for the server.
+- `downinter` (Number) Down interval between health checks in milliseconds.
+- `fall` (Number) Number of failed health checks to mark server as down.
+- `fastinter` (Number) Fast interval between health checks in milliseconds.
+- `force_sslv3` (String) Force SSLv3 for the server (v2 only, deprecated in v3).
+- `force_strict_sni` (String) Force strict SNI for the server (v2 only, deprecated in v3).
+- `force_tlsv10` (String) Force TLSv1.0 for the server (v2 only, deprecated in v3).
+- `force_tlsv11` (String) Force TLSv1.1 for the server (v2 only, deprecated in v3).
+- `force_tlsv12` (String) Force TLSv1.2 for the server (v2 only, deprecated in v3).
+- `force_tlsv13` (String) Force TLSv1.3 for the server (v2 only, deprecated in v3).
+- `inter` (Number) Interval between health checks in milliseconds.
+- `maxconn` (Number) Maximum number of connections for the server.
+- `no_sslv3` (String) Disable SSLv3 for the server (v2 only, deprecated in v3).
+- `no_tlsv10` (String) Disable TLSv1.0 for the server (v2 only, deprecated in v3).
+- `no_tlsv11` (String) Disable TLSv1.1 for the server (v2 only, deprecated in v3).
+- `no_tlsv12` (String) Disable TLSv1.2 for the server (v2 only, deprecated in v3).
+- `no_tlsv13` (String) Disable TLSv1.3 for the server (v2 only, deprecated in v3).
+- `rise` (Number) Number of successful health checks to mark server as up.
+- `ssl` (String) SSL configuration for the server.
+- `sslv3` (String) SSLv3 support for the server (v3 only).
+- `tlsv10` (String) TLSv1.0 support for the server (v3 only).
+- `tlsv11` (String) TLSv1.1 support for the server (v3 only).
+- `tlsv12` (String) TLSv1.2 support for the server (v3 only).
+- `tlsv13` (String) TLSv1.3 support for the server (v3 only).
+- `verify` (String) SSL verification for the server.
+- `weight` (Number) Load balancing weight for the server.
 
 
 <a id="nestedblock--backend--stats_options"></a>
@@ -436,6 +455,7 @@ Optional:
 - `cond` (String) The condition of the tcp-request rule.
 - `cond_test` (String) The condition test of the tcp-request rule.
 - `expr` (String) The expression for the tcp-request rule.
+- `index` (Number) The index/order of the tcp-request rule (for backward compatibility).
 - `log_level` (String) The log level for the tcp-request rule.
 - `lua_action` (String) The Lua action for the tcp-request rule.
 - `lua_params` (String) The Lua parameters for the tcp-request rule.
@@ -457,10 +477,6 @@ Optional:
 - `var_name` (String) The variable name for the tcp-request rule.
 - `var_scope` (String) The variable scope for the tcp-request rule.
 
-Read-Only:
-
-- `index` (Number) The index/order of the tcp-request rule (automatically managed by the provider).
-
 
 <a id="nestedblock--backend--tcp_response_rules"></a>
 ### Nested Schema for `backend.tcp_response_rules`
@@ -480,6 +496,7 @@ Optional:
 - `cond` (String) The condition of the tcp-response rule.
 - `cond_test` (String) The condition test of the tcp-response rule.
 - `expr` (String) The expression for the tcp-response rule.
+- `index` (Number) The index/order of the tcp-response rule (for backward compatibility).
 - `log_level` (String) The log level for the tcp-response rule.
 - `lua_action` (String) The Lua action for the tcp-response rule.
 - `lua_params` (String) The Lua parameters for the tcp-response rule.
@@ -498,10 +515,6 @@ Optional:
 - `var_format` (String) The variable format for the tcp-response rule.
 - `var_name` (String) The variable name for the tcp-response rule.
 - `var_scope` (String) The variable scope for the tcp-response rule.
-
-Read-Only:
-
-- `index` (Number) The index/order of the tcp-response rule (automatically managed by the provider).
 
 
 
@@ -527,6 +540,7 @@ Optional:
 - `http_response_rules` (Block List) HTTP response rule configuration for the frontend. (see [below for nested schema](#nestedblock--frontend--http_response_rules))
 - `maxconn` (Number) Maximum number of connections for the frontend.
 - `monitor_fail` (Block List) Monitor fail configuration for the frontend. (see [below for nested schema](#nestedblock--frontend--monitor_fail))
+- `monitor_uri` (String) The URI to use for health monitoring of the frontend.
 - `ssl` (Boolean) Whether SSL is enabled for the frontend.
 - `ssl_cafile` (String) SSL CA file for the frontend.
 - `ssl_certificate` (String) SSL certificate for the frontend.
@@ -549,9 +563,9 @@ Required:
 - `criterion` (String) The criterion for the ACL rule (e.g., 'path', 'hdr', 'src').
 - `value` (String) The value for the ACL rule.
 
-Read-Only:
+Optional:
 
-- `index` (Number) The index/order of the ACL rule (automatically managed by the provider).
+- `index` (Number) The index/order of the ACL rule. If not specified, will be auto-assigned.
 
 
 <a id="nestedatt--frontend--binds"></a>
@@ -661,6 +675,7 @@ Optional:
 - `hdr_name` (String) The header name for the HTTP request rule.
 - `hint_format` (String) The hint format for the HTTP request rule.
 - `hint_name` (String) The hint name for the HTTP request rule.
+- `index` (Number) The index/order of the HTTP request rule (for backward compatibility).
 - `log_level` (String) The log level for the HTTP request rule.
 - `lua_action` (String) The Lua action for the HTTP request rule.
 - `lua_params` (String) The Lua parameters for the HTTP request rule.
@@ -700,10 +715,6 @@ Optional:
 - `wait_at_least` (Number) The wait at least for the HTTP request rule.
 - `wait_time` (Number) The wait time for the HTTP request rule.
 
-Read-Only:
-
-- `index` (Number) The index/order of the HTTP request rule (automatically managed by the provider).
-
 
 <a id="nestedblock--frontend--http_response_rules"></a>
 ### Nested Schema for `frontend.http_response_rules`
@@ -731,6 +742,7 @@ Optional:
 - `hdr_match` (String) The header match for the HTTP response rule.
 - `hdr_method` (String) The header method for the HTTP response rule.
 - `hdr_name` (String) The header name for the HTTP response rule.
+- `index` (Number) The index/order of the HTTP response rule (for backward compatibility).
 - `log_level` (String) The log level for the HTTP response rule.
 - `lua_action` (String) The Lua action for the HTTP response rule.
 - `lua_params` (String) The Lua parameters for the HTTP response rule.
@@ -769,10 +781,6 @@ Optional:
 - `var_scope` (String) The variable scope for the HTTP response rule.
 - `wait_at_least` (Number) The wait at least for the HTTP response rule.
 - `wait_time` (Number) The wait time for the HTTP response rule.
-
-Read-Only:
-
-- `index` (Number) The index/order of the HTTP response rule (automatically managed by the provider).
 
 
 <a id="nestedblock--frontend--monitor_fail"></a>
@@ -813,6 +821,7 @@ Optional:
 - `cond` (String) The condition of the tcp-request rule.
 - `cond_test` (String) The condition test of the tcp-request rule.
 - `expr` (String) The expression for the tcp-request rule.
+- `index` (Number) The index/order of the tcp-request rule (for backward compatibility).
 - `log_level` (String) The log level for the tcp-request rule.
 - `lua_action` (String) The Lua action for the tcp-request rule.
 - `lua_params` (String) The Lua parameters for the tcp-request rule.
@@ -833,48 +842,3 @@ Optional:
 - `var_format` (String) The variable format for the tcp-request rule.
 - `var_name` (String) The variable name for the tcp-request rule.
 - `var_scope` (String) The variable scope for the tcp-request rule.
-
-Read-Only:
-
-- `index` (Number) The index/order of the tcp-request rule (automatically managed by the provider).
-
-
-
-<a id="nestedatt--servers"></a>
-### Nested Schema for `servers`
-
-Required:
-
-- `address` (String) The address of the server.
-- `port` (Number) The port of the server.
-
-Optional:
-
-- `backup` (String) Whether the server is a backup server.
-- `check` (String) Whether to enable health checks for the server.
-- `cookie` (String) Cookie value for the server.
-- `downinter` (Number) Down interval between health checks in milliseconds.
-- `fall` (Number) Number of failed health checks to mark server as down.
-- `fastinter` (Number) Fast interval between health checks in milliseconds.
-- `force_sslv3` (String) Force SSLv3 for the server (Data Plane API v2 only, deprecated in v3).
-- `force_strict_sni` (String) Force strict SNI for the server (Data Plane API v2 only, deprecated in v3).
-- `force_tlsv10` (String) Force TLSv1.0 for the server (Data Plane API v2 only, deprecated in v3).
-- `force_tlsv11` (String) Force TLSv1.1 for the server (Data Plane API v2 only, deprecated in v3).
-- `force_tlsv12` (String) Force TLSv1.2 for the server (Data Plane API v2 only, deprecated in v3).
-- `force_tlsv13` (String) Force TLSv1.3 for the server (Data Plane API v2 only, deprecated in v3).
-- `inter` (Number) Interval between health checks in milliseconds.
-- `maxconn` (Number) Maximum number of connections for the server.
-- `no_sslv3` (String) Disable SSLv3 for the server (Data Plane API v2 only, deprecated in v3).
-- `no_tlsv10` (String) Disable TLSv1.0 for the server (Data Plane API v2 only, deprecated in v3).
-- `no_tlsv11` (String) Disable TLSv1.1 for the server (Data Plane API v2 only, deprecated in v3).
-- `no_tlsv12` (String) Disable TLSv1.2 for the server (Data Plane API v2 only, deprecated in v3).
-- `no_tlsv13` (String) Disable TLSv1.3 for the server (Data Plane API v2 only, deprecated in v3).
-- `rise` (Number) Number of successful health checks to mark server as up.
-- `ssl` (String) SSL configuration for the server.
-- `sslv3` (String) SSLv3 support for the server (Data Plane API v3 only).
-- `tlsv10` (String) TLSv1.0 support for the server (Data Plane API v3 only).
-- `tlsv11` (String) TLSv1.1 support for the server (Data Plane API v3 only).
-- `tlsv12` (String) TLSv1.2 support for the server (Data Plane API v3 only).
-- `tlsv13` (String) TLSv1.3 support for the server (Data Plane API v3 only).
-- `verify` (String) SSL verification for the server.
-- `weight` (Number) Load balancing weight for the server.

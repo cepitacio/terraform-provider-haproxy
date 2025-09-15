@@ -28,11 +28,11 @@ terraform {
 }
 
 provider "haproxy" {
-  host        = "localhost"
-  port        = 5555
+  url         = "http://localhost:5555"
   username    = "admin"
   password    = "admin"
   api_version = "v3"  # Default is v3, use v2 if needed (v2 has limitations)
+  insecure    = false # Optional, for skipping SSL verification
 }
 ```
 
@@ -67,6 +67,23 @@ resource "haproxy_stack" "web_app" {
       addr = "127.0.0.1"
       port = 80
     }
+
+    # Backend servers (nested under backend)
+    servers = {
+      "web_server_1" = {
+        address = "192.168.1.10"
+        port    = 8080
+        check   = "enabled"
+        weight  = 100
+      }
+      
+      "web_server_2" = {
+        address = "192.168.1.11"
+        port    = 8080
+        check   = "enabled"
+        weight  = 100
+      }
+    }
   }
 
   frontend {
@@ -94,15 +111,6 @@ resource "haproxy_stack" "web_app" {
       address = "0.0.0.0"
       port    = 80
     }
-  }
-
-  # Backend servers
-  server {
-    name    = "web_server_1"
-    address = "192.168.1.10"
-    port    = 8080
-    check   = "enabled"
-    weight  = 100
   }
 }
 ```
@@ -244,6 +252,23 @@ resource "haproxy_stack" "complete_app" {
       addr = "127.0.0.1"
       port = 80
     }
+
+    # Multiple servers (nested under backend)
+    servers = {
+      "server_1" = {
+        address = "192.168.1.10"
+        port    = 8080
+        weight  = 100
+        check   = "enabled"
+      }
+      
+      "server_2" = {
+        address = "192.168.1.11"
+        port    = 8080
+        weight  = 100
+        check   = "enabled"
+      }
+    }
   }
 
   # Frontend configuration
@@ -265,21 +290,6 @@ resource "haproxy_stack" "complete_app" {
       address = "0.0.0.0"
       port    = 80
     }
-  }
-
-  # Multiple servers
-  server {
-    name    = "server_1"
-    address = "192.168.1.10"
-    port    = 8080
-    weight  = 100
-  }
-  
-  server {
-    name    = "server_2"
-    address = "192.168.1.11"
-    port    = 8080
-    weight  = 100
   }
 }
 ```
@@ -346,22 +356,21 @@ go build -o terraform-provider-haproxy
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| host | HAProxy Data Plane API host | string | localhost | yes |
-| port | HAProxy Data Plane API port | number | 5555 | yes |
+| url | HAProxy Data Plane API URL | string | - | yes |
 | username | API username | string | - | yes |
 | password | API password | string | - | yes |
 | api_version | API version (v2 or v3) | string | v3 | no* |
+| insecure | Skip TLS verification | bool | false | no |
 
 *Required when using v2, optional when using v3 (default). **Note**: v2 has limitations - TCP rules and HTTP checks only work with backends, not frontends.
-| insecure | Skip TLS verification | bool | false | no |
 
 ### Environment Variables
 
-- `HAPROXY_HOST` - Override host
-- `HAPROXY_PORT` - Override port
+- `HAPROXY_URL` - Override URL
 - `HAPROXY_USERNAME` - Override username
 - `HAPROXY_PASSWORD` - Override password
 - `HAPROXY_API_VERSION` - Override API version (default: v3)
+- `HAPROXY_INSECURE` - Override insecure setting (default: false)
 
 ## Contributing
 
@@ -377,6 +386,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- [Issues](https://github.com/your-org/terraform-provider-haproxy/issues)
-- [Documentation](https://github.com/your-org/terraform-provider-haproxy/tree/main/docs)
-- [Examples](https://github.com/your-org/terraform-provider-haproxy/tree/main/examples)
+- [Issues](https://github.com/cepitacio/terraform-provider-haproxy/issues)
+- [Documentation](https://github.com/cepitacio/terraform-provider-haproxy/tree/main/docs)
+- [Examples](https://github.com/cepitacio/terraform-provider-haproxy/tree/main/examples)

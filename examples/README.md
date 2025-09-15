@@ -1,177 +1,194 @@
 # HAProxy Terraform Provider Examples
 
-This directory contains comprehensive examples for testing the HAProxy Terraform provider.
+This directory contains comprehensive examples for using the HAProxy Terraform provider with the HAProxy Data Plane API.
 
 ## Examples Overview
 
-### 1. `test_fix.tf` - Simple Test Configuration
-**Purpose**: Test the Read method fix we implemented
-**What it tests**: 
-- Minimal configuration with no optional fields set
-- Verifies that `terraform plan` shows no changes after initial apply
-- Tests that fields remain `null` in state when not configured
-
-### 2. `comprehensive_example.tf` - Full Feature Demo
-**Purpose**: Demonstrate all provider capabilities
+### 1. `example.tf` - Multi-Application Configuration
+**Purpose**: Demonstrates using `for_each` to create multiple HAProxy stacks
 **What it includes**:
-- All resource types with nested blocks
-- SSL/TLS configuration (API v2/v3)
-- ACL rules and HTTP/TCP rules
-- Health checks and monitoring
-- Load balancing and stick tables
-- Logging and statistics
+- Multiple applications (web, api) using local variables
+- Dynamic server configuration
+- Basic health checks and load balancing
+- Data source usage for discovery
 
-## Testing the Read Method Fix
+### 2. `basic-stack.tf` - Simple Web Application
+**Purpose**: Shows a complete, simple HAProxy configuration
+**What it includes**:
+- Single stack with backend and frontend
+- Servers nested under backend (new structure)
+- ACLs and HTTP request rules
+- Health checks and load balancing
+- Multiple backend servers
+- Data source discovery and outputs
 
-### Step 1: Use the Simple Test
+### 3. `data-sources.tf` - Data Discovery Examples
+**Purpose**: Demonstrates all available data sources
+**What it includes**:
+- List data sources (all backends, frontends, etc.)
+- Single item data sources (specific backend, ACL, etc.)
+- Cross-referencing data between sources
+- Local values and outputs using discovered data
+
+### 4. `advanced-configuration.tf` - Enterprise Features
+**Purpose**: Shows advanced HAProxy features and configurations
+**What it includes**:
+- SSL/TLS configuration with certificates
+- Multiple ACLs and complex rule chains
+- HTTP and TCP request/response rules
+- Advanced health checks
+- Session persistence with stick tables
+- Multiple environments using for_each
+
+## Getting Started
+
+### Prerequisites
+
+1. **HAProxy with Data Plane API**: Ensure HAProxy is running with the Data Plane API enabled
+2. **Terraform**: Version 1.0 or later
+3. **Provider**: The HAProxy Terraform provider
+
+### Step 1: Choose an Example
+
+Start with `basic-stack.tf` for a simple configuration, or `example.tf` for multiple applications.
+
+### Step 2: Configure Provider
+
+Update the provider configuration in your chosen example:
+
+```hcl
+provider "haproxy" {
+  url         = "http://your-haproxy:5555"  # Update with your HAProxy URL
+  username    = "admin"                     # Update with your username
+  password    = "admin"                     # Update with your password
+  api_version = "v3"                       # Use v3 for full features
+  insecure    = false                      # Set to true to skip SSL verification
+}
+```
+
+### Step 3: Initialize and Apply
+
 ```bash
 cd examples
 terraform init
 terraform plan
-```
-
-**Expected**: Should show resources to be created
-
-### Step 2: Apply the Configuration
-```bash
 terraform apply
 ```
 
 **Expected**: Resources should be created successfully
 
-### Step 3: Test the Fix
-```bash
-terraform plan
-```
+### Step 4: Verify Configuration
 
-**Expected**: Should show "No changes. No objects need to be modified."
-
-**Before the fix**: This would show constant updates to fields like:
-- `ssl = false -> null`
-- `timeout_client = 0 -> null`
-- `http_log = false -> null`
-
-**After the fix**: No changes should be detected
-
-### Step 4: Verify State
 ```bash
 terraform show
 ```
 
-**Expected**: Fields that weren't set should show as `null` in the state
+**Expected**: All resources should be in the desired state
 
-## Testing the Comprehensive Example
+## Example Details
 
-### Step 1: Review the Configuration
-The comprehensive example includes:
-- **Global**: Basic HAProxy settings
-- **Resolver**: DNS resolution configuration
-- **Peers**: HAProxy cluster configuration
-- **Backend**: Full-featured backend with SSL, rules, and health checks
-- **Frontend**: Complete frontend with bindings, ACLs, and rules
-- **Servers**: Multiple servers with health checks and SSL
-- **Log Forward**: External logging configuration
-- **Stick Tables**: Session persistence configuration
+### Basic Stack (`basic-stack.tf`)
+- **Use case**: Simple web application with load balancing
+- **Features**: ACLs, HTTP rules, health checks, multiple servers
+- **Complexity**: Beginner-friendly
 
-### Step 2: Customize for Your Environment
-Before running, update:
-- Provider credentials (host, port, username, password)
-- IP addresses and ports
-- SSL certificate paths
-- Network ranges
+### Data Sources (`data-sources.tf`)
+- **Use case**: Discovering and referencing existing HAProxy configurations
+- **Features**: All 22 data sources with examples
+- **Complexity**: Intermediate - shows data discovery patterns
 
-### Step 3: Test Incrementally
-```bash
-# Start with just the global configuration
-terraform apply -target=haproxy_global.main
+### Advanced Configuration (`advanced-configuration.tf`)
+- **Use case**: Enterprise-grade HAProxy with SSL, complex rules
+- **Features**: SSL/TLS, stick tables, multiple environments
+- **Complexity**: Advanced - production-ready configurations
 
-# Add resolver and peers
-terraform apply -target=haproxy_resolver.main -target=haproxy_peers.main
+### Multi-Application (`example.tf`)
+- **Use case**: Managing multiple applications with for_each
+- **Features**: Dynamic server configuration, environment separation
+- **Complexity**: Intermediate - shows scaling patterns
 
-# Add backend
-terraform apply -target=haproxy_backend.web_backend
+## Customizing Examples
 
-# Add frontend
-terraform apply -target=haproxy_frontend.web_frontend
+### Update Provider Configuration
+All examples use placeholder values. Update these for your environment:
 
-# Add servers
-terraform apply -target=haproxy_server.web_servers
-```
-
-## What the Fix Accomplishes
-
-### Before the Fix
-- Read methods set ALL fields to their zero values (`""`, `false`, `0`)
-- Terraform constantly tried to "update" fields to `null`
-- `terraform plan` showed constant changes
-- Unnecessary API calls and state updates
-
-### After the Fix
-- Read methods only set fields when they have meaningful values
-- Fields remain `null` when not configured
-- `terraform plan` shows "No changes" after initial apply
-- Clean, predictable state management
-
-## Testing Specific Scenarios
-
-### Test 1: Empty String Fields
 ```hcl
-resource "haproxy_backend" "test" {
-  name = "test"
-  mode = "http"
-  # ciphers not set - should remain null
+provider "haproxy" {
+  url         = "http://your-haproxy:5555"  # Your HAProxy Data Plane API URL
+  username    = "your-username"             # Your API username
+  password    = "your-password"             # Your API password
+  api_version = "v3"                       # Use v3 for full features
+  insecure    = false                      # Set to true to skip SSL verification
 }
 ```
 
-### Test 2: Boolean Fields
+### Update Server Addresses
+Replace placeholder IP addresses with your actual server addresses:
+
 ```hcl
-resource "haproxy_frontend" "test" {
-  name = "test"
-  mode = "http"
-  # http_log not set - should remain null
+servers = {
+  "web_server_1" = {
+    address = "192.168.1.10"  # Update with your server IP
+    port    = 8080            # Update with your server port
+    check   = "enabled"
+    weight  = 100
+  }
 }
 ```
 
-### Test 3: Numeric Fields
+### Update SSL Certificates
+For SSL examples, update certificate paths:
+
 ```hcl
-resource "haproxy_server" "test" {
-  name = "test"
-  parent_type = "backend"
-  parent_name = "test_backend"
-  address = "192.168.1.10"
-  port = 8080
-  # weight not set - should remain null
+bind {
+  name            = "https_bind"
+  address         = "0.0.0.0"
+  port            = 443
+  ssl             = true
+  ssl_certificate = "/path/to/your/certificate.crt"  # Update path
+  ssl_cafile      = "/path/to/your/ca.crt"           # Update path
 }
 ```
+
+## API Version Considerations
+
+### HAProxy Data Plane API v3 (Recommended)
+- ✅ Full support for all features
+- ✅ TCP rules work with both frontends and backends
+- ✅ HTTP checks work with both frontends and backends
+- ✅ All examples work as written
+
+### HAProxy Data Plane API v2 (Limited)
+- ⚠️ TCP rules only work with backends
+- ⚠️ HTTP checks only work with backends
+- ⚠️ Some advanced examples may not work
+- ✅ Basic examples work fine
 
 ## Troubleshooting
 
-### If You Still See Updates
-1. Check that you're using the updated provider
-2. Verify the provider was rebuilt after changes
-3. Check that all Read methods were updated
-4. Look for any fields that might have been missed
-
 ### Common Issues
-- **Provider not rebuilt**: Run `go build` again
-- **Wrong provider version**: Check `terraform init` output
-- **Cached state**: Try `terraform refresh`
 
-## Expected Results
+1. **Connection Refused**
+   - Check HAProxy Data Plane API is running
+   - Verify URL and port are correct
+   - Check firewall settings
 
-After applying the fix:
-- ✅ `terraform plan` shows no changes
-- ✅ Fields remain `null` when not configured
-- ✅ No unnecessary state updates
-- ✅ Clean, predictable behavior
-- ✅ All nested blocks work correctly
+2. **Authentication Failed**
+   - Verify username and password
+   - Check API user permissions
 
-## Next Steps
+3. **SSL Certificate Errors**
+   - Set `insecure = true` for testing
+   - Verify certificate paths and validity
 
-Once you've verified the fix works:
-1. Test with your actual HAProxy configuration
-2. Add more complex nested blocks
-3. Test SSL/TLS configurations
-4. Verify health checks and monitoring
-5. Test load balancing scenarios
+4. **API Version Errors**
+   - Use `api_version = "v3"` for full features
+   - Some features require v3
+
+### Getting Help
+
+- Check the [main documentation](../docs/)
+- Review [data sources](../docs/data-sources/)
+- See [resource documentation](../docs/resources/)
+- Open an [issue](https://github.com/cepitacio/terraform-provider-haproxy/issues)
 

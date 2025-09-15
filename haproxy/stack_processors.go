@@ -102,9 +102,9 @@ func (p *StackProcessors) processStackData(ctx context.Context, data *haproxySta
 		}
 	}
 
-	// Process servers data if present
-	if len(data.Servers) > 0 {
-		if err := p.processServersData(ctx, data.Servers); err != nil {
+	// Process servers data if present (now in backend)
+	if data.Backend != nil && len(data.Backend.Servers) > 0 {
+		if err := p.processServersData(ctx, data.Backend.Servers); err != nil {
 			return fmt.Errorf("failed to process servers data: %w", err)
 		}
 	}
