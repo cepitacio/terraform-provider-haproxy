@@ -1795,7 +1795,7 @@ func (r *BackendManager) UpdateBackend(ctx context.Context, plan *haproxyBackend
 	}
 
 	// Update ACLs if specified
-	if plan.Acls != nil && len(plan.Acls) > 0 {
+	if len(plan.Acls) > 0 {
 		aclManager := CreateACLManager(r.client)
 		if err := aclManager.UpdateACLs(ctx, "backend", plan.Name.ValueString(), plan.Acls); err != nil {
 			return fmt.Errorf("failed to update backend ACLs: %w", err)

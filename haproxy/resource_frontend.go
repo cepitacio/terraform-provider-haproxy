@@ -954,7 +954,7 @@ func (r *FrontendManager) UpdateFrontend(ctx context.Context, plan *haproxyFront
 	}
 
 	// Update ACLs if specified
-	if plan.Acls != nil && len(plan.Acls) > 0 {
+	if len(plan.Acls) > 0 {
 		aclManager := CreateACLManager(r.client)
 		if err := aclManager.UpdateACLs(ctx, "frontend", plan.Name.ValueString(), plan.Acls); err != nil {
 			return fmt.Errorf("failed to update frontend ACLs: %w", err)
@@ -962,7 +962,7 @@ func (r *FrontendManager) UpdateFrontend(ctx context.Context, plan *haproxyFront
 	}
 
 	// Update HTTP Request Rules if specified
-	if plan.HttpRequestRules != nil && len(plan.HttpRequestRules) > 0 {
+	if len(plan.HttpRequestRules) > 0 {
 		httpRequestRuleManager := CreateHttpRequestRuleManager(r.client)
 		if err := httpRequestRuleManager.UpdateHttpRequestRules(ctx, "frontend", plan.Name.ValueString(), plan.HttpRequestRules); err != nil {
 			return fmt.Errorf("failed to update frontend HTTP request rules: %w", err)
