@@ -92,9 +92,9 @@ func (d *FrontendSingleDataSource) Read(ctx context.Context, req datasource.Read
 
 	// Find the specific frontend by name
 	var foundFrontend *FrontendPayload
-	for _, frontend := range frontends {
-		if frontend.Name == data.Name.ValueString() {
-			foundFrontend = &frontend
+	for i := range frontends {
+		if frontends[i].Name == data.Name.ValueString() {
+			foundFrontend = &frontends[i]
 			break
 		}
 	}

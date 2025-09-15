@@ -538,7 +538,7 @@ func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, 
 
 		if config.Backend != nil && len(config.Backend.Servers) > 0 {
 			for serverName, server := range config.Backend.Servers {
-				validateServerV2ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("backend.servers[%s]", serverName))
+				validateServerV2ForCreate(ctx, &resp.Diagnostics, &server, fmt.Sprintf("backend.servers[%s]", serverName))
 			}
 		}
 
@@ -556,7 +556,7 @@ func (r *haproxyStackResource) validateConfigForAPIVersion(ctx context.Context, 
 
 		if config.Backend != nil && len(config.Backend.Servers) > 0 {
 			for serverName, server := range config.Backend.Servers {
-				validateServerV3ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("backend.servers[%s]", serverName))
+				validateServerV3ForCreate(ctx, &resp.Diagnostics, &server, fmt.Sprintf("backend.servers[%s]", serverName))
 			}
 		}
 
@@ -600,7 +600,7 @@ func (r *haproxyStackResource) validateConfigForAPIVersionUpdate(ctx context.Con
 
 		if config.Backend != nil && len(config.Backend.Servers) > 0 {
 			for serverName, server := range config.Backend.Servers {
-				validateServerV2ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("backend.servers[%s]", serverName))
+				validateServerV2ForCreate(ctx, &resp.Diagnostics, &server, fmt.Sprintf("backend.servers[%s]", serverName))
 			}
 		}
 
@@ -618,7 +618,7 @@ func (r *haproxyStackResource) validateConfigForAPIVersionUpdate(ctx context.Con
 
 		if config.Backend != nil && len(config.Backend.Servers) > 0 {
 			for serverName, server := range config.Backend.Servers {
-				validateServerV3ForCreate(ctx, &resp.Diagnostics, server, fmt.Sprintf("backend.servers[%s]", serverName))
+				validateServerV3ForCreate(ctx, &resp.Diagnostics, &server, fmt.Sprintf("backend.servers[%s]", serverName))
 			}
 		}
 
@@ -677,7 +677,7 @@ func validateDefaultServerV2ForCreate(ctx context.Context, diags *diag.Diagnosti
 }
 
 // validateServerV2ForCreate validates that v3 fields are not used in v2 mode
-func validateServerV2ForCreate(ctx context.Context, diags *diag.Diagnostics, server haproxyServerModel, pathPrefix string) {
+func validateServerV2ForCreate(ctx context.Context, diags *diag.Diagnostics, server *haproxyServerModel, pathPrefix string) {
 	if !server.Sslv3.IsNull() {
 		diags.AddAttributeError(
 			path.Root(pathPrefix).AtName("sslv3"),
@@ -829,7 +829,7 @@ func validateDefaultServerV3ForCreate(ctx context.Context, diags *diag.Diagnosti
 }
 
 // validateServerV3ForCreate validates that deprecated v2 fields are not used in v3 mode
-func validateServerV3ForCreate(ctx context.Context, diags *diag.Diagnostics, server haproxyServerModel, pathPrefix string) {
+func validateServerV3ForCreate(ctx context.Context, diags *diag.Diagnostics, server *haproxyServerModel, pathPrefix string) {
 	if !server.NoSslv3.IsNull() {
 		diags.AddAttributeError(
 			path.Root(pathPrefix).AtName("no_sslv3"),

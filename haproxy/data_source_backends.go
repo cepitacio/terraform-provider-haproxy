@@ -92,9 +92,9 @@ func (d *BackendSingleDataSource) Read(ctx context.Context, req datasource.ReadR
 
 	// Find the specific backend by name
 	var foundBackend *BackendPayload
-	for _, backend := range backends {
-		if backend.Name == data.Name.ValueString() {
-			foundBackend = &backend
+	for i := range backends {
+		if backends[i].Name == data.Name.ValueString() {
+			foundBackend = &backends[i]
 			break
 		}
 	}

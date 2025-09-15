@@ -719,9 +719,7 @@ func (r *HttpcheckResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 // Configure adds the provider configured client to the resource.
 func (r *HttpcheckResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
-	if req.ProviderData == nil {
-		return
-	}
+	if req.ProviderData == nil {	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
 
@@ -729,10 +727,7 @@ func (r *HttpcheckResource) Configure(_ context.Context, req resource.ConfigureR
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)
-
-		return
-	}
+		)	}
 
 	r.client = client
 }
@@ -744,15 +739,11 @@ func (r *HttpcheckResource) Create(ctx context.Context, req resource.CreateReque
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	if resp.Diagnostics.HasError() {	}
 
 	// Individual HTTP check resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
-	return
-}
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
 
 // Read refreshes the Terraform state with the latest data.
 func (r *HttpcheckResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -761,17 +752,13 @@ func (r *HttpcheckResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	if resp.Diagnostics.HasError() {	}
 
 	// Read the check
 	manager := CreateHttpcheckManager(r.client)
 	checks, err := manager.Read(ctx, data.ParentType.ValueString(), data.ParentName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read HTTP check, got error: %s", err))
-		return
-	}
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read HTTP check, got error: %s", err))	}
 
 	// Find the specific check by index
 	var foundCheck *HttpcheckResourceModel
@@ -783,9 +770,7 @@ func (r *HttpcheckResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	if foundCheck == nil {
-		resp.State.RemoveResource(ctx)
-		return
-	}
+		resp.State.RemoveResource(ctx)	}
 
 	// Update the data with the found check
 	data = *foundCheck
@@ -801,15 +786,11 @@ func (r *HttpcheckResource) Update(ctx context.Context, req resource.UpdateReque
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	if resp.Diagnostics.HasError() {	}
 
 	// Individual HTTP check resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
-	return
-}
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *HttpcheckResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -818,12 +799,8 @@ func (r *HttpcheckResource) Delete(ctx context.Context, req resource.DeleteReque
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	if resp.Diagnostics.HasError() {	}
 
 	// Individual HTTP check resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
-	return
-}
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}

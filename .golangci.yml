@@ -1,0 +1,51 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+      - style
+  gocognit:
+    min-complexity: 20
+  goimports:
+    local-prefixes: terraform-provider-haproxy
+  govet:
+    check-shadowing: false
+  misspell:
+    locale: US
+
+linters:
+  enable:
+    - bodyclose
+    - errcheck
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - govet
+    - gosimple
+    - ineffassign
+    - misspell
+    - staticcheck
+    - typecheck
+    - unused
+    - whitespace
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - funlen
+    - path: haproxy_client\.go
+      linters:
+        - gocyclo
+    - path: stack_operations\.go
+      linters:
+        - gocyclo

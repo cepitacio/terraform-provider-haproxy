@@ -210,7 +210,6 @@ func (r *HttpResponseRuleResource) Schema(_ context.Context, _ resource.SchemaRe
 // Configure adds the provider configured client to the resource.
 func (r *HttpResponseRuleResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
-		return
 	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
@@ -219,7 +218,6 @@ func (r *HttpResponseRuleResource) Configure(_ context.Context, req resource.Con
 			"Unexpected Data Source Configure Type",
 			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
-		return
 	}
 
 	r.client = client
@@ -231,13 +229,11 @@ func (r *HttpResponseRuleResource) Create(ctx context.Context, req resource.Crea
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
-		return
 	}
 
 	// Individual HTTP response rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
 	resp.Diagnostics.AddError("Invalid Usage", "HTTP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
-	return
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -246,7 +242,6 @@ func (r *HttpResponseRuleResource) Read(ctx context.Context, req resource.ReadRe
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
-		return
 	}
 
 	// Read the HTTP response rule
@@ -256,7 +251,6 @@ func (r *HttpResponseRuleResource) Read(ctx context.Context, req resource.ReadRe
 			"Error reading HTTP response rules",
 			fmt.Sprintf("Could not read HTTP response rules: %s", err),
 		)
-		return
 	}
 
 	// Find the specific rule by index
@@ -270,7 +264,6 @@ func (r *HttpResponseRuleResource) Read(ctx context.Context, req resource.ReadRe
 
 	if foundRule == nil {
 		resp.State.RemoveResource(ctx)
-		return
 	}
 
 	// Update state
@@ -297,13 +290,11 @@ func (r *HttpResponseRuleResource) Update(ctx context.Context, req resource.Upda
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
-		return
 	}
 
 	// Individual HTTP response rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
 	resp.Diagnostics.AddError("Invalid Usage", "HTTP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
-	return
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -312,13 +303,11 @@ func (r *HttpResponseRuleResource) Delete(ctx context.Context, req resource.Dele
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
-		return
 	}
 
 	// Individual HTTP response rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
 	resp.Diagnostics.AddError("Invalid Usage", "HTTP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
-	return
 }
 
 // ImportState configures the resource for import.
@@ -330,7 +319,6 @@ func (r *HttpResponseRuleResource) ImportState(ctx context.Context, req resource
 			"Invalid import ID",
 			"Import ID must be in the format: parent_type/parent_name/index",
 		)
-		return
 	}
 
 	parentType := parts[0]
@@ -343,7 +331,6 @@ func (r *HttpResponseRuleResource) ImportState(ctx context.Context, req resource
 			"Invalid index in import ID",
 			fmt.Sprintf("Index must be a number: %s", err),
 		)
-		return
 	}
 
 	// Set the imported values
@@ -667,9 +654,6 @@ func (r *HttpResponseRuleManager) updateHttpResponseRulesWithIndexing(ctx contex
 
 		// Individual HTTP response rule resources should not be used - use haproxy_stack instead
 		return fmt.Errorf("HTTP response rule resources should not be used directly. Use haproxy_stack resource instead.")
-
-		log.Printf("Updated all %d HTTP response rules for %s %s", len(allPayloads), parentType, parentName)
-		return nil
 	}
 
 	// Fallback to individual operations for v2

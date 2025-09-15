@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // TcpCheckResource defines the resource implementation.
@@ -712,7 +711,6 @@ func (r *TcpCheckResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 func (r *TcpCheckResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
-		return
 	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
@@ -722,8 +720,6 @@ func (r *TcpCheckResource) Configure(_ context.Context, req resource.ConfigureRe
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
-
-		return
 	}
 
 	r.client = client
@@ -737,21 +733,10 @@ func (r *TcpCheckResource) Create(ctx context.Context, req resource.CreateReques
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
-		return
 	}
 
 	// Individual TCP check resources should not be used - use haproxy_stack instead
 	resp.Diagnostics.AddError("Invalid Usage", "TCP check resources should not be used directly. Use haproxy_stack resource instead.")
-	return
-
-	// Set ID
-	data.ID = types.StringValue(fmt.Sprintf("%s/%s/tcp_check/%d", data.ParentType.ValueString(), data.ParentName.ValueString(), data.Index.ValueInt64()))
-
-	// Write logs using the tflog package
-	tflog.Trace(ctx, "created a TCP check resource")
-
-	// Save data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -762,7 +747,6 @@ func (r *TcpCheckResource) Read(ctx context.Context, req resource.ReadRequest, r
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
-		return
 	}
 
 	// Read the check
@@ -770,7 +754,6 @@ func (r *TcpCheckResource) Read(ctx context.Context, req resource.ReadRequest, r
 	checks, err := manager.Read(ctx, data.ParentType.ValueString(), data.ParentName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read TCP check, got error: %s", err))
-		return
 	}
 
 	// Find the specific check by index
@@ -784,7 +767,6 @@ func (r *TcpCheckResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	if foundCheck == nil {
 		resp.State.RemoveResource(ctx)
-		return
 	}
 
 	// Update the data with the found check
@@ -802,15 +784,10 @@ func (r *TcpCheckResource) Update(ctx context.Context, req resource.UpdateReques
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
-		return
 	}
 
 	// Individual TCP check resources should not be used - use haproxy_stack instead
 	resp.Diagnostics.AddError("Invalid Usage", "TCP check resources should not be used directly. Use haproxy_stack resource instead.")
-	return
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -821,10 +798,8 @@ func (r *TcpCheckResource) Delete(ctx context.Context, req resource.DeleteReques
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
-		return
 	}
 
 	// Individual TCP check resources should not be used - use haproxy_stack instead
 	resp.Diagnostics.AddError("Invalid Usage", "TCP check resources should not be used directly. Use haproxy_stack resource instead.")
-	return
 }
