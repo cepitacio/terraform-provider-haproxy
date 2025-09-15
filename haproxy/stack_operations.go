@@ -1431,7 +1431,7 @@ func (o *StackOperations) updateSingleInternal(ctx context.Context, req resource
 			if err = o.tcpCheckManager.Delete(ctx, transactionID, "backend", data.Backend.Name.ValueString()); err != nil {
 				return fmt.Errorf("error deleting backend TCP checks: %w", err)
 			}
-		} else if data.Backend.TcpChecks != nil && len(data.Backend.TcpChecks) > 0 {
+		} else if len(data.Backend.TcpChecks) > 0 {
 			// Check if TCP Checks changed by comparing plan vs state
 			tcpCheckChanged := o.tcpCheckChanged(ctx, data.Backend.TcpChecks, state.Backend.TcpChecks)
 			if tcpCheckChanged {
@@ -1469,7 +1469,7 @@ func (o *StackOperations) updateSingleInternal(ctx context.Context, req resource
 
 	// Commit all updates
 	tflog.Info(ctx, "Committing transaction", map[string]interface{}{"transaction_id": transactionID})
-	if err = o.client.CommitTransaction(transactionID); err != nil {
+	if err := o.client.CommitTransaction(transactionID); err != nil {
 		return err
 	}
 
@@ -2733,7 +2733,7 @@ func (o *StackOperations) deleteSingleInternal(ctx context.Context, req resource
 
 	// Commit all deletes
 	tflog.Info(ctx, "Committing transaction", map[string]interface{}{"transaction_id": transactionID})
-	if err = o.client.CommitTransaction(transactionID); err != nil {
+	if err := o.client.CommitTransaction(transactionID); err != nil {
 		return err
 	}
 

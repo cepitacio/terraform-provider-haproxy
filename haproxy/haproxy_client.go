@@ -274,7 +274,7 @@ func (c *HAProxyClient) CreateAllACLsInTransaction(ctx context.Context, transact
 			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
 			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
 
-			req, err := c.newRequest(ctx, method, url, payload)
+			req, err := c.newRequest(ctx, method, url, payloads[i])
 			if err != nil {
 				return err
 			}
@@ -928,13 +928,16 @@ func (c *HAProxyClient) ReadFrontend(ctx context.Context, name string) (*Fronten
 
 // UpdateFrontend updates a frontend.
 func (c *HAProxyClient) UpdateFrontend(ctx context.Context, name string, payload *FrontendPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/frontends/%s?transaction_id=%s", name, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -1207,13 +1210,13 @@ func (c *HAProxyClient) ReadServers(ctx context.Context, parentType, parentName 
 	}
 
 	log.Printf("DEBUG: ReadServers found %d servers", len(servers))
-	for i, server := range servers {
+	for i := range servers {
 		disabledStr := "nil"
-		if server.Disabled != nil {
-			disabledStr = fmt.Sprintf("%t", *server.Disabled)
+		if servers[i].Disabled != nil {
+			disabledStr = fmt.Sprintf("%t", *servers[i].Disabled)
 		}
 		log.Printf("DEBUG: Server %d: %s (%s:%d) - Check:'%s' Maxconn:%d Weight:%d Disabled:%s",
-			i, server.Name, server.Address, server.Port, server.Check, server.Maxconn, server.Weight, disabledStr)
+			i, servers[i].Name, servers[i].Address, servers[i].Port, servers[i].Check, servers[i].Maxconn, servers[i].Weight, disabledStr)
 	}
 
 	return servers, nil
@@ -3332,19 +3335,19 @@ func (c *HAProxyClient) CreateAllHttpRequestRulesInTransaction(ctx context.Conte
 		log.Printf("DEBUG: API %s - Creating HTTP request rules individually (v2 limitation):", c.apiVersion)
 		log.Printf("DEBUG: API %s - Payload count: %d", c.apiVersion, len(payloads))
 
-		for i, payload := range payloads {
+		for i := range payloads {
 			url := fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
 				parentType, parentName, transactionID)
 			method := "POST"
 
 			// Debug logging for each individual HTTP request rule
-			payloadJSON, _ := json.Marshal(payload)
+			payloadJSON, _ := json.Marshal(payloads[i])
 			log.Printf("DEBUG: API %s - Creating HTTP request rule %d/%d:", c.apiVersion, i+1, len(payloads))
 			log.Printf("DEBUG: API %s - Method: %s", c.apiVersion, method)
 			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
 			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
 
-			req, err := c.newRequest(ctx, method, url, payload)
+			req, err := c.newRequest(ctx, method, url, payloads[i])
 			if err != nil {
 				return err
 			}
@@ -3524,7 +3527,7 @@ func (c *HAProxyClient) CreateAllHttpResponseRulesInTransaction(ctx context.Cont
 			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
 			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
 
-			req, err := c.newRequest(ctx, method, url, payload)
+			req, err := c.newRequest(ctx, method, url, payloads[i])
 			if err != nil {
 				return err
 			}
@@ -3639,7 +3642,7 @@ func (c *HAProxyClient) CreateAllTcpRequestRulesInTransaction(ctx context.Contex
 			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
 			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
 
-			req, err := c.newRequest(ctx, method, url, payload)
+			req, err := c.newRequest(ctx, method, url, payloads[i])
 			if err != nil {
 				return err
 			}
@@ -3788,7 +3791,7 @@ func (c *HAProxyClient) CreateAllTcpResponseRulesInTransaction(ctx context.Conte
 			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
 			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
 
-			req, err := c.newRequest(ctx, method, url, payload)
+			req, err := c.newRequest(ctx, method, url, payloads[i])
 			if err != nil {
 				return err
 			}
@@ -3937,7 +3940,7 @@ func (c *HAProxyClient) CreateAllHttpchecksInTransaction(ctx context.Context, tr
 			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
 			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
 
-			req, err := c.newRequest(ctx, method, url, payload)
+			req, err := c.newRequest(ctx, method, url, payloads[i])
 			if err != nil {
 				return err
 			}
@@ -4044,7 +4047,7 @@ func (c *HAProxyClient) CreateAllTcpChecksInTransaction(ctx context.Context, tra
 			log.Printf("DEBUG: API %s - Endpoint: %s", c.apiVersion, url)
 			log.Printf("DEBUG: API %s - Payload: %s", c.apiVersion, string(payloadJSON))
 
-			req, err := c.newRequest(ctx, method, url, payload)
+			req, err := c.newRequest(ctx, method, url, payloads[i])
 			if err != nil {
 				return err
 			}

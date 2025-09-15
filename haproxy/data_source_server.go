@@ -92,9 +92,9 @@ func (d *ServerSingleDataSource) Read(ctx context.Context, req datasource.ReadRe
 
 	// Find the specific server by name
 	var foundServer *ServerPayload
-	for _, server := range servers {
-		if server.Name == data.Name.ValueString() {
-			foundServer = &server
+	for i := range servers {
+		if servers[i].Name == data.Name.ValueString() {
+			foundServer = &servers[i]
 			break
 		}
 	}
