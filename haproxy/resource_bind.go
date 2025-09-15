@@ -419,7 +419,7 @@ func (r *BindManager) CreateBindsInTransaction(ctx context.Context, transactionI
 		log.Printf("DEBUG: Creating bind '%s' with payload: %+v", bindName, bindPayload)
 
 		// Debug: Log specific problematic fields
-		log.Printf("DEBUG: Bind '%s' - Process: '%s', Metadata: '%s', Tlsv12: %t, Tlsv13: %t",
+		log.Printf("DEBUG: Bind '%s' - Process: '%s', Metadata: '%s', Tlsv12: %s, Tlsv13: %s",
 			bindName, bindPayload.Process, bindPayload.Metadata, bindPayload.Tlsv12, bindPayload.Tlsv13)
 
 		// Debug: Log the JSON payload being sent
