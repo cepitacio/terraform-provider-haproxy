@@ -120,12 +120,6 @@ func (r *TcpResponseRuleManager) Update(ctx context.Context, transactionID, pare
 
 	log.Printf("Updating %d TCP response rules for %s %s", len(rules), parentType, parentName)
 
-	// Get existing rules from the API
-	existingRules, err := r.client.ReadTcpResponseRules(ctx, parentType, parentName)
-	if err != nil {
-		return fmt.Errorf("failed to read existing TCP response rules: %w", err)
-	}
-
 	// Sort new rules by index to ensure proper ordering
 	sortedRules := r.processTcpResponseRulesBlock(rules)
 
@@ -136,78 +130,19 @@ func (r *TcpResponseRuleManager) Update(ctx context.Context, transactionID, pare
 		desiredPayloads = append(desiredPayloads, *rulePayload)
 	}
 
-	// Create maps for comparison
-	existingMap := make(map[string]TcpResponseRulePayload)
-	desiredMap := make(map[string]TcpResponseRulePayload)
-
-	// Populate existing rules map
-	for _, rule := range existingRules {
-		key := r.generateRuleKeyFromPayload(&rule)
-		existingMap[key] = rule
+	// Use delete-all-then-create-all pattern (same as http_request_rules)
+	// First, delete all existing TCP response rules to avoid duplicates
+	if err := r.deleteAllTcpResponseRulesInTransaction(ctx, transactionID, parentType, parentName); err != nil {
+		return fmt.Errorf("failed to delete existing TCP response rules for %s %s: %w", parentType, parentName, err)
 	}
 
-	// Populate desired rules map
-	for _, rule := range desiredPayloads {
-		key := r.generateRuleKeyFromPayload(&rule)
-		desiredMap[key] = rule
+	// Then create all desired rules using the same "create all at once" approach for both v2 and v3
+	// This ensures consistent formatting from HAProxy API
+	if err := r.client.CreateAllTcpResponseRulesInTransaction(ctx, transactionID, parentType, parentName, desiredPayloads); err != nil {
+		return fmt.Errorf("failed to create new TCP response rules for %s %s: %w", parentType, parentName, err)
 	}
 
-	// Find rules to delete, update, and create
-	var rulesToDelete, rulesToUpdate, rulesToCreate []TcpResponseRulePayload
-
-	// Rules to delete: exist in state but not in plan
-	for key, existingRule := range existingMap {
-		if _, exists := desiredMap[key]; !exists {
-			rulesToDelete = append(rulesToDelete, existingRule)
-		}
-	}
-
-	// Rules to update: exist in both but have changed
-	for key, desiredRule := range desiredMap {
-		if existingRule, exists := existingMap[key]; exists {
-			if r.hasRuleChangedFromPayload(&existingRule, &desiredRule) {
-				log.Printf("DEBUG: TCP response rule '%s' content changed, will update", key)
-				rulesToUpdate = append(rulesToUpdate, desiredRule)
-			} else if existingRule.Index != desiredRule.Index {
-				log.Printf("DEBUG: TCP response rule '%s' position changed from %d to %d, will reorder", key, existingRule.Index, desiredRule.Index)
-				rulesToUpdate = append(rulesToUpdate, desiredRule)
-			}
-		}
-	}
-
-	// Rules to create: exist in plan but not in state
-	for key, desiredRule := range desiredMap {
-		if _, exists := existingMap[key]; !exists {
-			rulesToCreate = append(rulesToCreate, desiredRule)
-		}
-	}
-
-	// Delete rules that are no longer needed
-	for _, rule := range rulesToDelete {
-		log.Printf("Deleting TCP response rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
-		if err := r.client.DeleteTcpResponseRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName); err != nil {
-			return fmt.Errorf("failed to delete TCP response rule: %w", err)
-		}
-	}
-
-	// Update rules that have changed
-	for _, rule := range rulesToUpdate {
-		log.Printf("Updating TCP response rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
-		if err := r.client.UpdateTcpResponseRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName, &rule); err != nil {
-			return fmt.Errorf("failed to update TCP response rule: %w", err)
-		}
-	}
-
-	// Create new rules
-	for _, rule := range rulesToCreate {
-		log.Printf("Creating TCP response rule '%s' at index %d", r.generateRuleKeyFromPayload(&rule), rule.Index)
-		if err := r.client.CreateTcpResponseRuleInTransaction(ctx, transactionID, parentType, parentName, &rule); err != nil {
-			return fmt.Errorf("failed to create TCP response rule: %w", err)
-		}
-	}
-
-	log.Printf("Updated %d TCP response rules for %s %s (deleted: %d, updated: %d, created: %d)",
-		len(desiredPayloads), parentType, parentName, len(rulesToDelete), len(rulesToUpdate), len(rulesToCreate))
+	log.Printf("Updated %d TCP response rules for %s %s in transaction %s (delete-then-create)", len(desiredPayloads), parentType, parentName, transactionID)
 	return nil
 }
 
@@ -264,6 +199,29 @@ func (r *TcpResponseRuleManager) Delete(ctx context.Context, transactionID, pare
 	}
 
 	log.Printf("Deleted %d TCP response rules for %s %s", len(existingRules), parentType, parentName)
+	return nil
+}
+
+// deleteAllTcpResponseRulesInTransaction deletes all TCP response rules for a parent resource using an existing transaction ID
+func (r *TcpResponseRuleManager) deleteAllTcpResponseRulesInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+	rules, err := r.client.ReadTcpResponseRules(ctx, parentType, parentName)
+	if err != nil {
+		return fmt.Errorf("failed to read TCP response rules for deletion: %w", err)
+	}
+
+	// Delete in reverse order (highest index first) to avoid shifting issues
+	sort.Slice(rules, func(i, j int) bool {
+		return rules[i].Index > rules[j].Index
+	})
+
+	for _, rule := range rules {
+		log.Printf("Deleting TCP response rule at index %d in transaction %s", rule.Index, transactionID)
+		err := r.client.DeleteTcpResponseRuleInTransaction(ctx, transactionID, rule.Index, parentType, parentName)
+		if err != nil {
+			return fmt.Errorf("failed to delete TCP response rule at index %d: %w", rule.Index, err)
+		}
+	}
+
 	return nil
 }
 
@@ -619,7 +577,8 @@ func (r *TcpResponseRuleResource) Schema(_ context.Context, _ resource.SchemaReq
 // Configure adds the provider configured client to the resource.
 func (r *TcpResponseRuleResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
-	if req.ProviderData == nil {	}
+	if req.ProviderData == nil {
+	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
 
@@ -627,7 +586,8 @@ func (r *TcpResponseRuleResource) Configure(_ context.Context, req resource.Conf
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)	}
+		)
+	}
 
 	r.client = client
 }
@@ -639,11 +599,13 @@ func (r *TcpResponseRuleResource) Create(ctx context.Context, req resource.Creat
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Individual TCP response rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "TCP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
+	resp.Diagnostics.AddError("Invalid Usage", "TCP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+}
 
 // Read refreshes the Terraform state with the latest data.
 func (r *TcpResponseRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -652,13 +614,15 @@ func (r *TcpResponseRuleResource) Read(ctx context.Context, req resource.ReadReq
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Read the rule
 	manager := CreateTcpResponseRuleManager(r.client)
 	rules, err := manager.Read(ctx, data.ParentType.ValueString(), data.ParentName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read TCP response rule, got error: %s", err))	}
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read TCP response rule, got error: %s", err))
+	}
 
 	// Find the specific rule by index
 	var foundRule *TcpResponseRuleResourceModel
@@ -670,7 +634,8 @@ func (r *TcpResponseRuleResource) Read(ctx context.Context, req resource.ReadReq
 	}
 
 	if foundRule == nil {
-		resp.State.RemoveResource(ctx)	}
+		resp.State.RemoveResource(ctx)
+	}
 
 	// Update the data with the found rule
 	data = *foundRule
@@ -686,11 +651,13 @@ func (r *TcpResponseRuleResource) Update(ctx context.Context, req resource.Updat
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Individual TCP response rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "TCP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
+	resp.Diagnostics.AddError("Invalid Usage", "TCP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+}
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *TcpResponseRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -699,8 +666,10 @@ func (r *TcpResponseRuleResource) Delete(ctx context.Context, req resource.Delet
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Individual TCP response rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "TCP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
+	resp.Diagnostics.AddError("Invalid Usage", "TCP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+}

@@ -43,14 +43,14 @@ locals {
 # Create multiple HAProxy stacks using for_each
 resource "haproxy_stack" "apps" {
   for_each = local.applications
-  
+
   name = each.key
 
   # Backend configuration
   backend {
     name = each.value.backend_name
     mode = "http"
-    
+
     # Health check
     http_checks {
       type = "connect"
@@ -67,10 +67,10 @@ resource "haproxy_stack" "apps" {
 
   # Frontend configuration
   frontend {
-    name = each.value.frontend_name
-    mode = "http"
+    name            = each.value.frontend_name
+    mode            = "http"
     default_backend = each.value.backend_name
-    
+
     bind {
       name    = "http_bind"
       address = "0.0.0.0"

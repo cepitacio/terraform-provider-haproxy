@@ -25,76 +25,76 @@ resource "haproxy_stack" "secure_app" {
   backend {
     name = "secure_backend"
     mode = "http"
-    
+
     # Load balancing with stickiness
     balance {
       algorithm = "leastconn"
     }
-    
+
     # SSL configuration
     default_server {
-      ssl                = "enabled"
-      ssl_certificate    = "/etc/ssl/certs/server.crt"
-      ssl_cafile         = "/etc/ssl/certs/ca.crt"
-      ssl_min_ver        = "TLSv1.2"
-      ssl_max_ver        = "TLSv1.3"
-      verify             = "required"
+      ssl             = "enabled"
+      ssl_certificate = "/etc/ssl/certs/server.crt"
+      ssl_cafile      = "/etc/ssl/certs/ca.crt"
+      ssl_min_ver     = "TLSv1.2"
+      ssl_max_ver     = "TLSv1.3"
+      verify          = "required"
     }
-    
+
     # Multiple ACLs
     acls {
-      acl_name = "is_api"
+      acl_name  = "is_api"
       criterion = "path"
       value     = "/api"
     }
-    
+
     acls {
-      acl_name = "is_admin"
+      acl_name  = "is_admin"
       criterion = "path"
       value     = "/admin"
     }
-    
+
     acls {
-      acl_name = "is_secure"
+      acl_name  = "is_secure"
       criterion = "req.ssl_ver"
       value     = "TLSv1.2"
     }
-    
+
     # HTTP request rules
     http_request_rules {
       type      = "allow"
       cond      = "if"
       cond_test = "is_secure"
     }
-    
+
     http_request_rules {
-      type      = "redirect"
-      redir_type = "location"
-      redir_code = 301
+      type        = "redirect"
+      redir_type  = "location"
+      redir_code  = 301
       redir_value = "https://secure.example.com"
-      cond      = "unless"
-      cond_test = "is_secure"
+      cond        = "unless"
+      cond_test   = "is_secure"
     }
-    
+
     http_request_rules {
       type      = "allow"
       cond      = "if"
       cond_test = "is_api"
     }
-    
+
     # HTTP response rules
     http_response_rules {
-      type      = "add-header"
-      hdr_name  = "X-Backend"
+      type       = "add-header"
+      hdr_name   = "X-Backend"
       hdr_format = "secure_backend"
     }
-    
+
     # TCP request rules (API v3 only)
     tcp_request_rules {
-      type      = "inspect-delay"
-      timeout   = 5000
+      type    = "inspect-delay"
+      timeout = 5000
     }
-    
+
     # Health checks
     http_checks {
       type = "connect"
@@ -102,27 +102,27 @@ resource "haproxy_stack" "secure_app" {
       port = 443
       ssl  = true
     }
-    
+
     http_checks {
       type    = "send"
       method  = "GET"
       uri     = "/health"
       version = "HTTP/1.1"
     }
-    
+
     http_checks {
       type    = "expect"
       match   = "status"
       pattern = "200"
     }
-    
+
     # Stick table for session persistence
     stick_table {
       type   = "ip"
       size   = "100k"
       expire = "30m"
     }
-    
+
     stick_rule {
       type    = "match"
       pattern = "src"
@@ -132,17 +132,17 @@ resource "haproxy_stack" "secure_app" {
 
   # Advanced frontend with SSL and multiple binds
   frontend {
-    name           = "secure_frontend"
-    mode           = "http"
+    name            = "secure_frontend"
+    mode            = "http"
     default_backend = "secure_backend"
-    
+
     # HTTP bind
     bind {
       name    = "http_bind"
       address = "0.0.0.0"
       port    = 80
     }
-    
+
     # HTTPS bind with SSL
     bind {
       name            = "https_bind"
@@ -154,78 +154,78 @@ resource "haproxy_stack" "secure_app" {
       ssl_min_ver     = "TLSv1.2"
       ssl_max_ver     = "TLSv1.3"
     }
-    
+
     # Multiple ACLs
     acls {
-      acl_name = "is_admin"
+      acl_name  = "is_admin"
       criterion = "path"
       value     = "/admin"
     }
-    
+
     acls {
-      acl_name = "is_api"
+      acl_name  = "is_api"
       criterion = "path"
       value     = "/api"
     }
-    
+
     acls {
-      acl_name = "is_secure"
+      acl_name  = "is_secure"
       criterion = "req.ssl_ver"
       value     = "TLSv1.2"
     }
-    
+
     acls {
-      acl_name = "is_local"
+      acl_name  = "is_local"
       criterion = "src"
       value     = "192.168.0.0/16"
     }
-    
+
     # HTTP request rules
     http_request_rules {
-      type      = "redirect"
-      redir_type = "location"
-      redir_code = 301
+      type        = "redirect"
+      redir_type  = "location"
+      redir_code  = 301
       redir_value = "https://secure.example.com"
-      cond      = "if"
-      cond_test = "!is_secure"
+      cond        = "if"
+      cond_test   = "!is_secure"
     }
-    
+
     http_request_rules {
       type      = "allow"
       cond      = "if"
       cond_test = "is_local"
     }
-    
+
     http_request_rules {
       type      = "deny"
       cond      = "if"
       cond_test = "is_admin"
     }
-    
+
     # HTTP response rules
     http_response_rules {
-      type      = "add-header"
-      hdr_name  = "X-Frontend"
+      type       = "add-header"
+      hdr_name   = "X-Frontend"
       hdr_format = "secure_frontend"
     }
-    
+
     http_response_rules {
-      type      = "add-header"
-      hdr_name  = "Strict-Transport-Security"
+      type       = "add-header"
+      hdr_name   = "Strict-Transport-Security"
       hdr_format = "max-age=31536000; includeSubDomains"
-      cond      = "if"
-      cond_test = "is_secure"
+      cond       = "if"
+      cond_test  = "is_secure"
     }
-    
+
     # TCP request rules (API v3 only)
     tcp_request_rules {
-      type      = "inspect-delay"
-      timeout   = 5000
+      type    = "inspect-delay"
+      timeout = 5000
     }
-    
+
     tcp_request_rules {
-      type      = "capture"
-      capture_len = 64
+      type           = "capture"
+      capture_len    = 64
       capture_sample = "req.cook(JSESSIONID)"
     }
 
@@ -239,7 +239,7 @@ resource "haproxy_stack" "secure_app" {
         ssl     = "enabled"
         verify  = "required"
       }
-      
+
       "secure_server_2" = {
         address = "192.168.1.11"
         port    = 8443
@@ -248,7 +248,7 @@ resource "haproxy_stack" "secure_app" {
         ssl     = "enabled"
         verify  = "required"
       }
-      
+
       "secure_server_3" = {
         address = "192.168.1.12"
         port    = 8443
@@ -283,13 +283,13 @@ locals {
 
 resource "haproxy_stack" "environments" {
   for_each = local.environments
-  
+
   name = each.key
 
   backend {
     name = "${each.key}_backend"
     mode = "http"
-    
+
     balance {
       algorithm = "roundrobin"
     }
@@ -303,10 +303,10 @@ resource "haproxy_stack" "environments" {
   }
 
   frontend {
-    name           = "${each.key}_frontend"
-    mode           = "http"
+    name            = "${each.key}_frontend"
+    mode            = "http"
     default_backend = "${each.key}_backend"
-    
+
     bind {
       name    = "${each.key}_bind"
       address = "0.0.0.0"

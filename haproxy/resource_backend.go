@@ -1841,35 +1841,6 @@ func (r *BackendManager) DeleteBackendInTransaction(ctx context.Context, transac
 	return nil
 }
 
-// processBackendBlock processes the backend block configuration
-func (r *BackendManager) processBackendBlock(backend *haproxyBackendModel) *BackendPayload {
-	if backend == nil {
-		return nil
-	}
-
-	return &BackendPayload{
-		Name:               backend.Name.ValueString(),
-		Mode:               backend.Mode.ValueString(),
-		AdvCheck:           r.determineAdvCheckForAPI(backend.AdvCheck, backend.HttpchkParams),
-		HttpConnectionMode: backend.HttpConnectionMode.ValueString(),
-		ServerTimeout:      backend.ServerTimeout.ValueInt64(),
-		CheckTimeout:       backend.CheckTimeout.ValueInt64(),
-		ConnectTimeout:     backend.ConnectTimeout.ValueInt64(),
-		QueueTimeout:       backend.QueueTimeout.ValueInt64(),
-		TunnelTimeout:      backend.TunnelTimeout.ValueInt64(),
-		TarpitTimeout:      backend.TarpitTimeout.ValueInt64(),
-		CheckCache:         backend.Checkcache.ValueString(),
-		Retries:            backend.Retries.ValueInt64(),
-
-		// Process nested blocks (only those supported by BackendPayload)
-		Balance:       r.processBalanceBlock(backend.Balance),
-		HttpchkParams: r.processHttpchkParamsBlock(backend.HttpchkParams),
-		Forwardfor:    r.processForwardforBlock(backend.Forwardfor),
-		DefaultServer: r.processDefaultServerBlock(backend.DefaultServer),
-		StatsOptions:  r.processStatsOptionsBlock(backend.StatsOptions),
-	}
-}
-
 // formatAclOrder creates a readable string showing ACL order for logging
 func (r *BackendManager) formatAclOrder(acls []haproxyAclModel) string {
 	if len(acls) == 0 {
@@ -1935,40 +1906,100 @@ func (r *BackendManager) processDefaultServerBlock(defaultServer *haproxyDefault
 	if defaultServer == nil {
 		return nil
 	}
-	return &DefaultServerPayload{
-		// Core SSL fields (supported in both v2 and v3)
-		Ssl:            defaultServer.Ssl.ValueString(),
-		SslCafile:      defaultServer.SslCafile.ValueString(),
-		SslCertificate: defaultServer.SslCertificate.ValueString(),
-		SslMaxVer:      defaultServer.SslMaxVer.ValueString(),
-		SslMinVer:      defaultServer.SslMinVer.ValueString(),
-		SslReuse:       defaultServer.SslReuse.ValueString(),
-		Ciphers:        defaultServer.Ciphers.ValueString(),
-		Ciphersuites:   defaultServer.Ciphersuites.ValueString(),
-		Verify:         defaultServer.Verify.ValueString(),
 
-		// Protocol control fields (v3 only)
-		Sslv3:  defaultServer.Sslv3.ValueString(),
-		Tlsv10: defaultServer.Tlsv10.ValueString(),
-		Tlsv11: defaultServer.Tlsv11.ValueString(),
-		Tlsv12: defaultServer.Tlsv12.ValueString(),
-		Tlsv13: defaultServer.Tlsv13.ValueString(),
+	payload := &DefaultServerPayload{}
 
-		// Deprecated fields (v2 only) - translate to force fields
-		NoSslv3:  r.translateNoTlsToForceTls(defaultServer.NoSslv3.ValueString()),
-		NoTlsv10: r.translateNoTlsToForceTls(defaultServer.NoTlsv10.ValueString()),
-		NoTlsv11: r.translateNoTlsToForceTls(defaultServer.NoTlsv11.ValueString()),
-		NoTlsv12: r.translateNoTlsToForceTls(defaultServer.NoTlsv12.ValueString()),
-		NoTlsv13: r.translateNoTlsToForceTls(defaultServer.NoTlsv13.ValueString()),
-
-		// Force fields (v3 only)
-		ForceSslv3:     defaultServer.ForceSslv3.ValueString(),
-		ForceTlsv10:    defaultServer.ForceTlsv10.ValueString(),
-		ForceTlsv11:    defaultServer.ForceTlsv11.ValueString(),
-		ForceTlsv12:    defaultServer.ForceTlsv12.ValueString(),
-		ForceTlsv13:    defaultServer.ForceTlsv13.ValueString(),
-		ForceStrictSni: defaultServer.ForceStrictSni.ValueString(),
+	// Core SSL fields (supported in both v2 and v3) - only set if not null/unknown
+	if !defaultServer.Ssl.IsNull() && !defaultServer.Ssl.IsUnknown() {
+		payload.Ssl = defaultServer.Ssl.ValueString()
 	}
+	if !defaultServer.SslCafile.IsNull() && !defaultServer.SslCafile.IsUnknown() {
+		payload.SslCafile = defaultServer.SslCafile.ValueString()
+	}
+	if !defaultServer.SslCertificate.IsNull() && !defaultServer.SslCertificate.IsUnknown() {
+		payload.SslCertificate = defaultServer.SslCertificate.ValueString()
+	}
+	if !defaultServer.SslMaxVer.IsNull() && !defaultServer.SslMaxVer.IsUnknown() {
+		payload.SslMaxVer = defaultServer.SslMaxVer.ValueString()
+	}
+	if !defaultServer.SslMinVer.IsNull() && !defaultServer.SslMinVer.IsUnknown() {
+		payload.SslMinVer = defaultServer.SslMinVer.ValueString()
+	}
+	if !defaultServer.SslReuse.IsNull() && !defaultServer.SslReuse.IsUnknown() {
+		payload.SslReuse = defaultServer.SslReuse.ValueString()
+	}
+	if !defaultServer.Ciphers.IsNull() && !defaultServer.Ciphers.IsUnknown() {
+		payload.Ciphers = defaultServer.Ciphers.ValueString()
+	}
+	if !defaultServer.Ciphersuites.IsNull() && !defaultServer.Ciphersuites.IsUnknown() {
+		payload.Ciphersuites = defaultServer.Ciphersuites.ValueString()
+	}
+	if !defaultServer.Verify.IsNull() && !defaultServer.Verify.IsUnknown() {
+		payload.Verify = defaultServer.Verify.ValueString()
+	}
+
+	// Protocol control fields (v3 only) - only set if not null/unknown and API v3
+	apiVersion := r.client.GetAPIVersion()
+	if apiVersion == "v3" {
+		if !defaultServer.Sslv3.IsNull() && !defaultServer.Sslv3.IsUnknown() {
+			payload.Sslv3 = defaultServer.Sslv3.ValueString()
+		}
+		if !defaultServer.Tlsv10.IsNull() && !defaultServer.Tlsv10.IsUnknown() {
+			payload.Tlsv10 = defaultServer.Tlsv10.ValueString()
+		}
+		if !defaultServer.Tlsv11.IsNull() && !defaultServer.Tlsv11.IsUnknown() {
+			payload.Tlsv11 = defaultServer.Tlsv11.ValueString()
+		}
+		if !defaultServer.Tlsv12.IsNull() && !defaultServer.Tlsv12.IsUnknown() {
+			payload.Tlsv12 = defaultServer.Tlsv12.ValueString()
+		}
+		if !defaultServer.Tlsv13.IsNull() && !defaultServer.Tlsv13.IsUnknown() {
+			payload.Tlsv13 = defaultServer.Tlsv13.ValueString()
+		}
+	}
+
+	// Deprecated fields (v2 only) - translate to force fields - only set if not null/unknown and API v2
+	if apiVersion == "v2" {
+		if !defaultServer.NoSslv3.IsNull() && !defaultServer.NoSslv3.IsUnknown() {
+			payload.NoSslv3 = r.translateNoTlsToForceTls(defaultServer.NoSslv3.ValueString())
+		}
+		if !defaultServer.NoTlsv10.IsNull() && !defaultServer.NoTlsv10.IsUnknown() {
+			payload.NoTlsv10 = r.translateNoTlsToForceTls(defaultServer.NoTlsv10.ValueString())
+		}
+		if !defaultServer.NoTlsv11.IsNull() && !defaultServer.NoTlsv11.IsUnknown() {
+			payload.NoTlsv11 = r.translateNoTlsToForceTls(defaultServer.NoTlsv11.ValueString())
+		}
+		if !defaultServer.NoTlsv12.IsNull() && !defaultServer.NoTlsv12.IsUnknown() {
+			payload.NoTlsv12 = r.translateNoTlsToForceTls(defaultServer.NoTlsv12.ValueString())
+		}
+		if !defaultServer.NoTlsv13.IsNull() && !defaultServer.NoTlsv13.IsUnknown() {
+			payload.NoTlsv13 = r.translateNoTlsToForceTls(defaultServer.NoTlsv13.ValueString())
+		}
+	}
+
+	// Force fields (v3 only) - only set if not null/unknown and API v3
+	if apiVersion == "v3" {
+		if !defaultServer.ForceSslv3.IsNull() && !defaultServer.ForceSslv3.IsUnknown() {
+			payload.ForceSslv3 = defaultServer.ForceSslv3.ValueString()
+		}
+		if !defaultServer.ForceTlsv10.IsNull() && !defaultServer.ForceTlsv10.IsUnknown() {
+			payload.ForceTlsv10 = defaultServer.ForceTlsv10.ValueString()
+		}
+		if !defaultServer.ForceTlsv11.IsNull() && !defaultServer.ForceTlsv11.IsUnknown() {
+			payload.ForceTlsv11 = defaultServer.ForceTlsv11.ValueString()
+		}
+		if !defaultServer.ForceTlsv12.IsNull() && !defaultServer.ForceTlsv12.IsUnknown() {
+			payload.ForceTlsv12 = defaultServer.ForceTlsv12.ValueString()
+		}
+		if !defaultServer.ForceTlsv13.IsNull() && !defaultServer.ForceTlsv13.IsUnknown() {
+			payload.ForceTlsv13 = defaultServer.ForceTlsv13.ValueString()
+		}
+		if !defaultServer.ForceStrictSni.IsNull() && !defaultServer.ForceStrictSni.IsUnknown() {
+			payload.ForceStrictSni = defaultServer.ForceStrictSni.ValueString()
+		}
+	}
+
+	return payload
 }
 
 // Helper functions for stick table and stick rule are not needed for BackendPayload

@@ -189,24 +189,3 @@ func (p *StackProcessors) processFrontendData(ctx context.Context, frontend *hap
 
 	return nil
 }
-
-// processACLsData processes ACLs-specific data
-func (p *StackProcessors) processACLsData(ctx context.Context, acls []haproxyAclModel) error {
-	for i, acl := range acls {
-		if acl.AclName.IsNull() || acl.AclName.IsUnknown() {
-			return fmt.Errorf("ACL %d: acl_name is required", i)
-		}
-
-		if acl.Criterion.IsNull() || acl.Criterion.IsUnknown() {
-			return fmt.Errorf("ACL %d: criterion is required", i)
-		}
-
-		if acl.Value.IsNull() || acl.Value.IsUnknown() {
-			return fmt.Errorf("ACL %d: value is required", i)
-		}
-
-		// Index is now handled by array position, no validation needed
-	}
-
-	return nil
-}
