@@ -126,7 +126,7 @@ func (c *HAProxyClient) Transaction(fn func(transactionID string) (*http.Respons
 		log.Printf("About to commit transaction %s", id)
 		log.Printf("Transaction %s: All resources created successfully, proceeding to commit", id)
 		log.Printf("Transaction %s: Calling commitTransactionID with ID: '%s'", id, id)
-		commitResp, err := c.commitTransactionID(id)
+		resp, err = c.commitTransactionID(id)
 
 		if err != nil {
 			log.Printf("Received commit error: %v", err)
@@ -147,22 +147,18 @@ func (c *HAProxyClient) Transaction(fn func(transactionID string) (*http.Respons
 		}
 
 		// Log successful commit
-		if commitResp != nil {
-			log.Printf("Transaction %s committed successfully with status: %d", id, commitResp.StatusCode)
-			log.Printf("Transaction %s response body: %+v", id, commitResp)
-			log.Printf("Transaction %s response headers: %+v", id, commitResp.Header)
+		if resp != nil {
+			log.Printf("Transaction %s committed successfully with status: %d", id, resp.StatusCode)
+			log.Printf("Transaction %s response body: %+v", id, resp)
+			log.Printf("Transaction %s response headers: %+v", id, resp.Header)
 
 			// Log the commit response body for debugging
-			if commitResp.Body != nil {
-				commitBody, _ := io.ReadAll(commitResp.Body)
+			if resp.Body != nil {
+				commitBody, _ := io.ReadAll(resp.Body)
 				log.Printf("Transaction %s commit response body content: %s", id, sanitizeResponseBody(string(commitBody)))
 			}
-
-			// Close the commit response body
-			commitResp.Body.Close()
 		}
 
-		// Return the original response from the function, not the commit response
 		return resp, nil
 	}
 }

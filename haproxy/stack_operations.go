@@ -7,11 +7,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"terraform-provider-haproxy/haproxy/utils"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -52,17 +50,6 @@ func CreateStackOperations(client *HAProxyClient, aclManager *ACLManager, fronte
 	}
 
 	return stackOps
-}
-
-// equalBoolPtr compares two bool pointers for equality
-func equalBoolPtr(a, b *bool) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return *a == *b
 }
 
 // serverNeedsUpdate checks if a server needs to be updated
@@ -185,67 +172,6 @@ func (o *StackOperations) convertServerPayloadToModel(server ServerPayload) hapr
 	return model
 }
 
-// convertHttpRequestRulePayloadToModel converts an HttpRequestRulePayload to haproxyHttpRequestRuleModel
-func (o *StackOperations) convertHttpRequestRulePayloadToModel(rule HttpRequestRulePayload) haproxyHttpRequestRuleModel {
-	model := haproxyHttpRequestRuleModel{
-		Type: types.StringValue(rule.Type),
-	}
-
-	// Set optional fields if they have values
-	if rule.Cond != "" {
-		model.Cond = types.StringValue(rule.Cond)
-	}
-	if rule.CondTest != "" {
-		model.CondTest = types.StringValue(rule.CondTest)
-	}
-	if rule.HdrName != "" {
-		model.HdrName = types.StringValue(rule.HdrName)
-	}
-	if rule.HdrFormat != "" {
-		model.HdrFormat = types.StringValue(rule.HdrFormat)
-	}
-	if rule.RedirType != "" {
-		model.RedirType = types.StringValue(rule.RedirType)
-	}
-	if rule.RedirValue != "" {
-		model.RedirValue = types.StringValue(rule.RedirValue)
-	}
-
-	return model
-}
-
-// convertHttpResponseRulePayloadToModel converts an HttpResponseRulePayload to haproxyHttpResponseRuleModel
-func (o *StackOperations) convertHttpResponseRulePayloadToModel(rule HttpResponseRulePayload) haproxyHttpResponseRuleModel {
-	model := haproxyHttpResponseRuleModel{
-		Type: types.StringValue(rule.Type),
-	}
-
-	// Set optional fields if they have values
-	if rule.Cond != "" {
-		model.Cond = types.StringValue(rule.Cond)
-	}
-	if rule.CondTest != "" {
-		model.CondTest = types.StringValue(rule.CondTest)
-	}
-	if rule.HdrName != "" {
-		model.HdrName = types.StringValue(rule.HdrName)
-	}
-	if rule.HdrFormat != "" {
-		model.HdrFormat = types.StringValue(rule.HdrFormat)
-	}
-	if rule.HdrMethod != "" {
-		model.HdrMethod = types.StringValue(rule.HdrMethod)
-	}
-	if rule.RedirType != "" {
-		model.RedirType = types.StringValue(rule.RedirType)
-	}
-	if rule.RedirValue != "" {
-		model.RedirValue = types.StringValue(rule.RedirValue)
-	}
-
-	return model
-}
-
 // convertServerModelToPayload converts a haproxyServerModel to ServerPayload
 func (o *StackOperations) convertServerModelToPayload(serverName string, server haproxyServerModel) *ServerPayload {
 	payload := &ServerPayload{
@@ -354,48 +280,6 @@ func (o *StackOperations) Create(ctx context.Context, req resource.CreateRequest
 	defer globalTransactionMutex.Unlock()
 
 	return o.createSingle(ctx, req, resp, data)
-}
-
-// createWithRetry wraps the create operation with retry logic for transaction conflicts
-func (o *StackOperations) createWithRetry(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse, data *haproxyStackResourceModel) error {
-	maxRetries := 3
-	retryDelay := 2 * time.Second
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		// Clear diagnostics before each retry attempt
-		if attempt > 0 {
-			resp.Diagnostics = diag.Diagnostics{}
-		}
-
-		tflog.Info(ctx, "Creating HAProxy stack", map[string]interface{}{"attempt": attempt + 1, "max_retries": maxRetries})
-
-		err := o.createSingle(ctx, req, resp, data)
-		if err == nil {
-			tflog.Info(ctx, "Stack created successfully", map[string]interface{}{"attempt": attempt + 1})
-			return nil
-		}
-
-		// Check if this is a retryable error
-		if !o.isTransactionRetryableError(err) {
-			tflog.Error(ctx, "Non-retryable error occurred", map[string]interface{}{"error": err.Error()})
-			resp.Diagnostics.AddError("Error creating stack", err.Error())
-			return err
-		}
-
-		tflog.Info(ctx, "Retryable error occurred, will retry", map[string]interface{}{
-			"attempt": attempt + 1,
-			"error":   err.Error(),
-		})
-
-		if attempt < maxRetries-1 {
-			tflog.Info(ctx, "Sleeping before retry", map[string]interface{}{"delay_seconds": retryDelay.Seconds()})
-			time.Sleep(retryDelay)
-		}
-	}
-
-	// If we get here, all retries failed
-	resp.Diagnostics.AddError("Error creating stack", fmt.Sprintf("failed to create stack after %d attempts", maxRetries))
-	return fmt.Errorf("failed to create stack after %d attempts", maxRetries)
 }
 
 // isTransactionRetryableError checks if an error is retryable for transaction operations
@@ -994,48 +878,6 @@ func (o *StackOperations) Update(ctx context.Context, req resource.UpdateRequest
 	defer globalTransactionMutex.Unlock()
 
 	return o.updateSingle(ctx, req, resp, data)
-}
-
-// updateWithRetry wraps the update operation with retry logic for transaction conflicts
-func (o *StackOperations) updateWithRetry(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse, data *haproxyStackResourceModel) error {
-	maxRetries := 3
-	retryDelay := 2 * time.Second
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		// Clear diagnostics before each retry attempt
-		if attempt > 0 {
-			resp.Diagnostics = diag.Diagnostics{}
-		}
-
-		tflog.Info(ctx, "Updating HAProxy stack", map[string]interface{}{"attempt": attempt + 1, "max_retries": maxRetries})
-
-		err := o.updateSingle(ctx, req, resp, data)
-		if err == nil {
-			tflog.Info(ctx, "Stack updated successfully", map[string]interface{}{"attempt": attempt + 1})
-			return nil
-		}
-
-		// Check if this is a retryable error
-		if !o.isTransactionRetryableError(err) {
-			tflog.Error(ctx, "Non-retryable error occurred", map[string]interface{}{"error": err.Error()})
-			resp.Diagnostics.AddError("Error updating stack", err.Error())
-			return err
-		}
-
-		tflog.Info(ctx, "Retryable error occurred, will retry", map[string]interface{}{
-			"attempt": attempt + 1,
-			"error":   err.Error(),
-		})
-
-		if attempt < maxRetries-1 {
-			tflog.Info(ctx, "Sleeping before retry", map[string]interface{}{"delay_seconds": retryDelay.Seconds()})
-			time.Sleep(retryDelay)
-		}
-	}
-
-	// If we get here, all retries failed
-	resp.Diagnostics.AddError("Error updating stack", fmt.Sprintf("failed to update stack after %d attempts", maxRetries))
-	return fmt.Errorf("failed to update stack after %d attempts", maxRetries)
 }
 
 // updateSingle performs a single update operation with transaction retry logic
@@ -2518,48 +2360,6 @@ func (o *StackOperations) Delete(ctx context.Context, req resource.DeleteRequest
 	defer globalTransactionMutex.Unlock()
 
 	return o.deleteSingle(ctx, req, resp, data)
-}
-
-// deleteWithRetry wraps the delete operation with retry logic for transaction conflicts
-func (o *StackOperations) deleteWithRetry(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse, data *haproxyStackResourceModel) error {
-	maxRetries := 3
-	retryDelay := 2 * time.Second
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		// Clear diagnostics before each retry attempt
-		if attempt > 0 {
-			resp.Diagnostics = diag.Diagnostics{}
-		}
-
-		tflog.Info(ctx, "Deleting HAProxy stack", map[string]interface{}{"attempt": attempt + 1, "max_retries": maxRetries})
-
-		err := o.deleteSingle(ctx, req, resp, data)
-		if err == nil {
-			tflog.Info(ctx, "Stack deleted successfully", map[string]interface{}{"attempt": attempt + 1})
-			return nil
-		}
-
-		// Check if this is a retryable error
-		if !o.isTransactionRetryableError(err) {
-			tflog.Error(ctx, "Non-retryable error occurred", map[string]interface{}{"error": err.Error()})
-			resp.Diagnostics.AddError("Error deleting stack", err.Error())
-			return err
-		}
-
-		tflog.Info(ctx, "Retryable error occurred, will retry", map[string]interface{}{
-			"attempt": attempt + 1,
-			"error":   err.Error(),
-		})
-
-		if attempt < maxRetries-1 {
-			tflog.Info(ctx, "Sleeping before retry", map[string]interface{}{"delay_seconds": retryDelay.Seconds()})
-			time.Sleep(retryDelay)
-		}
-	}
-
-	// If we get here, all retries failed
-	resp.Diagnostics.AddError("Error deleting stack", fmt.Sprintf("failed to delete stack after %d attempts", maxRetries))
-	return fmt.Errorf("failed to delete stack after %d attempts", maxRetries)
 }
 
 // deleteSingle performs a single delete operation with transaction retry logic

@@ -26,26 +26,26 @@ resource "haproxy_stack" "web_app" {
   backend {
     name = "web_backend"
     mode = "http"
-    
+
     # Load balancing
     balance {
       algorithm = "roundrobin"
     }
-    
+
     # Health checks
     http_checks {
       type = "connect"
       addr = "127.0.0.1"
       port = 80
     }
-    
+
     # ACL for API requests
     acls {
-      acl_name = "is_api"
+      acl_name  = "is_api"
       criterion = "path"
       value     = "/api"
     }
-    
+
     # HTTP request rules
     http_request_rules {
       type      = "allow"
@@ -61,7 +61,7 @@ resource "haproxy_stack" "web_app" {
         check   = "enabled"
         weight  = 100
       }
-      
+
       "web_server_2" = {
         address = "192.168.1.11"
         port    = 8080
@@ -73,24 +73,24 @@ resource "haproxy_stack" "web_app" {
 
   # Frontend configuration
   frontend {
-    name           = "web_frontend"
-    mode           = "http"
+    name            = "web_frontend"
+    mode            = "http"
     default_backend = "web_backend"
-    
+
     # Bind to port 80
     bind {
       name    = "http_bind"
       address = "0.0.0.0"
       port    = 80
     }
-    
+
     # ACL for admin requests
     acls {
-      acl_name = "is_admin"
+      acl_name  = "is_admin"
       criterion = "path"
       value     = "/admin"
     }
-    
+
     # HTTP request rules
     http_request_rules {
       type      = "allow"

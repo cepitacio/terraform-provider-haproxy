@@ -130,12 +130,6 @@ func (r *HttpcheckManager) Update(ctx context.Context, transactionID, parentType
 
 	log.Printf("Updating %d HTTP checks for %s %s", len(checks), parentType, parentName)
 
-	// Get existing checks from the API
-	existingChecks, err := r.client.ReadHttpchecks(ctx, parentType, parentName)
-	if err != nil {
-		return fmt.Errorf("failed to read existing HTTP checks: %w", err)
-	}
-
 	// Sort new checks by index to ensure proper ordering
 	sortedChecks := r.processHttpcheckBlock(checks)
 
@@ -146,78 +140,19 @@ func (r *HttpcheckManager) Update(ctx context.Context, transactionID, parentType
 		desiredPayloads = append(desiredPayloads, *checkPayload)
 	}
 
-	// Create maps for comparison
-	existingMap := make(map[string]HttpcheckPayload)
-	desiredMap := make(map[string]HttpcheckPayload)
-
-	// Populate existing checks map
-	for _, check := range existingChecks {
-		key := r.generateCheckKeyFromPayload(&check)
-		existingMap[key] = check
+	// Use delete-all-then-create-all pattern (same as http_request_rules)
+	// First, delete all existing HTTP checks to avoid duplicates
+	if err := r.deleteAllHttpchecksInTransaction(ctx, transactionID, parentType, parentName); err != nil {
+		return fmt.Errorf("failed to delete existing HTTP checks for %s %s: %w", parentType, parentName, err)
 	}
 
-	// Populate desired checks map
-	for _, check := range desiredPayloads {
-		key := r.generateCheckKeyFromPayload(&check)
-		desiredMap[key] = check
+	// Then create all desired checks using the same "create all at once" approach for both v2 and v3
+	// This ensures consistent formatting from HAProxy API
+	if err := r.client.CreateAllHttpchecksInTransaction(ctx, transactionID, parentType, parentName, desiredPayloads); err != nil {
+		return fmt.Errorf("failed to create new HTTP checks for %s %s: %w", parentType, parentName, err)
 	}
 
-	// Find checks to delete, update, and create
-	var checksToDelete, checksToUpdate, checksToCreate []HttpcheckPayload
-
-	// Checks to delete: exist in state but not in plan
-	for key, existingCheck := range existingMap {
-		if _, exists := desiredMap[key]; !exists {
-			checksToDelete = append(checksToDelete, existingCheck)
-		}
-	}
-
-	// Checks to update: exist in both but have changed
-	for key, desiredCheck := range desiredMap {
-		if existingCheck, exists := existingMap[key]; exists {
-			if r.hasCheckChangedFromPayload(&existingCheck, &desiredCheck) {
-				log.Printf("DEBUG: HTTP check '%s' content changed, will update", key)
-				checksToUpdate = append(checksToUpdate, desiredCheck)
-			} else if existingCheck.Index != desiredCheck.Index {
-				log.Printf("DEBUG: HTTP check '%s' position changed from %d to %d, will reorder", key, existingCheck.Index, desiredCheck.Index)
-				checksToUpdate = append(checksToUpdate, desiredCheck)
-			}
-		}
-	}
-
-	// Checks to create: exist in plan but not in state
-	for key, desiredCheck := range desiredMap {
-		if _, exists := existingMap[key]; !exists {
-			checksToCreate = append(checksToCreate, desiredCheck)
-		}
-	}
-
-	// Delete checks that are no longer needed
-	for _, check := range checksToDelete {
-		log.Printf("Deleting HTTP check '%s' at index %d", r.generateCheckKeyFromPayload(&check), check.Index)
-		if err := r.client.DeleteHttpcheckInTransaction(ctx, transactionID, check.Index, parentType, parentName); err != nil {
-			return fmt.Errorf("failed to delete HTTP check: %w", err)
-		}
-	}
-
-	// Update checks that have changed
-	for _, check := range checksToUpdate {
-		log.Printf("Updating HTTP check '%s' at index %d", r.generateCheckKeyFromPayload(&check), check.Index)
-		if err := r.client.UpdateHttpcheckInTransaction(ctx, transactionID, check.Index, parentType, parentName, &check); err != nil {
-			return fmt.Errorf("failed to update HTTP check: %w", err)
-		}
-	}
-
-	// Create new checks
-	for _, check := range checksToCreate {
-		log.Printf("Creating HTTP check '%s' at index %d", r.generateCheckKeyFromPayload(&check), check.Index)
-		if err := r.client.CreateHttpcheckInTransaction(ctx, transactionID, parentType, parentName, &check); err != nil {
-			return fmt.Errorf("failed to create HTTP check: %w", err)
-		}
-	}
-
-	log.Printf("Updated %d HTTP checks for %s %s (deleted: %d, updated: %d, created: %d)",
-		len(desiredPayloads), parentType, parentName, len(checksToDelete), len(checksToUpdate), len(checksToCreate))
+	log.Printf("Updated %d HTTP checks for %s %s in transaction %s (delete-then-create)", len(desiredPayloads), parentType, parentName, transactionID)
 	return nil
 }
 
@@ -282,6 +217,29 @@ func (r *HttpcheckManager) Delete(ctx context.Context, transactionID, parentType
 	}
 
 	log.Printf("Deleted %d HTTP checks for %s %s", len(existingChecks), parentType, parentName)
+	return nil
+}
+
+// deleteAllHttpchecksInTransaction deletes all HTTP checks for a parent resource using an existing transaction ID
+func (r *HttpcheckManager) deleteAllHttpchecksInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+	checks, err := r.client.ReadHttpchecks(ctx, parentType, parentName)
+	if err != nil {
+		return fmt.Errorf("failed to read HTTP checks for deletion: %w", err)
+	}
+
+	// Delete in reverse order (highest index first) to avoid shifting issues
+	sort.Slice(checks, func(i, j int) bool {
+		return checks[i].Index > checks[j].Index
+	})
+
+	for _, check := range checks {
+		log.Printf("Deleting HTTP check at index %d in transaction %s", check.Index, transactionID)
+		err := r.client.DeleteHttpcheckInTransaction(ctx, transactionID, check.Index, parentType, parentName)
+		if err != nil {
+			return fmt.Errorf("failed to delete HTTP check at index %d: %w", check.Index, err)
+		}
+	}
+
 	return nil
 }
 
@@ -719,7 +677,8 @@ func (r *HttpcheckResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 // Configure adds the provider configured client to the resource.
 func (r *HttpcheckResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
-	if req.ProviderData == nil {	}
+	if req.ProviderData == nil {
+	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
 
@@ -727,7 +686,8 @@ func (r *HttpcheckResource) Configure(_ context.Context, req resource.ConfigureR
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)	}
+		)
+	}
 
 	r.client = client
 }
@@ -739,11 +699,13 @@ func (r *HttpcheckResource) Create(ctx context.Context, req resource.CreateReque
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Individual HTTP check resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+}
 
 // Read refreshes the Terraform state with the latest data.
 func (r *HttpcheckResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -752,13 +714,15 @@ func (r *HttpcheckResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Read the check
 	manager := CreateHttpcheckManager(r.client)
 	checks, err := manager.Read(ctx, data.ParentType.ValueString(), data.ParentName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read HTTP check, got error: %s", err))	}
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read HTTP check, got error: %s", err))
+	}
 
 	// Find the specific check by index
 	var foundCheck *HttpcheckResourceModel
@@ -770,7 +734,8 @@ func (r *HttpcheckResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	if foundCheck == nil {
-		resp.State.RemoveResource(ctx)	}
+		resp.State.RemoveResource(ctx)
+	}
 
 	// Update the data with the found check
 	data = *foundCheck
@@ -786,11 +751,13 @@ func (r *HttpcheckResource) Update(ctx context.Context, req resource.UpdateReque
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Individual HTTP check resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+}
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *HttpcheckResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -799,8 +766,10 @@ func (r *HttpcheckResource) Delete(ctx context.Context, req resource.DeleteReque
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Individual HTTP check resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
+	resp.Diagnostics.AddError("Invalid Usage", "HTTP check resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+}

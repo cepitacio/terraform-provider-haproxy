@@ -664,15 +664,23 @@ func (r *BindManager) convertToBindPayload(bindName string, bind *haproxyBindMod
 		payload.V6only = bind.V6only.ValueBool()
 	}
 
-	// v3 fields (non-deprecated)
-	if !bind.Sslv3.IsNull() && !bind.Sslv3.IsUnknown() {
-		payload.Sslv3 = bind.Sslv3.ValueBool()
-	}
-	if !bind.Tlsv10.IsNull() && !bind.Tlsv10.IsUnknown() {
-		payload.Tlsv10 = bind.Tlsv10.ValueBool()
-	}
-	if !bind.Tlsv11.IsNull() && !bind.Tlsv11.IsUnknown() {
-		payload.Tlsv11 = bind.Tlsv11.ValueBool()
+	// v3 fields (non-deprecated) - only send for API v3
+	if apiVersion == "v3" {
+		if !bind.Sslv3.IsNull() && !bind.Sslv3.IsUnknown() {
+			payload.Sslv3 = bind.Sslv3.ValueBool()
+		}
+		if !bind.Tlsv10.IsNull() && !bind.Tlsv10.IsUnknown() {
+			payload.Tlsv10 = bind.Tlsv10.ValueBool()
+		}
+		if !bind.Tlsv11.IsNull() && !bind.Tlsv11.IsUnknown() {
+			payload.Tlsv11 = bind.Tlsv11.ValueBool()
+		}
+		if !bind.Tlsv12.IsNull() && !bind.Tlsv12.IsUnknown() {
+			payload.Tlsv12 = r.convertBoolToEnabledDisabled(bind.Tlsv12.ValueBool())
+		}
+		if !bind.Tlsv13.IsNull() && !bind.Tlsv13.IsUnknown() {
+			payload.Tlsv13 = r.convertBoolToEnabledDisabled(bind.Tlsv13.ValueBool())
+		}
 	}
 	// TLS version fields - not supported in either v2 or v3 for binds
 	// (HAProxy doesn't store these fields even though API docs show them)
@@ -709,42 +717,52 @@ func (r *BindManager) convertToBindPayload(bindName string, bind *haproxyBindMod
 	// Metadata field - not supported in either v2 or v3 for binds
 	// (HAProxy doesn't store this field even though API docs show it)
 
-	// v2 fields (deprecated in v3)
-	if !bind.NoSslv3.IsNull() && !bind.NoSslv3.IsUnknown() {
-		payload.NoSslv3 = bind.NoSslv3.ValueBool()
-	}
-	if !bind.ForceSslv3.IsNull() && !bind.ForceSslv3.IsUnknown() {
-		payload.ForceSslv3 = bind.ForceSslv3.ValueBool()
-	}
-	if !bind.ForceTlsv10.IsNull() && !bind.ForceTlsv10.IsUnknown() {
-		payload.ForceTlsv10 = bind.ForceTlsv10.ValueBool()
-	}
-	if !bind.ForceTlsv11.IsNull() && !bind.ForceTlsv11.IsUnknown() {
-		payload.ForceTlsv11 = bind.ForceTlsv11.ValueBool()
-	}
-	if !bind.ForceTlsv12.IsNull() && !bind.ForceTlsv12.IsUnknown() {
-		payload.ForceTlsv12 = bind.ForceTlsv12.ValueBool()
-	}
-	if !bind.ForceTlsv13.IsNull() && !bind.ForceTlsv13.IsUnknown() {
-		payload.ForceTlsv13 = bind.ForceTlsv13.ValueBool()
-	}
-	if !bind.NoTlsv10.IsNull() && !bind.NoTlsv10.IsUnknown() {
-		payload.NoTlsv10 = bind.NoTlsv10.ValueBool()
-	}
-	if !bind.NoTlsv11.IsNull() && !bind.NoTlsv11.IsUnknown() {
-		payload.NoTlsv11 = bind.NoTlsv11.ValueBool()
-	}
-	if !bind.NoTlsv12.IsNull() && !bind.NoTlsv12.IsUnknown() {
-		payload.NoTlsv12 = bind.NoTlsv12.ValueBool()
-	}
-	if !bind.NoTlsv13.IsNull() && !bind.NoTlsv13.IsUnknown() {
-		payload.NoTlsv13 = bind.NoTlsv13.ValueBool()
-	}
-	if !bind.NoTlsTickets.IsNull() && !bind.NoTlsTickets.IsUnknown() {
-		payload.NoTlsTickets = bind.NoTlsTickets.ValueBool()
+	// v2 fields (deprecated in v3) - only send for API v2
+	if apiVersion == "v2" {
+		if !bind.NoSslv3.IsNull() && !bind.NoSslv3.IsUnknown() {
+			payload.NoSslv3 = bind.NoSslv3.ValueBool()
+		}
+		if !bind.ForceSslv3.IsNull() && !bind.ForceSslv3.IsUnknown() {
+			payload.ForceSslv3 = bind.ForceSslv3.ValueBool()
+		}
+		if !bind.ForceTlsv10.IsNull() && !bind.ForceTlsv10.IsUnknown() {
+			payload.ForceTlsv10 = bind.ForceTlsv10.ValueBool()
+		}
+		if !bind.ForceTlsv11.IsNull() && !bind.ForceTlsv11.IsUnknown() {
+			payload.ForceTlsv11 = bind.ForceTlsv11.ValueBool()
+		}
+		if !bind.ForceTlsv12.IsNull() && !bind.ForceTlsv12.IsUnknown() {
+			payload.ForceTlsv12 = bind.ForceTlsv12.ValueBool()
+		}
+		if !bind.ForceTlsv13.IsNull() && !bind.ForceTlsv13.IsUnknown() {
+			payload.ForceTlsv13 = bind.ForceTlsv13.ValueBool()
+		}
+		if !bind.NoTlsv10.IsNull() && !bind.NoTlsv10.IsUnknown() {
+			payload.NoTlsv10 = bind.NoTlsv10.ValueBool()
+		}
+		if !bind.NoTlsv11.IsNull() && !bind.NoTlsv11.IsUnknown() {
+			payload.NoTlsv11 = bind.NoTlsv11.ValueBool()
+		}
+		if !bind.NoTlsv12.IsNull() && !bind.NoTlsv12.IsUnknown() {
+			payload.NoTlsv12 = bind.NoTlsv12.ValueBool()
+		}
+		if !bind.NoTlsv13.IsNull() && !bind.NoTlsv13.IsUnknown() {
+			payload.NoTlsv13 = bind.NoTlsv13.ValueBool()
+		}
+		if !bind.NoTlsTickets.IsNull() && !bind.NoTlsTickets.IsUnknown() {
+			payload.NoTlsTickets = bind.NoTlsTickets.ValueBool()
+		}
 	}
 
 	return payload
+}
+
+// convertBoolToEnabledDisabled converts a boolean to "enabled" or "disabled" string
+func (r *BindManager) convertBoolToEnabledDisabled(value bool) string {
+	if value {
+		return "enabled"
+	}
+	return "disabled"
 }
 
 func (r *BindManager) updateBindsWithHandlingInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, existingBinds []BindPayload, newBinds map[string]haproxyBindModel) error {
@@ -993,18 +1011,81 @@ func (r *BindManager) hasBindChanged(existing *BindPayload, new *haproxyBindMode
 		return true
 	}
 
-	// Check TLS version fields
-	if existing.ForceTlsv12 != new.ForceTlsv12.ValueBool() {
+	// Check SSL/TLS certificate and configuration fields
+	if existing.SslCafile != new.SslCafile.ValueString() {
 		return true
 	}
-	if existing.ForceTlsv13 != new.ForceTlsv13.ValueBool() {
+	if existing.SslCertificate != new.SslCertificate.ValueString() {
 		return true
 	}
-	if existing.ForceTlsv11 != new.ForceTlsv11.ValueBool() {
+	if existing.SslMaxVer != new.SslMaxVer.ValueString() {
 		return true
 	}
-	if existing.ForceTlsv10 != new.ForceTlsv10.ValueBool() {
+	if existing.SslMinVer != new.SslMinVer.ValueString() {
 		return true
+	}
+	if existing.Ciphers != new.Ciphers.ValueString() {
+		return true
+	}
+	if existing.Ciphersuites != new.Ciphersuites.ValueString() {
+		return true
+	}
+	if existing.Verify != new.Verify.ValueString() {
+		return true
+	}
+
+	// Check TLS version fields based on API version
+	apiVersion := r.client.GetAPIVersion()
+
+	if apiVersion == "v3" {
+		// Check v3 TLS fields
+		if existing.Sslv3 != new.Sslv3.ValueBool() {
+			return true
+		}
+		if existing.Tlsv10 != new.Tlsv10.ValueBool() {
+			return true
+		}
+		if existing.Tlsv11 != new.Tlsv11.ValueBool() {
+			return true
+		}
+		if existing.Tlsv12 != r.convertBoolToEnabledDisabled(new.Tlsv12.ValueBool()) {
+			return true
+		}
+		if existing.Tlsv13 != r.convertBoolToEnabledDisabled(new.Tlsv13.ValueBool()) {
+			return true
+		}
+	} else {
+		// Check v2 TLS fields
+		if existing.ForceTlsv12 != new.ForceTlsv12.ValueBool() {
+			return true
+		}
+		if existing.ForceTlsv13 != new.ForceTlsv13.ValueBool() {
+			return true
+		}
+		if existing.ForceTlsv11 != new.ForceTlsv11.ValueBool() {
+			return true
+		}
+		if existing.ForceTlsv10 != new.ForceTlsv10.ValueBool() {
+			return true
+		}
+		if existing.ForceSslv3 != new.ForceSslv3.ValueBool() {
+			return true
+		}
+		if existing.NoSslv3 != new.NoSslv3.ValueBool() {
+			return true
+		}
+		if existing.NoTlsv10 != new.NoTlsv10.ValueBool() {
+			return true
+		}
+		if existing.NoTlsv11 != new.NoTlsv11.ValueBool() {
+			return true
+		}
+		if existing.NoTlsv12 != new.NoTlsv12.ValueBool() {
+			return true
+		}
+		if existing.NoTlsv13 != new.NoTlsv13.ValueBool() {
+			return true
+		}
 	}
 
 	// Add more field comparisons as needed

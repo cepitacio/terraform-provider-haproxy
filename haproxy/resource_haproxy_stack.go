@@ -254,12 +254,6 @@ type haproxyTcpCheckModel struct {
 	ViaSocks4       types.Bool   `tfsdk:"via_socks4"`
 }
 
-// haproxyReturnHdrModel maps the return_hdrs block schema data.
-type haproxyReturnHdrModel struct {
-	Name types.String `tfsdk:"name"`
-	Fmt  types.String `tfsdk:"fmt"`
-}
-
 // haproxyHttpResponseRuleModel maps the http_response_rule block schema data.
 type haproxyHttpResponseRuleModel struct {
 	Index                types.Int64  `tfsdk:"index"` // For backward compatibility with existing state
