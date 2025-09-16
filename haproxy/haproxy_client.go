@@ -15,6 +15,13 @@ import (
 	"terraform-provider-haproxy/haproxy/utils"
 )
 
+const (
+	httpMethodPOST   = "POST"
+	httpMethodPUT    = "PUT"
+	httpMethodDELETE = "DELETE"
+	httpMethodGET    = "GET"
+)
+
 // sanitizeResponseBody removes sensitive information from response bodies before logging
 func sanitizeResponseBody(body string) string {
 	// Remove password from error messages
@@ -67,7 +74,12 @@ func (c *HAProxyClient) CreateFrontend(ctx context.Context, payload *FrontendPay
 	if err != nil {
 		return err
 	}
-	defer c.RollbackTransaction(transactionID)
+	defer func() {
+		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
+			// Log rollback error but don't fail the main operation
+			// as the transaction might have already been committed
+		}
+	}()
 
 	if err := c.CreateFrontendInTransaction(ctx, transactionID, payload); err != nil {
 		return err
@@ -161,7 +173,12 @@ func (c *HAProxyClient) CreateACL(ctx context.Context, parentType, parentName st
 	if err != nil {
 		return err
 	}
-	defer c.RollbackTransaction(transactionID)
+	defer func() {
+		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
+			// Log rollback error but don't fail the main operation
+			// as the transaction might have already been committed
+		}
+	}()
 
 	if err := c.CreateACLInTransaction(ctx, transactionID, parentType, parentName, payload); err != nil {
 		return err
@@ -226,7 +243,7 @@ func (c *HAProxyClient) CreateAllACLsInTransaction(ctx context.Context, transact
 		parentTypePlural := parentType + "s"
 		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/acls?transaction_id=%s",
 			parentTypePlural, parentName, transactionID)
-		method = "PUT"
+		method = httpMethodPUT
 
 		// Debug logging for v3
 		payloadJSON, _ := json.Marshal(payloads)
@@ -265,7 +282,7 @@ func (c *HAProxyClient) CreateAllACLsInTransaction(ctx context.Context, transact
 		for i, payload := range payloads {
 			url := fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s&transaction_id=%s",
 				parentType, parentName, transactionID)
-			method := "POST"
+			method := httpMethodPOST
 
 			// Debug logging for each individual ACL
 			payloadJSON, _ := json.Marshal(payload)
@@ -448,7 +465,12 @@ func (c *HAProxyClient) UpdateACL(ctx context.Context, parentType, parentName st
 	if err != nil {
 		return err
 	}
-	defer c.RollbackTransaction(transactionID)
+	defer func() {
+		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
+			// Log rollback error but don't fail the main operation
+			// as the transaction might have already been committed
+		}
+	}()
 
 	if err := c.UpdateACLInTransaction(ctx, transactionID, parentType, parentName, index, payload); err != nil {
 		return err
@@ -464,7 +486,12 @@ func (c *HAProxyClient) DeleteACL(ctx context.Context, parentType, parentName st
 	if err != nil {
 		return err
 	}
-	defer c.RollbackTransaction(transactionID)
+	defer func() {
+		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
+			// Log rollback error but don't fail the main operation
+			// as the transaction might have already been committed
+		}
+	}()
 
 	if err := c.DeleteACLInTransaction(ctx, transactionID, parentType, parentName, index); err != nil {
 		return err
@@ -944,7 +971,7 @@ func (c *HAProxyClient) UpdateFrontend(ctx context.Context, name string, payload
 // CreateBackend creates a new backend.
 func (c *HAProxyClient) CreateBackend(ctx context.Context, payload *BackendPayload) error {
 	log.Printf("CreateBackend called with payload: %+v", payload)
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		log.Printf("CreateBackend executing in transaction: %s", transactionID)
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/backends?transaction_id=%s", transactionID), payload)
 		if err != nil {
@@ -952,6 +979,9 @@ func (c *HAProxyClient) CreateBackend(ctx context.Context, payload *BackendPaylo
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -1066,25 +1096,31 @@ func (c *HAProxyClient) ReadBackend(ctx context.Context, name string) (*BackendP
 
 // UpdateBackend updates a backend.
 func (c *HAProxyClient) UpdateBackend(ctx context.Context, name string, payload *BackendPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/backends/%s?transaction_id=%s", name, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteBackend deletes a backend.
 func (c *HAProxyClient) DeleteBackend(ctx context.Context, name string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/backends/%s?transaction_id=%s", name, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -1381,37 +1417,46 @@ func (c *HAProxyClient) ReadServer(ctx context.Context, name, parentType, parent
 
 // UpdateServer updates a server.
 func (c *HAProxyClient) UpdateServer(ctx context.Context, name, parentType, parentName string, payload *ServerPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/servers/%s?parent_type=%s&parent_name=%s&transaction_id=%s", name, parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteServer deletes a server.
 func (c *HAProxyClient) DeleteServer(ctx context.Context, name, parentType, parentName string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/servers/%s?parent_type=%s&parent_name=%s&transaction_id=%s", name, parentType, parentName, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreateBind creates a new bind.
 func (c *HAProxyClient) CreateBind(ctx context.Context, parentType, parentName string, payload *BindPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/binds?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -1488,25 +1533,31 @@ func (c *HAProxyClient) ReadBind(ctx context.Context, name, parentType, parentNa
 
 // UpdateBind updates a bind.
 func (c *HAProxyClient) UpdateBind(ctx context.Context, name, parentType, parentName string, payload *BindPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/binds/%s?parent_type=%s&parent_name=%s&transaction_id=%s", name, parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteBind deletes a bind.
 func (c *HAProxyClient) DeleteBind(ctx context.Context, name, parentType, parentName string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/binds/%s?parent_type=%s&parent_name=%s&transaction_id=%s", name, parentType, parentName, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -1532,13 +1583,16 @@ func (c *HAProxyClient) DeleteBindInTransaction(ctx context.Context, transaction
 
 // DeleteFrontend deletes a frontend.
 func (c *HAProxyClient) DeleteFrontend(ctx context.Context, name string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/frontends/%s?transaction_id=%s", name, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -1628,13 +1682,16 @@ func (c *HAProxyClient) ReadBinds(ctx context.Context, parentType, parentName st
 
 // CreateAcl creates a new acl.
 func (c *HAProxyClient) CreateAcl(ctx context.Context, parentType, parentName string, payload *ACLPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/acls?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -1709,25 +1766,31 @@ func (c *HAProxyClient) ReadAcls(ctx context.Context, parentType, parentName str
 
 // UpdateAcl updates a acl.
 func (c *HAProxyClient) UpdateAcl(ctx context.Context, index int64, parentType, parentName string, payload *ACLPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteAcl deletes a acl.
 func (c *HAProxyClient) DeleteAcl(ctx context.Context, index int64, parentType, parentName string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/acls/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -1738,7 +1801,12 @@ func (c *HAProxyClient) CreateHttpRequestRule(ctx context.Context, parentType, p
 	if err != nil {
 		return err
 	}
-	defer c.RollbackTransaction(transactionID)
+	defer func() {
+		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
+			// Log rollback error but don't fail the main operation
+			// as the transaction might have already been committed
+		}
+	}()
 
 	if err := c.CreateHttpRequestRuleInTransaction(ctx, transactionID, parentType, parentName, payload); err != nil {
 		return err
@@ -1806,13 +1874,16 @@ func (c *HAProxyClient) ReadHttpRequestRules(ctx context.Context, parentType, pa
 // UpdateHttpRequestRule updates a httprequestrule.
 // DEPRECATED: Use individual resource management for new code
 func (c *HAProxyClient) UpdateHttpRequestRule(ctx context.Context, index int64, parentType, parentName string, payload *HttpRequestRulePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/http_request_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -1823,7 +1894,12 @@ func (c *HAProxyClient) DeleteHttpRequestRule(ctx context.Context, index int64, 
 	if err != nil {
 		return err
 	}
-	defer c.RollbackTransaction(transactionID)
+	defer func() {
+		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
+			// Log rollback error but don't fail the main operation
+			// as the transaction might have already been committed
+		}
+	}()
 
 	if err := c.DeleteHttpRequestRuleInTransaction(ctx, transactionID, index, parentType, parentName); err != nil {
 		return err
@@ -1834,13 +1910,16 @@ func (c *HAProxyClient) DeleteHttpRequestRule(ctx context.Context, index int64, 
 
 // CreateHttpResponseRule creates a new httpresponserule.
 func (c *HAProxyClient) CreateHttpResponseRule(ctx context.Context, parentType, parentName string, payload *HttpResponseRulePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/http_response_rules?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -1921,37 +2000,46 @@ func (c *HAProxyClient) ReadHttpResponseRules(ctx context.Context, parentType, p
 
 // UpdateHttpResponseRule updates a httpresponserule.
 func (c *HAProxyClient) UpdateHttpResponseRule(ctx context.Context, index int64, parentType, parentName string, payload *HttpResponseRulePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/http_response_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteHttpResponseRule deletes a httpresponserule.
 func (c *HAProxyClient) DeleteHttpResponseRule(ctx context.Context, index int64, parentType, parentName string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/http_response_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreateResolver creates a new resolver.
 func (c *HAProxyClient) CreateResolver(ctx context.Context, payload *ResolverPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/resolvers?transaction_id=%s", transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -2020,37 +2108,46 @@ func (c *HAProxyClient) ReadResolver(ctx context.Context, name string) (*Resolve
 
 // UpdateResolver updates a resolver.
 func (c *HAProxyClient) UpdateResolver(ctx context.Context, name string, payload *ResolverPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/resolvers/%s?transaction_id=%s", name, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteResolver deletes a resolver.
 func (c *HAProxyClient) DeleteResolver(ctx context.Context, name string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/resolvers/%s?transaction_id=%s", name, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreateNameserver creates a new nameserver.
 func (c *HAProxyClient) CreateNameserver(ctx context.Context, resolver string, payload *NameserverPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/nameservers?resolver=%s&transaction_id=%s", resolver, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -2118,37 +2215,46 @@ func (c *HAProxyClient) ReadNameservers(ctx context.Context, resolver string) ([
 
 // UpdateNameserver updates a nameserver.
 func (c *HAProxyClient) UpdateNameserver(ctx context.Context, name, resolver string, payload *NameserverPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/nameservers/%s?resolver=%s&transaction_id=%s", name, resolver, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteNameserver deletes a nameserver.
 func (c *HAProxyClient) DeleteNameserver(ctx context.Context, name, resolver string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/nameservers/%s?resolver=%s&transaction_id=%s", name, resolver, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreatePeers creates a new peers.
 func (c *HAProxyClient) CreatePeers(ctx context.Context, payload *PeersPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/peers?transaction_id=%s", transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -2185,37 +2291,46 @@ func (c *HAProxyClient) ReadPeers(ctx context.Context, name string) (*PeersPaylo
 
 // UpdatePeers updates a peers.
 func (c *HAProxyClient) UpdatePeers(ctx context.Context, name string, payload *PeersPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/peers/%s?transaction_id=%s", name, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeletePeers deletes a peers.
 func (c *HAProxyClient) DeletePeers(ctx context.Context, name string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/peers/%s?transaction_id=%s", name, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreatePeerEntry creates a new peer_entry.
 func (c *HAProxyClient) CreatePeerEntry(ctx context.Context, peers string, payload *PeerEntryPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/peer_entries?peers=%s&transaction_id=%s", peers, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -2283,37 +2398,46 @@ func (c *HAProxyClient) ReadPeerEntries(ctx context.Context, peers string) ([]Pe
 
 // UpdatePeerEntry updates a peer_entry.
 func (c *HAProxyClient) UpdatePeerEntry(ctx context.Context, name, peers string, payload *PeerEntryPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/peer_entries/%s?peers=%s&transaction_id=%s", name, peers, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeletePeerEntry deletes a peer_entry.
 func (c *HAProxyClient) DeletePeerEntry(ctx context.Context, name, peers string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/peer_entries/%s?peers=%s&transaction_id=%s", name, peers, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreateStickRule creates a new stick_rule.
 func (c *HAProxyClient) CreateStickRule(ctx context.Context, backend string, payload *StickRulePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/stick_rules?backend=%s&transaction_id=%s", backend, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -2381,25 +2505,31 @@ func (c *HAProxyClient) ReadStickRules(ctx context.Context, backend string) ([]S
 
 // UpdateStickRule updates a stick_rule.
 func (c *HAProxyClient) UpdateStickRule(ctx context.Context, index int64, backend string, payload *StickRulePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/stick_rules/%d?backend=%s&transaction_id=%s", index, backend, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteStickRule deletes a stick_rule.
 func (c *HAProxyClient) DeleteStickRule(ctx context.Context, index int64, backend string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/stick_rules/%d?backend=%s&transaction_id=%s", index, backend, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -2549,13 +2679,16 @@ func (c *HAProxyClient) ReadFrontends(ctx context.Context) ([]FrontendPayload, e
 
 // CreateHttpcheck creates a new httpcheck.
 func (c *HAProxyClient) CreateHttpcheck(ctx context.Context, parentType, parentName string, payload *HttpcheckPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/http_checks?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -2630,37 +2763,46 @@ func (c *HAProxyClient) ReadHttpchecks(ctx context.Context, parentType, parentNa
 
 // UpdateHttpcheck updates a httpcheck.
 func (c *HAProxyClient) UpdateHttpcheck(ctx context.Context, index int64, parentType, parentName string, payload *HttpcheckPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/http_checks/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteHttpcheck deletes a httpcheck.
 func (c *HAProxyClient) DeleteHttpcheck(ctx context.Context, index int64, parentType, parentName string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/http_checks/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreateStickTable creates a new stick_table.
 func (c *HAProxyClient) CreateStickTable(ctx context.Context, payload *StickTablePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/stick_tables?transaction_id=%s", transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -2697,37 +2839,46 @@ func (c *HAProxyClient) ReadStickTable(ctx context.Context, name string) (*Stick
 
 // UpdateStickTable updates a stick_table.
 func (c *HAProxyClient) UpdateStickTable(ctx context.Context, name string, payload *StickTablePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/stick_tables/%s?transaction_id=%s", name, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteStickTable deletes a stick_table.
 func (c *HAProxyClient) DeleteStickTable(ctx context.Context, name string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/stick_tables/%s?transaction_id=%s", name, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreateTcpCheck creates a new tcp_check.
 func (c *HAProxyClient) CreateTcpCheck(ctx context.Context, parentType, parentName string, payload *TcpCheckPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_checks?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -2802,37 +2953,46 @@ func (c *HAProxyClient) ReadTcpChecks(ctx context.Context, parentType, parentNam
 
 // UpdateTcpCheck updates a tcp_check.
 func (c *HAProxyClient) UpdateTcpCheck(ctx context.Context, index int64, parentType, parentName string, payload *TcpCheckPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/tcp_checks/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteTcpCheck deletes a tcp_check.
 func (c *HAProxyClient) DeleteTcpCheck(ctx context.Context, index int64, parentType, parentName string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/tcp_checks/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreateTcpRequestRule creates a new tcp_request_rule.
 func (c *HAProxyClient) CreateTcpRequestRule(ctx context.Context, parentType, parentName string, payload *TcpRequestRulePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -2907,37 +3067,46 @@ func (c *HAProxyClient) ReadTcpRequestRules(ctx context.Context, parentType, par
 
 // UpdateTcpRequestRule updates a tcp_request_rule.
 func (c *HAProxyClient) UpdateTcpRequestRule(ctx context.Context, index int64, parentType, parentName string, payload *TcpRequestRulePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteTcpRequestRule deletes a tcp_request_rule.
 func (c *HAProxyClient) DeleteTcpRequestRule(ctx context.Context, index int64, parentType, parentName string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules/%d?parent_type=%s&parent_name=%s&transaction_id=%s", index, parentType, parentName, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreateTcpResponseRule creates a new tcp_response_rule.
 func (c *HAProxyClient) CreateTcpResponseRule(ctx context.Context, parentType, parentName string, payload *TcpResponseRulePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&backend=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -3012,37 +3181,46 @@ func (c *HAProxyClient) ReadTcpResponseRules(ctx context.Context, parentType, pa
 
 // UpdateTcpResponseRule updates a tcp_response_rule.
 func (c *HAProxyClient) UpdateTcpResponseRule(ctx context.Context, index int64, parentType, parentName string, payload *TcpResponseRulePayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules/%d?parent_type=%s&backend=%s&transaction_id=%s", index, parentType, parentName, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteTcpResponseRule deletes a tcp_response_rule.
 func (c *HAProxyClient) DeleteTcpResponseRule(ctx context.Context, index int64, parentType, parentName string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules/%d?parent_type=%s&backend=%s&transaction_id=%s", index, parentType, parentName, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreateLogForward creates a new log_forward.
 func (c *HAProxyClient) CreateLogForward(ctx context.Context, payload *LogForwardPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/log_forwards?transaction_id=%s", transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -3111,37 +3289,46 @@ func (c *HAProxyClient) ReadLogForward(ctx context.Context, name string) (*LogFo
 
 // UpdateLogForward updates a log_forward.
 func (c *HAProxyClient) UpdateLogForward(ctx context.Context, name string, payload *LogForwardPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/log_forwards/%s?transaction_id=%s", name, transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteLogForward deletes a log_forward.
 func (c *HAProxyClient) DeleteLogForward(ctx context.Context, name string) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/log_forwards/%s?transaction_id=%s", name, transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // CreateGlobal creates a new global.
 func (c *HAProxyClient) CreateGlobal(ctx context.Context, payload *GlobalPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/global?transaction_id=%s", transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -3209,25 +3396,31 @@ func (c *HAProxyClient) ReadGlobal(ctx context.Context) (*GlobalPayload, error) 
 
 // UpdateGlobal updates a global.
 func (c *HAProxyClient) UpdateGlobal(ctx context.Context, payload *GlobalPayload) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "PUT", fmt.Sprintf("/services/haproxy/configuration/global?transaction_id=%s", transactionID), payload)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
 // DeleteGlobal deletes a global.
 func (c *HAProxyClient) DeleteGlobal(ctx context.Context) error {
-	_, err := c.Transaction(func(transactionID string) (*http.Response, error) {
+	resp, err := c.Transaction(func(transactionID string) (*http.Response, error) {
 		req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/global?transaction_id=%s", transactionID), nil)
 		if err != nil {
 			return nil, err
 		}
 		return c.httpClient.Do(req)
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	return err
 }
 
@@ -3244,7 +3437,7 @@ func (c *HAProxyClient) CreateHttpRequestRuleInTransaction(ctx context.Context, 
 		parentTypePlural := parentType + "s"
 		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_request_rules?transaction_id=%s",
 			parentTypePlural, parentName, transactionID)
-		method = "PUT"
+		method = httpMethodPUT
 
 		// For v3, we need to read existing rules first, then add the new one
 		// This is a limitation of v3 - we can't create individual rules
@@ -3299,7 +3492,7 @@ func (c *HAProxyClient) CreateAllHttpRequestRulesInTransaction(ctx context.Conte
 		parentTypePlural := parentType + "s"
 		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_request_rules?transaction_id=%s",
 			parentTypePlural, parentName, transactionID)
-		method = "PUT"
+		method = httpMethodPUT
 
 		// Debug logging for v3
 		payloadJSON, _ := json.Marshal(payloads)
@@ -3338,7 +3531,7 @@ func (c *HAProxyClient) CreateAllHttpRequestRulesInTransaction(ctx context.Conte
 		for i := range payloads {
 			url := fmt.Sprintf("/services/haproxy/configuration/http_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
 				parentType, parentName, transactionID)
-			method := "POST"
+			method := httpMethodPOST
 
 			// Debug logging for each individual HTTP request rule
 			payloadJSON, _ := json.Marshal(payloads[i])
@@ -3427,7 +3620,7 @@ func (c *HAProxyClient) CreateHttpResponseRuleInTransaction(ctx context.Context,
 		parentTypePlural := parentType + "s"
 		url = fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_response_rules?transaction_id=%s",
 			parentTypePlural, parentName, transactionID)
-		method = "PUT"
+		method = httpMethodPUT
 
 		// For v3, we need to read existing rules first, then add our new rule
 		existingRules, err := c.ReadHttpResponseRules(ctx, parentType, parentName)
@@ -3479,7 +3672,7 @@ func (c *HAProxyClient) CreateAllHttpResponseRulesInTransaction(ctx context.Cont
 		parentTypePlural := parentType + "s"
 		url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_response_rules?transaction_id=%s",
 			parentTypePlural, parentName, transactionID)
-		method := "PUT"
+		method := httpMethodPUT
 
 		// Debug logging for v3
 		payloadJSON, _ := json.Marshal(payloads)
@@ -3518,7 +3711,7 @@ func (c *HAProxyClient) CreateAllHttpResponseRulesInTransaction(ctx context.Cont
 		for i, payload := range payloads {
 			url := fmt.Sprintf("/services/haproxy/configuration/http_response_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
 				parentType, parentName, transactionID)
-			method := "POST"
+			method := httpMethodPOST
 
 			// Debug logging for each individual HTTP response rule
 			payloadJSON, _ := json.Marshal(payload)
@@ -3601,7 +3794,7 @@ func (c *HAProxyClient) CreateAllTcpRequestRulesInTransaction(ctx context.Contex
 		parentTypePlural := parentType + "s"
 		url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_request_rules?transaction_id=%s",
 			parentTypePlural, parentName, transactionID)
-		method := "PUT"
+		method := httpMethodPUT
 
 		// Debug logging for v3
 		payloadJSON, _ := json.Marshal(payloads)
@@ -3633,7 +3826,7 @@ func (c *HAProxyClient) CreateAllTcpRequestRulesInTransaction(ctx context.Contex
 		for i, payload := range payloads {
 			url := fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s",
 				parentType, parentName, transactionID)
-			method := "POST"
+			method := httpMethodPOST
 
 			// Debug logging for each individual TCP request rule
 			payloadJSON, _ := json.Marshal(payload)
@@ -3750,7 +3943,7 @@ func (c *HAProxyClient) CreateAllTcpResponseRulesInTransaction(ctx context.Conte
 		parentTypePlural := parentType + "s"
 		url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_response_rules?transaction_id=%s",
 			parentTypePlural, parentName, transactionID)
-		method := "PUT"
+		method := httpMethodPUT
 
 		// Debug logging for v3
 		payloadJSON, _ := json.Marshal(payloads)
@@ -3782,7 +3975,7 @@ func (c *HAProxyClient) CreateAllTcpResponseRulesInTransaction(ctx context.Conte
 		for i, payload := range payloads {
 			url := fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&backend=%s&transaction_id=%s",
 				parentType, parentName, transactionID)
-			method := "POST"
+			method := httpMethodPOST
 
 			// Debug logging for each individual TCP response rule
 			payloadJSON, _ := json.Marshal(payload)
@@ -3899,7 +4092,7 @@ func (c *HAProxyClient) CreateAllHttpchecksInTransaction(ctx context.Context, tr
 		parentTypePlural := parentType + "s"
 		url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/http_checks?transaction_id=%s",
 			parentTypePlural, parentName, transactionID)
-		method := "PUT"
+		method := httpMethodPUT
 
 		// Debug logging for v3
 		payloadJSON, _ := json.Marshal(payloads)
@@ -3931,7 +4124,7 @@ func (c *HAProxyClient) CreateAllHttpchecksInTransaction(ctx context.Context, tr
 		for i, payload := range payloads {
 			url := fmt.Sprintf("/services/haproxy/configuration/http_checks?parent_type=%s&parent_name=%s&transaction_id=%s",
 				parentType, parentName, transactionID)
-			method := "POST"
+			method := httpMethodPOST
 
 			// Debug logging for each individual HTTP check
 			payloadJSON, _ := json.Marshal(payload)
@@ -4006,7 +4199,7 @@ func (c *HAProxyClient) CreateAllTcpChecksInTransaction(ctx context.Context, tra
 		parentTypePlural := parentType + "s"
 		url := fmt.Sprintf("/services/haproxy/configuration/%s/%s/tcp_checks?transaction_id=%s",
 			parentTypePlural, parentName, transactionID)
-		method := "PUT"
+		method := httpMethodPUT
 
 		// Debug logging for v3
 		payloadJSON, _ := json.Marshal(payloads)
@@ -4038,7 +4231,7 @@ func (c *HAProxyClient) CreateAllTcpChecksInTransaction(ctx context.Context, tra
 		for i, payload := range payloads {
 			url := fmt.Sprintf("/services/haproxy/configuration/tcp_checks?parent_type=%s&parent_name=%s&transaction_id=%s",
 				parentType, parentName, transactionID)
-			method := "POST"
+			method := httpMethodPOST
 
 			// Debug logging for each individual TCP check
 			payloadJSON, _ := json.Marshal(payload)

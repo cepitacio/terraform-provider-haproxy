@@ -15,6 +15,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+const (
+	tcpCheckTypeConnectValue = "connect"
+)
+
 // TcpCheckResource defines the resource implementation.
 type TcpCheckResource struct {
 	client *HAProxyClient
@@ -128,12 +132,6 @@ func (r *TcpCheckManager) Update(ctx context.Context, transactionID, parentType,
 
 	log.Printf("Updating %d TCP checks for %s %s", len(checks), parentType, parentName)
 
-	// Get existing checks from the API
-	existingChecks, err := r.client.ReadTcpChecks(ctx, parentType, parentName)
-	if err != nil {
-		return fmt.Errorf("failed to read existing TCP checks: %w", err)
-	}
-
 	// Sort new checks by index to ensure proper ordering
 	sortedChecks := r.processTcpCheckBlock(checks)
 
@@ -144,78 +142,19 @@ func (r *TcpCheckManager) Update(ctx context.Context, transactionID, parentType,
 		desiredPayloads = append(desiredPayloads, *checkPayload)
 	}
 
-	// Create maps for comparison
-	existingMap := make(map[string]TcpCheckPayload)
-	desiredMap := make(map[string]TcpCheckPayload)
-
-	// Populate existing checks map
-	for _, check := range existingChecks {
-		key := r.generateCheckKeyFromPayload(&check)
-		existingMap[key] = check
+	// Use delete-all-then-create-all pattern (same as http_request_rules)
+	// First, delete all existing TCP checks to avoid duplicates
+	if err := r.deleteAllTcpChecksInTransaction(ctx, transactionID, parentType, parentName); err != nil {
+		return fmt.Errorf("failed to delete existing TCP checks for %s %s: %w", parentType, parentName, err)
 	}
 
-	// Populate desired checks map
-	for _, check := range desiredPayloads {
-		key := r.generateCheckKeyFromPayload(&check)
-		desiredMap[key] = check
+	// Then create all desired checks using the same "create all at once" approach for both v2 and v3
+	// This ensures consistent formatting from HAProxy API
+	if err := r.client.CreateAllTcpChecksInTransaction(ctx, transactionID, parentType, parentName, desiredPayloads); err != nil {
+		return fmt.Errorf("failed to create new TCP checks for %s %s: %w", parentType, parentName, err)
 	}
 
-	// Find checks to delete, update, and create
-	var checksToDelete, checksToUpdate, checksToCreate []TcpCheckPayload
-
-	// Checks to delete: exist in state but not in plan
-	for key, existingCheck := range existingMap {
-		if _, exists := desiredMap[key]; !exists {
-			checksToDelete = append(checksToDelete, existingCheck)
-		}
-	}
-
-	// Checks to update: exist in both but have changed
-	for key, desiredCheck := range desiredMap {
-		if existingCheck, exists := existingMap[key]; exists {
-			if r.hasCheckChangedFromPayload(&existingCheck, &desiredCheck) {
-				log.Printf("DEBUG: TCP check '%s' content changed, will update", key)
-				checksToUpdate = append(checksToUpdate, desiredCheck)
-			} else if existingCheck.Index != desiredCheck.Index {
-				log.Printf("DEBUG: TCP check '%s' position changed from %d to %d, will reorder", key, existingCheck.Index, desiredCheck.Index)
-				checksToUpdate = append(checksToUpdate, desiredCheck)
-			}
-		}
-	}
-
-	// Checks to create: exist in plan but not in state
-	for key, desiredCheck := range desiredMap {
-		if _, exists := existingMap[key]; !exists {
-			checksToCreate = append(checksToCreate, desiredCheck)
-		}
-	}
-
-	// Delete checks that are no longer needed
-	for _, check := range checksToDelete {
-		log.Printf("Deleting TCP check '%s' at index %d", r.generateCheckKeyFromPayload(&check), check.Index)
-		if err := r.client.DeleteTcpCheckInTransaction(ctx, transactionID, check.Index, parentType, parentName); err != nil {
-			return fmt.Errorf("failed to delete TCP check: %w", err)
-		}
-	}
-
-	// Update checks that have changed
-	for _, check := range checksToUpdate {
-		log.Printf("Updating TCP check '%s' at index %d", r.generateCheckKeyFromPayload(&check), check.Index)
-		if err := r.client.UpdateTcpCheckInTransaction(ctx, transactionID, check.Index, parentType, parentName, &check); err != nil {
-			return fmt.Errorf("failed to update TCP check: %w", err)
-		}
-	}
-
-	// Create new checks
-	for _, check := range checksToCreate {
-		log.Printf("Creating TCP check '%s' at index %d", r.generateCheckKeyFromPayload(&check), check.Index)
-		if err := r.client.CreateTcpCheckInTransaction(ctx, transactionID, parentType, parentName, &check); err != nil {
-			return fmt.Errorf("failed to create TCP check: %w", err)
-		}
-	}
-
-	log.Printf("Updated %d TCP checks for %s %s (deleted: %d, updated: %d, created: %d)",
-		len(desiredPayloads), parentType, parentName, len(checksToDelete), len(checksToUpdate), len(checksToCreate))
+	log.Printf("Updated %d TCP checks for %s %s in transaction %s (delete-then-create)", len(desiredPayloads), parentType, parentName, transactionID)
 	return nil
 }
 
@@ -275,6 +214,29 @@ func (r *TcpCheckManager) Delete(ctx context.Context, transactionID, parentType,
 	return nil
 }
 
+// deleteAllTcpChecksInTransaction deletes all TCP checks for a parent resource using an existing transaction ID
+func (r *TcpCheckManager) deleteAllTcpChecksInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+	checks, err := r.client.ReadTcpChecks(ctx, parentType, parentName)
+	if err != nil {
+		return fmt.Errorf("failed to read TCP checks for deletion: %w", err)
+	}
+
+	// Delete in reverse order (highest index first) to avoid shifting issues
+	sort.Slice(checks, func(i, j int) bool {
+		return checks[i].Index > checks[j].Index
+	})
+
+	for _, check := range checks {
+		log.Printf("Deleting TCP check at index %d in transaction %s", check.Index, transactionID)
+		err := r.client.DeleteTcpCheckInTransaction(ctx, transactionID, check.Index, parentType, parentName)
+		if err != nil {
+			return fmt.Errorf("failed to delete TCP check at index %d: %w", check.Index, err)
+		}
+	}
+
+	return nil
+}
+
 // processTcpCheckBlock processes and sorts TCP checks
 func (r *TcpCheckManager) processTcpCheckBlock(checks []TcpCheckResourceModel) []TcpCheckResourceModel {
 	// Sort checks by index to ensure proper ordering
@@ -304,7 +266,7 @@ func (r *TcpCheckManager) convertToTcpCheckPayload(check *TcpCheckResourceModel,
 	if !check.Addr.IsNull() && !check.Addr.IsUnknown() {
 		addr := check.Addr.ValueString()
 		// For connect action, include port in addr field if both addr and port are specified
-		if check.Action.ValueString() == "connect" && !check.Port.IsNull() && !check.Port.IsUnknown() && check.Port.ValueInt64() > 0 {
+		if check.Action.ValueString() == tcpCheckTypeConnectValue && !check.Port.IsNull() && !check.Port.IsUnknown() && check.Port.ValueInt64() > 0 {
 			port := check.Port.ValueInt64()
 			// Only add port if it's not already in the addr
 			if !strings.Contains(addr, ":") {
@@ -365,7 +327,7 @@ func (r *TcpCheckManager) convertToTcpCheckPayload(check *TcpCheckResourceModel,
 		port := check.Port.ValueInt64()
 		action := check.Action.ValueString()
 
-		if action == "connect" {
+		if action == tcpCheckTypeConnectValue {
 			// For connect actions, don't set port field at all
 			// Port is handled in the addr field as addr:port
 		} else {
@@ -430,7 +392,7 @@ func (r *TcpCheckManager) convertFromTcpCheckPayload(payload TcpCheckPayload, pa
 
 	// For connect actions, HAProxy combines addr and port into addr field as "addr:port"
 	// We need to split this back to separate addr and port fields for Terraform state
-	if payload.Action == "connect" && payload.Addr != "" {
+	if payload.Action == tcpCheckTypeConnectValue && payload.Addr != "" {
 		// Check if addr contains port (format: "addr:port")
 		if strings.Contains(payload.Addr, ":") {
 			parts := strings.Split(payload.Addr, ":")
@@ -454,7 +416,7 @@ func (r *TcpCheckManager) convertFromTcpCheckPayload(payload TcpCheckPayload, pa
 
 	// For connect actions, HAProxy always returns port=0, so we don't set the port field
 	// For other actions, set the port field if it's non-zero
-	if payload.Action != "connect" && payload.Port > 0 {
+	if payload.Action != tcpCheckTypeConnectValue && payload.Port > 0 {
 		check.Port = types.Int64Value(payload.Port)
 	}
 	if payload.Alpn != "" {

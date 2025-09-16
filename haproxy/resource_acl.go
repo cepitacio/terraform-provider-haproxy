@@ -11,6 +11,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+const (
+	aclCriterionNoneValue = "none"
+)
+
 // GetACLSchema returns the schema for the ACL block
 func GetACLSchema() schema.ListNestedBlock {
 	return schema.ListNestedBlock{
@@ -373,7 +377,7 @@ func (r *ACLManager) processAclsBlock(acls []haproxyAclModel) []haproxyAclModel 
 // formatAclOrder creates a readable string showing ACL order for logging
 func (r *ACLManager) formatAclOrder(acls []haproxyAclModel) string {
 	if len(acls) == 0 {
-		return "none"
+		return aclCriterionNoneValue
 	}
 
 	var order []string

@@ -107,13 +107,13 @@ output "frontend_binds" {
 locals {
   # Extract backend names
   backend_names = [for backend in jsondecode(data.haproxy_backends.all.backends) : backend.name]
-  
+
   # Extract server addresses
   server_addresses = [for server in jsondecode(data.haproxy_server.backend_servers.servers) : server.address]
-  
+
   # Extract ACL names
   acl_names = [for acl in jsondecode(data.haproxy_acl.frontend_acls.acls) : acl.acl_name]
-  
+
   # Extract rule types
   rule_types = [for rule in jsondecode(data.haproxy_http_request_rule.backend_rules.http_request_rules) : rule.type]
 }
@@ -121,9 +121,9 @@ locals {
 output "extracted_data" {
   description = "Extracted data from data sources"
   value = {
-    backend_names   = local.backend_names
+    backend_names    = local.backend_names
     server_addresses = local.server_addresses
-    acl_names      = local.acl_names
-    rule_types     = local.rule_types
+    acl_names        = local.acl_names
+    rule_types       = local.rule_types
   }
 }
