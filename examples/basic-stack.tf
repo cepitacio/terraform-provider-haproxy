@@ -78,10 +78,11 @@ resource "haproxy_stack" "web_app" {
     default_backend = "web_backend"
 
     # Bind to port 80
-    bind {
-      name    = "http_bind"
-      address = "0.0.0.0"
-      port    = 80
+    binds = {
+      http_bind = {
+        address = "0.0.0.0"
+        port    = 80
+      }
     }
 
     # ACL for admin requests

@@ -769,7 +769,8 @@ func (r *TcpRequestRuleResource) Schema(_ context.Context, _ resource.SchemaRequ
 // Configure adds the provider configured client to the resource.
 func (r *TcpRequestRuleResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
-	if req.ProviderData == nil {	}
+	if req.ProviderData == nil {
+	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
 
@@ -777,7 +778,8 @@ func (r *TcpRequestRuleResource) Configure(_ context.Context, req resource.Confi
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf("Expected *HAProxyClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)	}
+		)
+	}
 
 	r.client = client
 }
@@ -789,11 +791,13 @@ func (r *TcpRequestRuleResource) Create(ctx context.Context, req resource.Create
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Individual TCP request rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "TCP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
+	resp.Diagnostics.AddError("Invalid Usage", "TCP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+}
 
 // Read refreshes the Terraform state with the latest data.
 func (r *TcpRequestRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -802,13 +806,15 @@ func (r *TcpRequestRuleResource) Read(ctx context.Context, req resource.ReadRequ
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Read the rule
 	manager := CreateTcpRequestRuleManager(r.client)
 	rules, err := manager.Read(ctx, data.ParentType.ValueString(), data.ParentName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read TCP request rule, got error: %s", err))	}
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read TCP request rule, got error: %s", err))
+	}
 
 	// Find the specific rule by index
 	var foundRule *TcpRequestRuleResourceModel
@@ -820,7 +826,8 @@ func (r *TcpRequestRuleResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	if foundRule == nil {
-		resp.State.RemoveResource(ctx)	}
+		resp.State.RemoveResource(ctx)
+	}
 
 	// Update the data with the found rule
 	data = *foundRule
@@ -836,11 +843,13 @@ func (r *TcpRequestRuleResource) Update(ctx context.Context, req resource.Update
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Individual TCP request rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "TCP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
+	resp.Diagnostics.AddError("Invalid Usage", "TCP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+}
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *TcpRequestRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -849,8 +858,10 @@ func (r *TcpRequestRuleResource) Delete(ctx context.Context, req resource.Delete
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {	}
+	if resp.Diagnostics.HasError() {
+	}
 
 	// Individual TCP request rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
-	resp.Diagnostics.AddError("Invalid Usage", "TCP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")}
+	resp.Diagnostics.AddError("Invalid Usage", "TCP request rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
+}

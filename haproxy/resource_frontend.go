@@ -845,7 +845,7 @@ func (r *FrontendManager) UpdateFrontendInTransaction(ctx context.Context, trans
 }
 
 // DeleteFrontendInTransaction deletes a frontend using an existing transaction ID
-func (r *FrontendManager) DeleteFrontendInTransaction(ctx context.Context, transactionID string, frontendName string) error {
+func (r *FrontendManager) DeleteFrontendInTransaction(ctx context.Context, transactionID, frontendName string) error {
 	// Delete ACLs first (if any)
 	aclManager := CreateACLManager(r.client)
 	if err := aclManager.DeleteACLsInTransaction(ctx, transactionID, "frontend", frontendName); err != nil {

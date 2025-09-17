@@ -860,35 +860,35 @@ func validateServerV3ForCreate(ctx context.Context, diags *diag.Diagnostics, ser
 		)
 	}
 	if !server.ForceSslv3.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_sslv3"),
 			"Deprecated field in v3",
 			"Field 'force_sslv3' is deprecated in Data Plane API v3. Use 'sslv3' instead.",
 		)
 	}
 	if !server.ForceTlsv10.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv10"),
 			"Deprecated field in v3",
 			"Field 'force_tlsv10' is deprecated in Data Plane API v3. Use 'tlsv10' instead.",
 		)
 	}
 	if !server.ForceTlsv11.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv11"),
 			"Deprecated field in v3",
 			"Field 'force_tlsv11' is deprecated in Data Plane API v3. Use 'tlsv11' instead.",
 		)
 	}
 	if !server.ForceTlsv12.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv12"),
 			"Deprecated field in v3",
 			"Field 'force_tlsv12' is deprecated in Data Plane API v3. Use 'tlsv12' instead.",
 		)
 	}
 	if !server.ForceTlsv13.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv13"),
 			"Deprecated field in v3",
 			"Field 'force_tlsv13' is deprecated in Data Plane API v3. Use 'tlsv13' instead.",
@@ -906,35 +906,35 @@ func validateBindV3ForCreate(ctx context.Context, diags *diag.Diagnostics, bind 
 		)
 	}
 	if !bind.ForceSslv3.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_sslv3"),
 			"Deprecated field in v3",
 			"Field 'force_sslv3' is deprecated in Data Plane API v3. Use 'sslv3' instead.",
 		)
 	}
 	if !bind.ForceTlsv10.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv10"),
 			"Deprecated field in v3",
 			"Field 'force_tlsv10' is deprecated in Data Plane API v3. Use 'tlsv10' instead.",
 		)
 	}
 	if !bind.ForceTlsv11.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv11"),
 			"Deprecated field in v3",
 			"Field 'force_tlsv11' is deprecated in Data Plane API v3. Use 'tlsv11' instead.",
 		)
 	}
 	if !bind.ForceTlsv12.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv12"),
 			"Deprecated field in v3",
 			"Field 'force_tlsv12' is deprecated in Data Plane API v3. Use 'tlsv12' instead.",
 		)
 	}
 	if !bind.ForceTlsv13.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv13"),
 			"Deprecated field in v3",
 			"Field 'force_tlsv13' is deprecated in Data Plane API v3. Use 'tlsv13' instead.",
