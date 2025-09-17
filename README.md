@@ -13,6 +13,28 @@ A comprehensive Terraform provider for managing HAProxy configuration using the 
 - **Transaction Retry Logic**: Robust error handling with automatic retry for transaction conflicts
 - **Version-Aware Operations**: Different handling for API v2 (individual operations) vs v3 (bulk operations)
 
+## Requirements
+
+- **Terraform** >= 1.0
+- **Go** >= 1.21 (for building from source)
+- **HAProxy** with Data Plane API enabled
+- **HAProxy Data Plane API** v2 or v3 (v3 recommended)
+
+## Installation
+
+Add the provider to your Terraform configuration:
+
+```hcl
+terraform {
+  required_providers {
+    haproxy = {
+      source  = "cepitacio/haproxy"
+      version = "~> 1.0"
+    }
+  }
+}
+```
+
 ## Quick Start
 
 ### Provider Configuration
@@ -21,7 +43,7 @@ A comprehensive Terraform provider for managing HAProxy configuration using the 
 terraform {
   required_providers {
     haproxy = {
-      source  = "your-org/haproxy"
+      source  = "cepitacio/haproxy"
       version = "~> 1.0"
     }
   }
@@ -106,10 +128,11 @@ resource "haproxy_stack" "web_app" {
     }
 
     # Bind configuration
-    bind {
-      name    = "http_bind"
-      address = "0.0.0.0"
-      port    = 80
+    binds = {
+      http_bind = {
+        address = "0.0.0.0"
+        port    = 80
+      }
     }
   }
 }
@@ -285,10 +308,11 @@ resource "haproxy_stack" "complete_app" {
     }
     
     # Bind configuration
-    bind {
-      name    = "http_bind"
-      address = "0.0.0.0"
-      port    = 80
+    binds = {
+      http_bind = {
+        address = "0.0.0.0"
+        port    = 80
+      }
     }
   }
 }
@@ -335,7 +359,7 @@ See the `/examples` directory for comprehensive examples:
 terraform {
   required_providers {
     haproxy = {
-      source  = "your-org/haproxy"
+      source  = "cepitacio/haproxy"
       version = "~> 1.0"
     }
   }

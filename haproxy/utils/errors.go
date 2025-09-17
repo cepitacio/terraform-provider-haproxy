@@ -28,4 +28,3 @@ func NewCustomError(message string, apiError *APIError) *CustomError {
 		APIError: apiError,
 	}
 }
-

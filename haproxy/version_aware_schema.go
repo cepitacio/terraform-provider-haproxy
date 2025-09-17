@@ -325,6 +325,30 @@ func (b *VersionAwareSchemaBuilder) BuildServerSchema() schema.ListNestedBlock {
 		}
 	}
 
+	// Add v2 fields that also work in v3 (for backward compatibility)
+	if b.IsV3() {
+		attributes["force_sslv3"] = schema.StringAttribute{
+			Optional:    true,
+			Description: "Force SSLv3 for the server (v2 field that works in v3, deprecated).",
+		}
+		attributes["force_tlsv10"] = schema.StringAttribute{
+			Optional:    true,
+			Description: "Force TLSv1.0 for the server (v2 field that works in v3, deprecated).",
+		}
+		attributes["force_tlsv11"] = schema.StringAttribute{
+			Optional:    true,
+			Description: "Force TLSv1.1 for the server (v2 field that works in v3, deprecated).",
+		}
+		attributes["force_tlsv12"] = schema.StringAttribute{
+			Optional:    true,
+			Description: "Force TLSv1.2 for the server (v2 field that works in v3, deprecated).",
+		}
+		attributes["force_tlsv13"] = schema.StringAttribute{
+			Optional:    true,
+			Description: "Force TLSv1.3 for the server (v2 field that works in v3, deprecated).",
+		}
+	}
+
 	return schema.ListNestedBlock{
 		Description: "Server configuration for the backend.",
 		NestedObject: schema.NestedBlockObject{
@@ -447,6 +471,30 @@ func (b *VersionAwareSchemaBuilder) BuildBindSchema() schema.ListNestedBlock {
 		attributes["force_strict_sni"] = schema.StringAttribute{
 			Optional:    true,
 			Description: "Force strict SNI for the bind (v2 only, deprecated in v3).",
+		}
+	}
+
+	// Add v2 fields that also work in v3 (for backward compatibility)
+	if b.IsV3() {
+		attributes["force_sslv3"] = schema.BoolAttribute{
+			Optional:    true,
+			Description: "Force SSLv3 for the bind (v2 field that works in v3, deprecated).",
+		}
+		attributes["force_tlsv10"] = schema.BoolAttribute{
+			Optional:    true,
+			Description: "Force TLSv1.0 for the bind (v2 field that works in v3, deprecated).",
+		}
+		attributes["force_tlsv11"] = schema.BoolAttribute{
+			Optional:    true,
+			Description: "Force TLSv1.1 for the bind (v2 field that works in v3, deprecated).",
+		}
+		attributes["force_tlsv12"] = schema.BoolAttribute{
+			Optional:    true,
+			Description: "Force TLSv1.2 for the bind (v2 field that works in v3, deprecated).",
+		}
+		attributes["force_tlsv13"] = schema.BoolAttribute{
+			Optional:    true,
+			Description: "Force TLSv1.3 for the bind (v2 field that works in v3, deprecated).",
 		}
 	}
 

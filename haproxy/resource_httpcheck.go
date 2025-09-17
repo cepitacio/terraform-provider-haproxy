@@ -156,45 +156,6 @@ func (r *HttpcheckManager) Update(ctx context.Context, transactionID, parentType
 	return nil
 }
 
-// generateCheckKeyFromPayload creates a unique key for an HTTP check payload based on its content
-func (r *HttpcheckManager) generateCheckKeyFromPayload(payload *HttpcheckPayload) string {
-	// Create a unique key based on the check's content (excluding index)
-	key := fmt.Sprintf("%s-%s", payload.Type, payload.Addr)
-	if payload.Port != 0 {
-		key += fmt.Sprintf("-port%d", payload.Port)
-	}
-	if payload.Uri != "" {
-		key += "-" + payload.Uri
-	}
-	if payload.CheckComment != "" {
-		key += "-" + payload.CheckComment
-	}
-	return key
-}
-
-// hasCheckChangedFromPayload checks if a check has changed by comparing two payloads
-func (r *HttpcheckManager) hasCheckChangedFromPayload(existing, desired *HttpcheckPayload) bool {
-	// Compare all fields except Index
-	return existing.Type != desired.Type ||
-		existing.Addr != desired.Addr ||
-		existing.Port != desired.Port ||
-		existing.Uri != desired.Uri ||
-		existing.CheckComment != desired.CheckComment ||
-		existing.Proto != desired.Proto ||
-		existing.SendProxy != desired.SendProxy ||
-		existing.Sni != desired.Sni ||
-		existing.Ssl != desired.Ssl ||
-		existing.StatusCode != desired.StatusCode ||
-		existing.ToutStatus != desired.ToutStatus ||
-		existing.UriLogFormat != desired.UriLogFormat ||
-		existing.VarExpr != desired.VarExpr ||
-		existing.VarFormat != desired.VarFormat ||
-		existing.VarName != desired.VarName ||
-		existing.VarScope != desired.VarScope ||
-		existing.Version != desired.Version ||
-		existing.ViaSocks4 != desired.ViaSocks4
-}
-
 // Delete deletes HTTP checks
 func (r *HttpcheckManager) Delete(ctx context.Context, transactionID, parentType, parentName string) error {
 	log.Printf("Deleting all HTTP checks for %s %s", parentType, parentName)
@@ -221,7 +182,7 @@ func (r *HttpcheckManager) Delete(ctx context.Context, transactionID, parentType
 }
 
 // deleteAllHttpchecksInTransaction deletes all HTTP checks for a parent resource using an existing transaction ID
-func (r *HttpcheckManager) deleteAllHttpchecksInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+func (r *HttpcheckManager) deleteAllHttpchecksInTransaction(ctx context.Context, transactionID string, parentType, parentName string) error {
 	checks, err := r.client.ReadHttpchecks(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read HTTP checks for deletion: %w", err)

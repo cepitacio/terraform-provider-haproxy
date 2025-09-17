@@ -141,7 +141,7 @@ func (c *HAProxyClient) UpdateFrontendInTransaction(ctx context.Context, transac
 }
 
 // DeleteFrontendInTransaction deletes an existing frontend using an existing transaction ID.
-func (c *HAProxyClient) DeleteFrontendInTransaction(ctx context.Context, transactionID string, frontendName string) error {
+func (c *HAProxyClient) DeleteFrontendInTransaction(ctx context.Context, transactionID, frontendName string) error {
 	log.Printf("DeleteFrontendInTransaction called with transaction ID: %s, frontend: %s", transactionID, frontendName)
 	req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/frontends/%s?transaction_id=%s", frontendName, transactionID), nil)
 	if err != nil {
@@ -1038,7 +1038,7 @@ func (c *HAProxyClient) UpdateBackendInTransaction(ctx context.Context, transact
 }
 
 // DeleteBackendInTransaction deletes an existing backend using an existing transaction ID.
-func (c *HAProxyClient) DeleteBackendInTransaction(ctx context.Context, transactionID string, backendName string) error {
+func (c *HAProxyClient) DeleteBackendInTransaction(ctx context.Context, transactionID, backendName string) error {
 	log.Printf("DeleteBackendInTransaction called with transaction ID: %s, backend: %s", transactionID, backendName)
 	req, err := c.newRequest(ctx, "DELETE", fmt.Sprintf("/services/haproxy/configuration/backends/%s?transaction_id=%s", backendName, transactionID), nil)
 	if err != nil {
@@ -1135,6 +1135,9 @@ func (c *HAProxyClient) CreateServer(ctx context.Context, parentType, parentName
 	})
 	if err != nil {
 		return err
+	}
+	if resp != nil {
+		defer resp.Body.Close()
 	}
 
 	// Check if the server creation was successful
@@ -1343,7 +1346,7 @@ func (c *HAProxyClient) UpdateServerInTransaction(ctx context.Context, transacti
 }
 
 // DeleteServerInTransaction deletes an existing server using an existing transaction ID.
-func (c *HAProxyClient) DeleteServerInTransaction(ctx context.Context, transactionID, parentType, parentName string, serverName string) error {
+func (c *HAProxyClient) DeleteServerInTransaction(ctx context.Context, transactionID, parentType, parentName, serverName string) error {
 	log.Printf("DeleteServerInTransaction called with transaction ID: %s, parent: %s/%s, server: %s", transactionID, parentType, parentName, serverName)
 
 	var url string
@@ -3879,7 +3882,7 @@ func (c *HAProxyClient) UpdateTcpRequestRuleInTransaction(ctx context.Context, t
 }
 
 // CreateTcpRequestRuleInTransaction creates a new tcprequestrule using an existing transaction ID.
-func (c *HAProxyClient) CreateTcpRequestRuleInTransaction(ctx context.Context, transactionID string, parentType, parentName string, payload *TcpRequestRulePayload) error {
+func (c *HAProxyClient) CreateTcpRequestRuleInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *TcpRequestRulePayload) error {
 	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_request_rules?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 	if err != nil {
 		return err
@@ -4028,7 +4031,7 @@ func (c *HAProxyClient) UpdateTcpResponseRuleInTransaction(ctx context.Context, 
 }
 
 // CreateTcpResponseRuleInTransaction creates a new tcpresponserule using an existing transaction ID.
-func (c *HAProxyClient) CreateTcpResponseRuleInTransaction(ctx context.Context, transactionID string, parentType, parentName string, payload *TcpResponseRulePayload) error {
+func (c *HAProxyClient) CreateTcpResponseRuleInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *TcpResponseRulePayload) error {
 	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_response_rules?parent_type=%s&backend=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 	if err != nil {
 		return err
@@ -4284,7 +4287,7 @@ func (c *HAProxyClient) UpdateHttpcheckInTransaction(ctx context.Context, transa
 }
 
 // CreateHttpcheckInTransaction creates a new httpcheck using an existing transaction ID.
-func (c *HAProxyClient) CreateHttpcheckInTransaction(ctx context.Context, transactionID string, parentType, parentName string, payload *HttpcheckPayload) error {
+func (c *HAProxyClient) CreateHttpcheckInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *HttpcheckPayload) error {
 	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/http_checks?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 	if err != nil {
 		return err
@@ -4326,7 +4329,7 @@ func (c *HAProxyClient) UpdateTcpCheckInTransaction(ctx context.Context, transac
 }
 
 // CreateTcpCheckInTransaction creates a new tcpcheck using an existing transaction ID.
-func (c *HAProxyClient) CreateTcpCheckInTransaction(ctx context.Context, transactionID string, parentType, parentName string, payload *TcpCheckPayload) error {
+func (c *HAProxyClient) CreateTcpCheckInTransaction(ctx context.Context, transactionID, parentType, parentName string, payload *TcpCheckPayload) error {
 	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/services/haproxy/configuration/tcp_checks?parent_type=%s&parent_name=%s&transaction_id=%s", parentType, parentName, transactionID), payload)
 	if err != nil {
 		return err

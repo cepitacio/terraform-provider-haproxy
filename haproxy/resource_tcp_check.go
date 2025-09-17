@@ -158,37 +158,6 @@ func (r *TcpCheckManager) Update(ctx context.Context, transactionID, parentType,
 	return nil
 }
 
-// generateCheckKeyFromPayload creates a unique key for a TCP check payload based on its content
-func (r *TcpCheckManager) generateCheckKeyFromPayload(payload *TcpCheckPayload) string {
-	// Create a unique key based on the check's content (excluding index)
-	key := fmt.Sprintf("%s-%s", payload.Action, payload.Addr)
-	if payload.Port != 0 {
-		key += fmt.Sprintf("-port%d", payload.Port)
-	}
-	if payload.CheckComment != "" {
-		key += "-" + payload.CheckComment
-	}
-	return key
-}
-
-// hasCheckChangedFromPayload checks if a check has changed by comparing two payloads
-func (r *TcpCheckManager) hasCheckChangedFromPayload(existing, desired *TcpCheckPayload) bool {
-	// Compare all fields except Index
-	return existing.Action != desired.Action ||
-		existing.Addr != desired.Addr ||
-		existing.Port != desired.Port ||
-		existing.CheckComment != desired.CheckComment ||
-		existing.Proto != desired.Proto ||
-		existing.SendProxy != desired.SendProxy ||
-		existing.Sni != desired.Sni ||
-		existing.Ssl != desired.Ssl ||
-		existing.VarExpr != desired.VarExpr ||
-		existing.VarFmt != desired.VarFmt ||
-		existing.VarName != desired.VarName ||
-		existing.VarScope != desired.VarScope ||
-		existing.ViaSocks4 != desired.ViaSocks4
-}
-
 // Delete deletes TCP checks
 func (r *TcpCheckManager) Delete(ctx context.Context, transactionID, parentType, parentName string) error {
 	log.Printf("Deleting all TCP checks for %s %s", parentType, parentName)
@@ -215,7 +184,7 @@ func (r *TcpCheckManager) Delete(ctx context.Context, transactionID, parentType,
 }
 
 // deleteAllTcpChecksInTransaction deletes all TCP checks for a parent resource using an existing transaction ID
-func (r *TcpCheckManager) deleteAllTcpChecksInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+func (r *TcpCheckManager) deleteAllTcpChecksInTransaction(ctx context.Context, transactionID string, parentType, parentName string) error {
 	checks, err := r.client.ReadTcpChecks(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read TCP checks for deletion: %w", err)

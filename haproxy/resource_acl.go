@@ -63,7 +63,7 @@ func CreateACLManager(client *HAProxyClient) *ACLManager {
 }
 
 // CreateACLs creates ACLs for a given parent (frontend/backend)
-func (r *ACLManager) CreateACLs(ctx context.Context, parentType string, parentName string, acls []haproxyAclModel) error {
+func (r *ACLManager) CreateACLs(ctx context.Context, parentType, parentName string, acls []haproxyAclModel) error {
 	if len(acls) == 0 {
 		return nil
 	}
@@ -91,7 +91,7 @@ func (r *ACLManager) CreateACLs(ctx context.Context, parentType string, parentNa
 }
 
 // CreateACLsInTransaction creates ACLs using an existing transaction ID
-func (r *ACLManager) CreateACLsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, acls []haproxyAclModel) error {
+func (r *ACLManager) CreateACLsInTransaction(ctx context.Context, transactionID, parentType, parentName string, acls []haproxyAclModel) error {
 	if len(acls) == 0 {
 		return nil
 	}
@@ -124,7 +124,7 @@ func (r *ACLManager) CreateACLsInTransaction(ctx context.Context, transactionID 
 }
 
 // ReadACLs reads ACLs for a given parent (frontend/backend)
-func (r *ACLManager) ReadACLs(ctx context.Context, parentType string, parentName string) ([]ACLPayload, error) {
+func (r *ACLManager) ReadACLs(ctx context.Context, parentType, parentName string) ([]ACLPayload, error) {
 	acls, err := r.client.ReadACLs(ctx, parentType, parentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ACLs for %s %s: %w", parentType, parentName, err)
@@ -133,7 +133,7 @@ func (r *ACLManager) ReadACLs(ctx context.Context, parentType string, parentName
 }
 
 // UpdateACLs updates ACLs for a given parent (frontend/backend)
-func (r *ACLManager) UpdateACLs(ctx context.Context, parentType string, parentName string, newAcls []haproxyAclModel) error {
+func (r *ACLManager) UpdateACLs(ctx context.Context, parentType, parentName string, newAcls []haproxyAclModel) error {
 	if len(newAcls) == 0 {
 		// Delete all existing ACLs
 		return r.DeleteACLs(ctx, parentType, parentName)
@@ -150,12 +150,12 @@ func (r *ACLManager) UpdateACLs(ctx context.Context, parentType string, parentNa
 }
 
 // UpdateACLsInTransaction updates ACLs using an existing transaction ID with smart comparison
-func (r *ACLManager) UpdateACLsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, acls []haproxyAclModel) error {
+func (r *ACLManager) UpdateACLsInTransaction(ctx context.Context, transactionID, parentType, parentName string, acls []haproxyAclModel) error {
 	return r.updateAclsWithIndexingInTransaction(ctx, transactionID, parentType, parentName, acls)
 }
 
 // updateAclsWithIndexingInTransaction performs smart ACL updates by comparing existing vs desired
-func (r *ACLManager) updateAclsWithIndexingInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, desiredAcls []haproxyAclModel) error {
+func (r *ACLManager) updateAclsWithIndexingInTransaction(ctx context.Context, transactionID, parentType, parentName string, desiredAcls []haproxyAclModel) error {
 	// Read existing ACLs to compare with desired ones
 	existingAcls, err := r.client.ReadACLs(ctx, parentType, parentName)
 	if err != nil {
@@ -167,7 +167,7 @@ func (r *ACLManager) updateAclsWithIndexingInTransaction(ctx context.Context, tr
 }
 
 // updateAclsWithIndexingInTransactionSmart performs smart ACL updates by comparing existing vs desired
-func (r *ACLManager) updateAclsWithIndexingInTransactionSmart(ctx context.Context, transactionID string, parentType string, parentName string, existingAcls []ACLPayload, desiredAcls []haproxyAclModel) error {
+func (r *ACLManager) updateAclsWithIndexingInTransactionSmart(ctx context.Context, transactionID, parentType, parentName string, existingAcls []ACLPayload, desiredAcls []haproxyAclModel) error {
 	// Process desired ACLs with proper indexing and deduplication
 	sortedDesiredAcls := r.processAclsBlock(desiredAcls)
 
@@ -292,7 +292,7 @@ func (r *ACLManager) updateAclsWithIndexingInTransactionSmart(ctx context.Contex
 }
 
 // DeleteACLsInTransaction deletes all ACLs for a given parent using an existing transaction ID
-func (r *ACLManager) DeleteACLsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+func (r *ACLManager) DeleteACLsInTransaction(ctx context.Context, transactionID, parentType, parentName string) error {
 	acls, err := r.client.ReadACLs(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read ACLs for deletion: %w", err)
@@ -315,7 +315,7 @@ func (r *ACLManager) DeleteACLsInTransaction(ctx context.Context, transactionID 
 }
 
 // DeleteACLs deletes all ACLs for a given parent
-func (r *ACLManager) DeleteACLs(ctx context.Context, parentType string, parentName string) error {
+func (r *ACLManager) DeleteACLs(ctx context.Context, parentType, parentName string) error {
 	acls, err := r.client.ReadACLs(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read ACLs for deletion: %w", err)
@@ -388,7 +388,7 @@ func (r *ACLManager) formatAclOrder(acls []haproxyAclModel) string {
 }
 
 // updateAclsWithIndexing handles the complex logic of updating ACLs while maintaining order
-func (r *ACLManager) updateAclsWithIndexing(ctx context.Context, parentType string, parentName string, existingAcls []ACLPayload, newAcls []haproxyAclModel) error {
+func (r *ACLManager) updateAclsWithIndexing(ctx context.Context, parentType, parentName string, existingAcls []ACLPayload, newAcls []haproxyAclModel) error {
 	// Sort new ACLs by index to ensure proper order
 	sortedNewAcls := r.processAclsBlock(newAcls)
 

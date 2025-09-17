@@ -1715,21 +1715,21 @@ func (r *BackendManager) ReadBackend(ctx context.Context, backendName string, ex
 			backendModel.DefaultServer.NoTlsv13 = types.StringValue(backend.DefaultServer.NoTlsv13)
 		}
 
-		// Force fields (v3 only)
-		if backend.DefaultServer.ForceSslv3 != "" {
-			backendModel.DefaultServer.ForceSslv3 = types.StringValue(backend.DefaultServer.ForceSslv3)
+		// Force fields (v3 only) - only set when explicitly "enabled"
+		if backend.DefaultServer.ForceSslv3 == "enabled" {
+			backendModel.DefaultServer.ForceSslv3 = types.StringValue("enabled")
 		}
-		if backend.DefaultServer.ForceTlsv10 != "" {
-			backendModel.DefaultServer.ForceTlsv10 = types.StringValue(backend.DefaultServer.ForceTlsv10)
+		if backend.DefaultServer.ForceTlsv10 == "enabled" {
+			backendModel.DefaultServer.ForceTlsv10 = types.StringValue("enabled")
 		}
-		if backend.DefaultServer.ForceTlsv11 != "" {
-			backendModel.DefaultServer.ForceTlsv11 = types.StringValue(backend.DefaultServer.ForceTlsv11)
+		if backend.DefaultServer.ForceTlsv11 == "enabled" {
+			backendModel.DefaultServer.ForceTlsv11 = types.StringValue("enabled")
 		}
-		if backend.DefaultServer.ForceTlsv12 != "" {
-			backendModel.DefaultServer.ForceTlsv12 = types.StringValue(backend.DefaultServer.ForceTlsv12)
+		if backend.DefaultServer.ForceTlsv12 == "enabled" {
+			backendModel.DefaultServer.ForceTlsv12 = types.StringValue("enabled")
 		}
-		if backend.DefaultServer.ForceTlsv13 != "" {
-			backendModel.DefaultServer.ForceTlsv13 = types.StringValue(backend.DefaultServer.ForceTlsv13)
+		if backend.DefaultServer.ForceTlsv13 == "enabled" {
+			backendModel.DefaultServer.ForceTlsv13 = types.StringValue("enabled")
 		}
 		if backend.DefaultServer.ForceStrictSni != "" {
 			backendModel.DefaultServer.ForceStrictSni = types.StringValue(backend.DefaultServer.ForceStrictSni)
@@ -1824,7 +1824,7 @@ func (r *BackendManager) DeleteBackend(ctx context.Context, backendName string) 
 }
 
 // DeleteBackendInTransaction deletes a backend using an existing transaction ID
-func (r *BackendManager) DeleteBackendInTransaction(ctx context.Context, transactionID string, backendName string) error {
+func (r *BackendManager) DeleteBackendInTransaction(ctx context.Context, transactionID, backendName string) error {
 	// Delete ACLs first (if any)
 	aclManager := CreateACLManager(r.client)
 	if err := aclManager.DeleteACLsInTransaction(ctx, transactionID, "backend", backendName); err != nil {
@@ -1977,22 +1977,22 @@ func (r *BackendManager) processDefaultServerBlock(defaultServer *haproxyDefault
 		}
 	}
 
-	// Force fields (v3 only) - only set if not null/unknown and API v3
+	// Force fields (v3 only) - only set when explicitly "enabled" and API v3
 	if apiVersion == "v3" {
-		if !defaultServer.ForceSslv3.IsNull() && !defaultServer.ForceSslv3.IsUnknown() {
-			payload.ForceSslv3 = defaultServer.ForceSslv3.ValueString()
+		if !defaultServer.ForceSslv3.IsNull() && !defaultServer.ForceSslv3.IsUnknown() && defaultServer.ForceSslv3.ValueString() == "enabled" {
+			payload.ForceSslv3 = "enabled"
 		}
-		if !defaultServer.ForceTlsv10.IsNull() && !defaultServer.ForceTlsv10.IsUnknown() {
-			payload.ForceTlsv10 = defaultServer.ForceTlsv10.ValueString()
+		if !defaultServer.ForceTlsv10.IsNull() && !defaultServer.ForceTlsv10.IsUnknown() && defaultServer.ForceTlsv10.ValueString() == "enabled" {
+			payload.ForceTlsv10 = "enabled"
 		}
-		if !defaultServer.ForceTlsv11.IsNull() && !defaultServer.ForceTlsv11.IsUnknown() {
-			payload.ForceTlsv11 = defaultServer.ForceTlsv11.ValueString()
+		if !defaultServer.ForceTlsv11.IsNull() && !defaultServer.ForceTlsv11.IsUnknown() && defaultServer.ForceTlsv11.ValueString() == "enabled" {
+			payload.ForceTlsv11 = "enabled"
 		}
-		if !defaultServer.ForceTlsv12.IsNull() && !defaultServer.ForceTlsv12.IsUnknown() {
-			payload.ForceTlsv12 = defaultServer.ForceTlsv12.ValueString()
+		if !defaultServer.ForceTlsv12.IsNull() && !defaultServer.ForceTlsv12.IsUnknown() && defaultServer.ForceTlsv12.ValueString() == "enabled" {
+			payload.ForceTlsv12 = "enabled"
 		}
-		if !defaultServer.ForceTlsv13.IsNull() && !defaultServer.ForceTlsv13.IsUnknown() {
-			payload.ForceTlsv13 = defaultServer.ForceTlsv13.ValueString()
+		if !defaultServer.ForceTlsv13.IsNull() && !defaultServer.ForceTlsv13.IsUnknown() && defaultServer.ForceTlsv13.ValueString() == "enabled" {
+			payload.ForceTlsv13 = "enabled"
 		}
 		if !defaultServer.ForceStrictSni.IsNull() && !defaultServer.ForceStrictSni.IsUnknown() {
 			payload.ForceStrictSni = defaultServer.ForceStrictSni.ValueString()
@@ -2022,12 +2022,17 @@ func (r *BackendManager) processStatsOptionsBlock(statsOptions []haproxyStatsOpt
 	}
 }
 
+const (
+	enabledValue  = "enabled"
+	disabledValue = "disabled"
+)
+
 // translateNoTlsToForceTls translates no_tlsv* fields to force_tlsv* fields
 func (r *BackendManager) translateNoTlsToForceTls(noTlsValue string) string {
-	if noTlsValue == "enabled" {
-		return "disabled" // "Don't allow TLSv1.x" → "Force disabled"
-	} else if noTlsValue == "disabled" {
-		return "enabled" // "Allow TLSv1.x" → "Force enabled"
+	if noTlsValue == enabledValue {
+		return disabledValue // "Don't allow TLSv1.x" → "Force disabled"
+	} else if noTlsValue == disabledValue {
+		return enabledValue // "Allow TLSv1.x" → "Force enabled"
 	}
 	return noTlsValue // Return as-is for other values
 }

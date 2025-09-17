@@ -71,10 +71,11 @@ resource "haproxy_stack" "apps" {
     mode            = "http"
     default_backend = each.value.backend_name
 
-    bind {
-      name    = "http_bind"
-      address = "0.0.0.0"
-      port    = 80
+    binds = {
+      http_bind = {
+        address = "0.0.0.0"
+        port    = 80
+      }
     }
   }
 }

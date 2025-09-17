@@ -386,7 +386,7 @@ func CreateBindManager(client *HAProxyClient) *BindManager {
 }
 
 // CreateBinds creates binds for a parent resource
-func (r *BindManager) CreateBinds(ctx context.Context, parentType string, parentName string, binds map[string]haproxyBindModel) error {
+func (r *BindManager) CreateBinds(ctx context.Context, parentType, parentName string, binds map[string]haproxyBindModel) error {
 	if len(binds) == 0 {
 		return nil
 	}
@@ -406,7 +406,7 @@ func (r *BindManager) CreateBinds(ctx context.Context, parentType string, parent
 }
 
 // CreateBindsInTransaction creates binds using an existing transaction ID
-func (r *BindManager) CreateBindsInTransaction(ctx context.Context, transactionID, parentType string, parentName string, binds map[string]haproxyBindModel) error {
+func (r *BindManager) CreateBindsInTransaction(ctx context.Context, transactionID, parentType, parentName string, binds map[string]haproxyBindModel) error {
 	if len(binds) == 0 {
 		return nil
 	}
@@ -451,7 +451,7 @@ func (r *BindManager) CreateBindsInTransaction(ctx context.Context, transactionI
 }
 
 // ReadBinds reads binds for a parent resource
-func (r *BindManager) ReadBinds(ctx context.Context, parentType string, parentName string) ([]BindPayload, error) {
+func (r *BindManager) ReadBinds(ctx context.Context, parentType, parentName string) ([]BindPayload, error) {
 	binds, err := r.client.ReadBinds(ctx, parentType, parentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read binds for %s %s: %w", parentType, parentName, err)
@@ -467,7 +467,7 @@ func (r *BindManager) ReadBinds(ctx context.Context, parentType string, parentNa
 }
 
 // UpdateBinds updates binds for a parent resource
-func (r *BindManager) UpdateBinds(ctx context.Context, parentType string, parentName string, newBinds map[string]haproxyBindModel) error {
+func (r *BindManager) UpdateBinds(ctx context.Context, parentType, parentName string, newBinds map[string]haproxyBindModel) error {
 	if len(newBinds) == 0 {
 		// Delete all existing binds
 		return r.deleteAllBinds(ctx, parentType, parentName)
@@ -484,12 +484,12 @@ func (r *BindManager) UpdateBinds(ctx context.Context, parentType string, parent
 }
 
 // DeleteBinds deletes binds for a parent resource
-func (r *BindManager) DeleteBinds(ctx context.Context, parentType string, parentName string) error {
+func (r *BindManager) DeleteBinds(ctx context.Context, parentType, parentName string) error {
 	return r.deleteAllBinds(ctx, parentType, parentName)
 }
 
 // UpdateBindsInTransaction updates binds using an existing transaction ID
-func (r *BindManager) UpdateBindsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, binds map[string]haproxyBindModel) error {
+func (r *BindManager) UpdateBindsInTransaction(ctx context.Context, transactionID, parentType, parentName string, binds map[string]haproxyBindModel) error {
 	if len(binds) == 0 {
 		// Delete all existing binds
 		return r.deleteAllBindsInTransaction(ctx, transactionID, parentType, parentName)
@@ -506,7 +506,7 @@ func (r *BindManager) UpdateBindsInTransaction(ctx context.Context, transactionI
 }
 
 // DeleteBindsInTransaction deletes all binds for a parent resource using an existing transaction ID
-func (r *BindManager) DeleteBindsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+func (r *BindManager) DeleteBindsInTransaction(ctx context.Context, transactionID, parentType, parentName string) error {
 	binds, err := r.ReadBinds(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read binds for deletion: %w", err)
@@ -669,17 +669,31 @@ func (r *BindManager) convertToBindPayload(bindName string, bind *haproxyBindMod
 		if !bind.Sslv3.IsNull() && !bind.Sslv3.IsUnknown() {
 			payload.Sslv3 = bind.Sslv3.ValueBool()
 		}
-		if !bind.Tlsv10.IsNull() && !bind.Tlsv10.IsUnknown() {
-			payload.Tlsv10 = bind.Tlsv10.ValueBool()
+		// TLS fields are not set to avoid managing default values
+		// These should only be set if explicitly configured by the user
+
+		// Add v2 fields that also work in v3 (for backward compatibility)
+		// For v3 API, we need to send these as boolean values, not strings
+		// Only send if explicitly set to true (not false or null)
+		if !bind.ForceSslv3.IsNull() && !bind.ForceSslv3.IsUnknown() && bind.ForceSslv3.ValueBool() {
+			payload.ForceSslv3 = true
+			log.Printf("DEBUG: Set ForceSslv3 = %v", payload.ForceSslv3)
 		}
-		if !bind.Tlsv11.IsNull() && !bind.Tlsv11.IsUnknown() {
-			payload.Tlsv11 = bind.Tlsv11.ValueBool()
+		if !bind.ForceTlsv10.IsNull() && !bind.ForceTlsv10.IsUnknown() && bind.ForceTlsv10.ValueBool() {
+			payload.ForceTlsv10 = true
+			log.Printf("DEBUG: Set ForceTlsv10 = %v", payload.ForceTlsv10)
 		}
-		if !bind.Tlsv12.IsNull() && !bind.Tlsv12.IsUnknown() {
-			payload.Tlsv12 = r.convertBoolToEnabledDisabled(bind.Tlsv12.ValueBool())
+		if !bind.ForceTlsv11.IsNull() && !bind.ForceTlsv11.IsUnknown() && bind.ForceTlsv11.ValueBool() {
+			payload.ForceTlsv11 = true
+			log.Printf("DEBUG: Set ForceTlsv11 = %v", payload.ForceTlsv11)
 		}
-		if !bind.Tlsv13.IsNull() && !bind.Tlsv13.IsUnknown() {
-			payload.Tlsv13 = r.convertBoolToEnabledDisabled(bind.Tlsv13.ValueBool())
+		if !bind.ForceTlsv12.IsNull() && !bind.ForceTlsv12.IsUnknown() && bind.ForceTlsv12.ValueBool() {
+			payload.ForceTlsv12 = true
+			log.Printf("DEBUG: Set ForceTlsv12 = %v", payload.ForceTlsv12)
+		}
+		if !bind.ForceTlsv13.IsNull() && !bind.ForceTlsv13.IsUnknown() && bind.ForceTlsv13.ValueBool() {
+			payload.ForceTlsv13 = true
+			log.Printf("DEBUG: Set ForceTlsv13 = %v", payload.ForceTlsv13)
 		}
 	}
 	// TLS version fields - not supported in either v2 or v3 for binds
@@ -1042,17 +1056,34 @@ func (r *BindManager) hasBindChanged(existing *BindPayload, new *haproxyBindMode
 		if existing.Sslv3 != new.Sslv3.ValueBool() {
 			return true
 		}
-		if existing.Tlsv10 != new.Tlsv10.ValueBool() {
-			return true
+		// TLS fields are not compared here to avoid managing default values
+		// These should only be compared if explicitly configured by the user
+
+		// Check v2 fields that also work in v3 (for backward compatibility)
+		if !new.ForceSslv3.IsNull() && !new.ForceSslv3.IsUnknown() {
+			if existing.ForceSslv3 != new.ForceSslv3.ValueBool() {
+				return true
+			}
 		}
-		if existing.Tlsv11 != new.Tlsv11.ValueBool() {
-			return true
+		if !new.ForceTlsv10.IsNull() && !new.ForceTlsv10.IsUnknown() {
+			if existing.ForceTlsv10 != new.ForceTlsv10.ValueBool() {
+				return true
+			}
 		}
-		if existing.Tlsv12 != r.convertBoolToEnabledDisabled(new.Tlsv12.ValueBool()) {
-			return true
+		if !new.ForceTlsv11.IsNull() && !new.ForceTlsv11.IsUnknown() {
+			if existing.ForceTlsv11 != new.ForceTlsv11.ValueBool() {
+				return true
+			}
 		}
-		if existing.Tlsv13 != r.convertBoolToEnabledDisabled(new.Tlsv13.ValueBool()) {
-			return true
+		if !new.ForceTlsv12.IsNull() && !new.ForceTlsv12.IsUnknown() {
+			if existing.ForceTlsv12 != new.ForceTlsv12.ValueBool() {
+				return true
+			}
+		}
+		if !new.ForceTlsv13.IsNull() && !new.ForceTlsv13.IsUnknown() {
+			if existing.ForceTlsv13 != new.ForceTlsv13.ValueBool() {
+				return true
+			}
 		}
 	} else {
 		// Check v2 TLS fields
@@ -1120,7 +1151,7 @@ func (r *BindManager) canUpdateBind(existing *BindPayload, new *haproxyBindModel
 	return false
 }
 
-func (r *BindManager) deleteAllBindsInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+func (r *BindManager) deleteAllBindsInTransaction(ctx context.Context, transactionID, parentType, parentName string) error {
 	binds, err := r.ReadBinds(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read binds for deletion: %w", err)
@@ -1142,7 +1173,7 @@ func (r *BindManager) deleteAllBindsInTransaction(ctx context.Context, transacti
 	return nil
 }
 
-func (r *BindManager) deleteAllBinds(ctx context.Context, parentType string, parentName string) error {
+func (r *BindManager) deleteAllBinds(ctx context.Context, parentType, parentName string) error {
 	binds, err := r.ReadBinds(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read binds for deletion: %w", err)

@@ -1,3 +1,5 @@
+
+
 HOSTNAME=terraform-example.com
 NAMESPACE=haproxy-provider
 NAME=haproxy
@@ -43,16 +45,12 @@ test-benchmark:
 testacc:
 	@echo "Running acceptance tests..."
 	@echo "Make sure you have HAProxy running with Data Plane API enabled"
-	@echo "Set environment variables: HAPROXY_URL, HAPROXY_USERNAME, HAPROXY_PASSWORD, HAPROXY_API_VERSION"
+	@echo "Set environment variables: HAPROXY_ENDPOINT, HAPROXY_API_VERSION"
 	TF_ACC=1 go test -count=1 -parallel=4 -timeout 30m -v ./...
 
-testacc-v2:
-	@echo "Running acceptance tests with HAProxy API v2..."
-	HAPROXY_API_VERSION=2 TF_ACC=1 go test -count=1 -parallel=4 -timeout 30m -v ./...
 
-testacc-v3:
-	@echo "Running acceptance tests with HAProxy API v3..."
-	HAPROXY_API_VERSION=3 TF_ACC=1 go test -count=1 -parallel=4 -timeout 30m -v ./...
+
+
 
 # Linting and code quality
 lint:
@@ -95,6 +93,7 @@ install-tools-alt:
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.64.8
 	@echo "Installing gosec..."
 	go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+
 	@echo "Installing terraform-plugin-testing..."
 	go install github.com/hashicorp/terraform-plugin-testing@latest
 
