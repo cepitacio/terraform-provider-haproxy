@@ -506,7 +506,12 @@ func (o *StackOperations) createSingleInternal(ctx context.Context, req resource
 	// Commit the transaction
 	tflog.Info(ctx, "Committing transaction", map[string]interface{}{"transaction_id": transactionID})
 	if err := o.client.CommitTransaction(transactionID); err != nil {
-		tflog.Error(ctx, "Failed to commit transaction", map[string]interface{}{"transaction_id": transactionID, "error": err.Error()})
+		// Check if this is a transaction timeout (expected in parallel operations)
+		if strings.Contains(err.Error(), "406") && strings.Contains(err.Error(), "outdated") {
+			tflog.Warn(ctx, "Transaction timed out (expected in parallel operations)", map[string]interface{}{"transaction_id": transactionID, "error": err.Error()})
+		} else {
+			tflog.Error(ctx, "Failed to commit transaction", map[string]interface{}{"transaction_id": transactionID, "error": err.Error()})
+		}
 		return fmt.Errorf("error committing transaction: %w", err)
 	}
 	tflog.Info(ctx, "Transaction committed successfully", map[string]interface{}{"transaction_id": transactionID})
@@ -1321,6 +1326,12 @@ func (o *StackOperations) updateSingleInternal(ctx context.Context, req resource
 	// Commit all updates
 	tflog.Info(ctx, "Committing transaction", map[string]interface{}{"transaction_id": transactionID})
 	if err := o.client.CommitTransaction(transactionID); err != nil {
+		// Check if this is a transaction timeout (expected in parallel operations)
+		if strings.Contains(err.Error(), "406") && strings.Contains(err.Error(), "outdated") {
+			tflog.Warn(ctx, "Transaction timed out (expected in parallel operations)", map[string]interface{}{"transaction_id": transactionID, "error": err.Error()})
+		} else {
+			tflog.Error(ctx, "Failed to commit transaction", map[string]interface{}{"transaction_id": transactionID, "error": err.Error()})
+		}
 		return err
 	}
 
@@ -2543,6 +2554,12 @@ func (o *StackOperations) deleteSingleInternal(ctx context.Context, req resource
 	// Commit all deletes
 	tflog.Info(ctx, "Committing transaction", map[string]interface{}{"transaction_id": transactionID})
 	if err := o.client.CommitTransaction(transactionID); err != nil {
+		// Check if this is a transaction timeout (expected in parallel operations)
+		if strings.Contains(err.Error(), "406") && strings.Contains(err.Error(), "outdated") {
+			tflog.Warn(ctx, "Transaction timed out (expected in parallel operations)", map[string]interface{}{"transaction_id": transactionID, "error": err.Error()})
+		} else {
+			tflog.Error(ctx, "Failed to commit transaction", map[string]interface{}{"transaction_id": transactionID, "error": err.Error()})
+		}
 		return err
 	}
 

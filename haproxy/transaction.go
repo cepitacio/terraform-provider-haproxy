@@ -123,9 +123,7 @@ func (c *HAProxyClient) Transaction(fn func(transactionID string) (*http.Respons
 			log.Printf("Warning: Transaction function returned nil response")
 		}
 
-		log.Printf("About to commit transaction %s", id)
-		log.Printf("Transaction %s: All resources created successfully, proceeding to commit", id)
-		log.Printf("Transaction %s: Calling commitTransactionID with ID: '%s'", id, id)
+		// All resources created successfully, proceeding to commit
 		resp, err = c.commitTransactionID(id)
 
 		if err != nil {
@@ -148,9 +146,7 @@ func (c *HAProxyClient) Transaction(fn func(transactionID string) (*http.Respons
 
 		// Log successful commit
 		if resp != nil {
-			log.Printf("Transaction %s committed successfully with status: %d", id, resp.StatusCode)
-			log.Printf("Transaction %s response body: %+v", id, resp)
-			log.Printf("Transaction %s response headers: %+v", id, resp.Header)
+			// Transaction committed successfully
 
 			// Log the commit response body for debugging
 			if resp.Body != nil {
@@ -240,7 +236,7 @@ func (c *HAProxyClient) CommitTransaction(transactionID string) error {
 		return fmt.Errorf("transaction commit failed with status %d", resp.StatusCode)
 	}
 
-	log.Printf("Transaction %s committed successfully with status: %d", transactionID, resp.StatusCode)
+	// Transaction committed successfully - no need to log this
 	return nil
 }
 
@@ -250,11 +246,11 @@ func (c *HAProxyClient) CommitTransactionWithRetry(transactionID string) error {
 	retryDelay := 2 * time.Second
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		log.Printf("Committing transaction: %s (attempt %d/%d)", transactionID, attempt+1, maxRetries)
+		// Committing transaction with retry logic
 
-		resp, err := c.commitTransactionID(transactionID)
+		_, err := c.commitTransactionID(transactionID)
 		if err == nil {
-			log.Printf("Transaction %s committed successfully with status: %d", transactionID, resp.StatusCode)
+			// Transaction committed successfully - no need to log this
 			return nil
 		}
 
@@ -263,10 +259,10 @@ func (c *HAProxyClient) CommitTransactionWithRetry(transactionID string) error {
 			return fmt.Errorf("failed to commit transaction %s: %v", transactionID, err)
 		}
 
-		log.Printf("Retryable error committing transaction %s (attempt %d/%d): %v", transactionID, attempt+1, maxRetries, err)
+		// Retryable error committing transaction (expected in parallel operations)
 
 		if attempt < maxRetries-1 {
-			log.Printf("Sleeping %v before retry", retryDelay)
+			// Sleeping before retry
 			time.Sleep(retryDelay)
 		}
 	}
