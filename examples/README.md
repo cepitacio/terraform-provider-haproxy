@@ -140,13 +140,14 @@ servers = {
 For SSL examples, update certificate paths:
 
 ```hcl
-bind {
-  name            = "https_bind"
-  address         = "0.0.0.0"
-  port            = 443
-  ssl             = true
-  ssl_certificate = "/path/to/your/certificate.crt"  # Update path
-  ssl_cafile      = "/path/to/your/ca.crt"           # Update path
+binds = {
+  https_bind = {
+    address         = "0.0.0.0"
+    port            = 443
+    ssl             = true
+    ssl_certificate = "/path/to/your/certificate.crt"  # Update path
+    ssl_cafile      = "/path/to/your/ca.crt"           # Update path
+  }
 }
 ```
 

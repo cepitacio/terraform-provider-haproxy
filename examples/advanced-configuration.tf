@@ -137,22 +137,24 @@ resource "haproxy_stack" "secure_app" {
     default_backend = "secure_backend"
 
     # HTTP bind
-    bind {
-      name    = "http_bind"
-      address = "0.0.0.0"
-      port    = 80
+    binds = {
+      http_bind = {
+        address = "0.0.0.0"
+        port    = 80
+      }
     }
 
     # HTTPS bind with SSL
-    bind {
-      name            = "https_bind"
-      address         = "0.0.0.0"
-      port            = 443
-      ssl             = true
-      ssl_certificate = "/etc/ssl/certs/frontend.crt"
-      ssl_cafile      = "/etc/ssl/certs/ca.crt"
-      ssl_min_ver     = "TLSv1.2"
-      ssl_max_ver     = "TLSv1.3"
+    binds = {
+      https_bind = {
+        address         = "0.0.0.0"
+        port            = 443
+        ssl             = true
+        ssl_certificate = "/etc/ssl/certs/frontend.crt"
+        ssl_cafile      = "/etc/ssl/certs/ca.crt"
+        ssl_min_ver     = "TLSv1.2"
+        ssl_max_ver     = "TLSv1.3"
+      }
     }
 
     # Multiple ACLs
@@ -307,10 +309,11 @@ resource "haproxy_stack" "environments" {
     mode            = "http"
     default_backend = "${each.key}_backend"
 
-    bind {
-      name    = "${each.key}_bind"
-      address = "0.0.0.0"
-      port    = each.value.port
+    binds = {
+      "${each.key}_bind" = {
+        address = "0.0.0.0"
+        port    = each.value.port
+      }
     }
   }
 }

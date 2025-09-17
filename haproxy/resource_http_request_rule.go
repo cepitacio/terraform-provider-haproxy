@@ -426,7 +426,7 @@ func CreateHttpRequestRuleManager(client *HAProxyClient) *HttpRequestRuleManager
 }
 
 // CreateHttpRequestRules creates HTTP request rules for a parent resource
-func (r *HttpRequestRuleManager) CreateHttpRequestRules(ctx context.Context, parentType string, parentName string, rules []haproxyHttpRequestRuleModel) error {
+func (r *HttpRequestRuleManager) CreateHttpRequestRules(ctx context.Context, parentType, parentName string, rules []haproxyHttpRequestRuleModel) error {
 	if len(rules) == 0 {
 		return nil
 	}
@@ -449,7 +449,7 @@ func (r *HttpRequestRuleManager) CreateHttpRequestRules(ctx context.Context, par
 }
 
 // CreateHttpRequestRulesInTransaction creates HTTP request rules using an existing transaction ID
-func (r *HttpRequestRuleManager) CreateHttpRequestRulesInTransaction(ctx context.Context, transactionID, parentType string, parentName string, rules []haproxyHttpRequestRuleModel) error {
+func (r *HttpRequestRuleManager) CreateHttpRequestRulesInTransaction(ctx context.Context, transactionID, parentType, parentName string, rules []haproxyHttpRequestRuleModel) error {
 	if len(rules) == 0 {
 		return nil
 	}
@@ -477,7 +477,7 @@ func (r *HttpRequestRuleManager) CreateHttpRequestRulesInTransaction(ctx context
 }
 
 // ReadHttpRequestRules reads HTTP request rules for a parent resource
-func (r *HttpRequestRuleManager) ReadHttpRequestRules(ctx context.Context, parentType string, parentName string) ([]HttpRequestRulePayload, error) {
+func (r *HttpRequestRuleManager) ReadHttpRequestRules(ctx context.Context, parentType, parentName string) ([]HttpRequestRulePayload, error) {
 	rules, err := r.client.ReadHttpRequestRules(ctx, parentType, parentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read HTTP request rules for %s %s: %w", parentType, parentName, err)
@@ -486,7 +486,7 @@ func (r *HttpRequestRuleManager) ReadHttpRequestRules(ctx context.Context, paren
 }
 
 // UpdateHttpRequestRules updates HTTP request rules for a parent resource
-func (r *HttpRequestRuleManager) UpdateHttpRequestRules(ctx context.Context, parentType string, parentName string, newRules []haproxyHttpRequestRuleModel) error {
+func (r *HttpRequestRuleManager) UpdateHttpRequestRules(ctx context.Context, parentType, parentName string, newRules []haproxyHttpRequestRuleModel) error {
 	if len(newRules) == 0 {
 		// Delete all existing rules
 		return r.deleteAllHttpRequestRules(ctx, parentType, parentName)
@@ -503,7 +503,7 @@ func (r *HttpRequestRuleManager) UpdateHttpRequestRules(ctx context.Context, par
 }
 
 // DeleteHttpRequestRules deletes HTTP request rules for a parent resource
-func (r *HttpRequestRuleManager) DeleteHttpRequestRules(ctx context.Context, parentType string, parentName string) error {
+func (r *HttpRequestRuleManager) DeleteHttpRequestRules(ctx context.Context, parentType, parentName string) error {
 	return r.deleteAllHttpRequestRules(ctx, parentType, parentName)
 }
 
@@ -728,9 +728,6 @@ func (r *HttpRequestRuleManager) updateHttpRequestRulesWithIndexing(ctx context.
 
 		// Individual HTTP request rule resources should not be used - use haproxy_stack instead
 		return fmt.Errorf("HTTP request rule resources should not be used directly. Use haproxy_stack resource instead.")
-
-		log.Printf("Updated all %d HTTP request rules for %s %s", len(allPayloads), parentType, parentName)
-		return nil
 	}
 
 	// Fallback to individual operations for v2
@@ -844,19 +841,8 @@ func (r *HttpRequestRuleManager) hasRuleChangedFromPayload(existing, desired *Ht
 		existing.RedirValue != desired.RedirValue
 }
 
-// hasRuleChanged checks if an HTTP request rule has changed between existing and new configurations
-func (r *HttpRequestRuleManager) hasRuleChanged(existing *HttpRequestRulePayload, new *haproxyHttpRequestRuleModel) bool {
-	return existing.Type != new.Type.ValueString() ||
-		existing.Cond != new.Cond.ValueString() ||
-		existing.CondTest != new.CondTest.ValueString() ||
-		existing.HdrName != new.HdrName.ValueString() ||
-		existing.HdrFormat != new.HdrFormat.ValueString() ||
-		existing.RedirType != new.RedirType.ValueString() ||
-		existing.RedirValue != new.RedirValue.ValueString()
-}
-
 // deleteAllHttpRequestRules deletes all HTTP request rules for a parent resource
-func (r *HttpRequestRuleManager) deleteAllHttpRequestRules(ctx context.Context, parentType string, parentName string) error {
+func (r *HttpRequestRuleManager) deleteAllHttpRequestRules(ctx context.Context, parentType, parentName string) error {
 	rules, err := r.ReadHttpRequestRules(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read HTTP request rules for deletion: %w", err)
@@ -1042,7 +1028,7 @@ func hasHttpRequestRuleChanged(existing, desired HttpRequestRulePayload) bool {
 }
 
 // deleteAllHttpRequestRulesInTransaction deletes all HTTP request rules for a parent resource using an existing transaction ID
-func (r *HttpRequestRuleManager) deleteAllHttpRequestRulesInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+func (r *HttpRequestRuleManager) deleteAllHttpRequestRulesInTransaction(ctx context.Context, transactionID string, parentType, parentName string) error {
 	rules, err := r.ReadHttpRequestRules(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read HTTP request rules for deletion: %w", err)
@@ -1065,7 +1051,7 @@ func (r *HttpRequestRuleManager) deleteAllHttpRequestRulesInTransaction(ctx cont
 }
 
 // DeleteHttpRequestRulesInTransaction deletes all HTTP request rules for a parent resource using an existing transaction ID
-func (r *HttpRequestRuleManager) DeleteHttpRequestRulesInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+func (r *HttpRequestRuleManager) DeleteHttpRequestRulesInTransaction(ctx context.Context, transactionID string, parentType, parentName string) error {
 	rules, err := r.ReadHttpRequestRules(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read HTTP request rules for deletion: %w", err)
@@ -1086,16 +1072,3 @@ func (r *HttpRequestRuleManager) DeleteHttpRequestRulesInTransaction(ctx context
 
 	return nil
 }
-// formatHttpRequestRuleOrder formats the order of HTTP request rules for logging
-func (r *HttpRequestRuleManager) formatHttpRequestRuleOrder(rules []haproxyHttpRequestRuleModel) string {
-	if len(rules) == 0 {
-		return "[]"
-	}
-
-	var order []string
-	for _, rule := range rules {
-		order = append(order, rule.Type.ValueString())
-	}
-	return fmt.Sprintf("[%s]", strings.Join(order, ", "))
-}
-

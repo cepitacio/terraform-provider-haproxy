@@ -120,53 +120,54 @@ func (o *StackOperations) convertServerPayloadToModel(server ServerPayload) hapr
 	// HAProxy doesn't support server disabling - field ignored
 	// This field has been removed from the schema
 
-	// SSL/TLS Protocol Control (v3 fields)
-	if server.Sslv3 != "" {
-		model.Sslv3 = types.StringValue(server.Sslv3)
-	}
-	if server.Tlsv10 != "" {
-		model.Tlsv10 = types.StringValue(server.Tlsv10)
-	}
-	if server.Tlsv11 != "" {
-		model.Tlsv11 = types.StringValue(server.Tlsv11)
-	}
-	if server.Tlsv12 != "" {
-		model.Tlsv12 = types.StringValue(server.Tlsv12)
-	}
-	if server.Tlsv13 != "" {
-		model.Tlsv13 = types.StringValue(server.Tlsv13)
-	}
+	// SSL/TLS Protocol Control (v3 fields) - only set if explicitly configured
+	// Don't set default values returned by HAProxy to avoid unwanted changes
+	// These fields should only be set if they were explicitly configured by the user
+	// HAProxy returns "enabled" as default, but we don't want to manage that
+	// For now, we'll set them to null to avoid managing default values
+	model.Sslv3 = types.StringNull()
+	model.Tlsv10 = types.StringNull()
+	model.Tlsv11 = types.StringNull()
+	model.Tlsv12 = types.StringNull()
+	model.Tlsv13 = types.StringNull()
 
-	// SSL/TLS Protocol Control (deprecated v2 fields)
-	if server.NoSslv3 != "" {
-		model.NoSslv3 = types.StringValue(server.NoSslv3)
-	}
-	if server.NoTlsv10 != "" {
-		model.NoTlsv10 = types.StringValue(server.NoTlsv10)
-	}
-	if server.NoTlsv11 != "" {
-		model.NoTlsv11 = types.StringValue(server.NoTlsv11)
-	}
-	if server.NoTlsv12 != "" {
-		model.NoTlsv12 = types.StringValue(server.NoTlsv12)
-	}
-	if server.NoTlsv13 != "" {
-		model.NoTlsv13 = types.StringValue(server.NoTlsv13)
-	}
+	// SSL/TLS Protocol Control (deprecated v2 fields) - only set if explicitly configured
+	// Don't set default values returned by HAProxy to avoid unwanted changes
+	// These fields should only be set if they were explicitly configured by the user
+	// HAProxy returns "enabled" as default, but we don't want to manage that
+	// For now, we'll set them to null to avoid managing default values
+	model.NoSslv3 = types.StringNull()
+	model.NoTlsv10 = types.StringNull()
+	model.NoTlsv11 = types.StringNull()
+	model.NoTlsv12 = types.StringNull()
+	model.NoTlsv13 = types.StringNull()
+
+	// Force TLS fields work in v3, so read actual values from HAProxy
+	// Only set if they have values (not empty)
 	if server.ForceSslv3 != "" {
 		model.ForceSslv3 = types.StringValue(server.ForceSslv3)
+	} else {
+		model.ForceSslv3 = types.StringNull()
 	}
 	if server.ForceTlsv10 != "" {
 		model.ForceTlsv10 = types.StringValue(server.ForceTlsv10)
+	} else {
+		model.ForceTlsv10 = types.StringNull()
 	}
 	if server.ForceTlsv11 != "" {
 		model.ForceTlsv11 = types.StringValue(server.ForceTlsv11)
+	} else {
+		model.ForceTlsv11 = types.StringNull()
 	}
 	if server.ForceTlsv12 != "" {
 		model.ForceTlsv12 = types.StringValue(server.ForceTlsv12)
+	} else {
+		model.ForceTlsv12 = types.StringNull()
 	}
 	if server.ForceTlsv13 != "" {
 		model.ForceTlsv13 = types.StringValue(server.ForceTlsv13)
+	} else {
+		model.ForceTlsv13 = types.StringNull()
 	}
 
 	return model
@@ -254,20 +255,21 @@ func (o *StackOperations) convertServerModelToPayload(serverName string, server 
 	if !server.NoTlsv13.IsNull() && !server.NoTlsv13.IsUnknown() {
 		payload.NoTlsv13 = server.NoTlsv13.ValueString()
 	}
-	if !server.ForceSslv3.IsNull() && !server.ForceSslv3.IsUnknown() {
-		payload.ForceSslv3 = server.ForceSslv3.ValueString()
+	// Only send force_tlsv* fields when explicitly set to "enabled"
+	if !server.ForceSslv3.IsNull() && !server.ForceSslv3.IsUnknown() && server.ForceSslv3.ValueString() == "enabled" {
+		payload.ForceSslv3 = "enabled"
 	}
-	if !server.ForceTlsv10.IsNull() && !server.ForceTlsv10.IsUnknown() {
-		payload.ForceTlsv10 = server.ForceTlsv10.ValueString()
+	if !server.ForceTlsv10.IsNull() && !server.ForceTlsv10.IsUnknown() && server.ForceTlsv10.ValueString() == "enabled" {
+		payload.ForceTlsv10 = "enabled"
 	}
-	if !server.ForceTlsv11.IsNull() && !server.ForceTlsv11.IsUnknown() {
-		payload.ForceTlsv11 = server.ForceTlsv11.ValueString()
+	if !server.ForceTlsv11.IsNull() && !server.ForceTlsv11.IsUnknown() && server.ForceTlsv11.ValueString() == "enabled" {
+		payload.ForceTlsv11 = "enabled"
 	}
-	if !server.ForceTlsv12.IsNull() && !server.ForceTlsv12.IsUnknown() {
-		payload.ForceTlsv12 = server.ForceTlsv12.ValueString()
+	if !server.ForceTlsv12.IsNull() && !server.ForceTlsv12.IsUnknown() && server.ForceTlsv12.ValueString() == "enabled" {
+		payload.ForceTlsv12 = "enabled"
 	}
-	if !server.ForceTlsv13.IsNull() && !server.ForceTlsv13.IsUnknown() {
-		payload.ForceTlsv13 = server.ForceTlsv13.ValueString()
+	if !server.ForceTlsv13.IsNull() && !server.ForceTlsv13.IsUnknown() && server.ForceTlsv13.ValueString() == "enabled" {
+		payload.ForceTlsv13 = "enabled"
 	}
 
 	return payload
@@ -648,6 +650,13 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 				// Override only the fields that were explicitly set in the user's configuration
 				// Always update these core fields from HAProxy
 				bindModel := data.Frontend.Binds[bindName]
+
+				// Set TLS fields to null to avoid managing default values
+				// These should only be set if explicitly configured by the user
+				bindModel.Tlsv10 = types.BoolNull()
+				bindModel.Tlsv11 = types.BoolNull()
+				bindModel.Tlsv12 = types.BoolNull()
+				bindModel.Tlsv13 = types.BoolNull()
 				bindModel.Address = types.StringValue(bind.Address)
 				bindModel.Port = types.Int64Value(*bind.Port)
 				data.Frontend.Binds[bindName] = bindModel

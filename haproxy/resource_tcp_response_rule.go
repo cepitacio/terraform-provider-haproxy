@@ -146,37 +146,6 @@ func (r *TcpResponseRuleManager) Update(ctx context.Context, transactionID, pare
 	return nil
 }
 
-// generateRuleKeyFromPayload creates a unique key for a TCP response rule payload based on its content
-func (r *TcpResponseRuleManager) generateRuleKeyFromPayload(payload *TcpResponseRulePayload) string {
-	// Create a unique key based on the rule's content (excluding index)
-	key := fmt.Sprintf("%s-%s-%s", payload.Type, payload.Action, payload.Expr)
-	if payload.VarName != "" {
-		key += "-" + payload.VarName
-	}
-	if payload.VarScope != "" {
-		key += "-" + payload.VarScope
-	}
-	if payload.NiceValue != 0 {
-		key += fmt.Sprintf("-nice%d", payload.NiceValue)
-	}
-	if payload.MarkValue != "" {
-		key += "-mark" + payload.MarkValue
-	}
-	return key
-}
-
-// hasRuleChangedFromPayload checks if a rule has changed by comparing two payloads
-func (r *TcpResponseRuleManager) hasRuleChangedFromPayload(existing, desired *TcpResponseRulePayload) bool {
-	// Compare all fields except Index
-	return existing.Type != desired.Type ||
-		existing.Action != desired.Action ||
-		existing.Expr != desired.Expr ||
-		existing.VarName != desired.VarName ||
-		existing.VarScope != desired.VarScope ||
-		existing.NiceValue != desired.NiceValue ||
-		existing.MarkValue != desired.MarkValue
-}
-
 // Delete deletes TCP response rules
 func (r *TcpResponseRuleManager) Delete(ctx context.Context, transactionID, parentType, parentName string) error {
 	log.Printf("Deleting all TCP response rules for %s %s", parentType, parentName)
@@ -203,7 +172,7 @@ func (r *TcpResponseRuleManager) Delete(ctx context.Context, transactionID, pare
 }
 
 // deleteAllTcpResponseRulesInTransaction deletes all TCP response rules for a parent resource using an existing transaction ID
-func (r *TcpResponseRuleManager) deleteAllTcpResponseRulesInTransaction(ctx context.Context, transactionID string, parentType string, parentName string) error {
+func (r *TcpResponseRuleManager) deleteAllTcpResponseRulesInTransaction(ctx context.Context, transactionID string, parentType, parentName string) error {
 	rules, err := r.client.ReadTcpResponseRules(ctx, parentType, parentName)
 	if err != nil {
 		return fmt.Errorf("failed to read TCP response rules for deletion: %w", err)

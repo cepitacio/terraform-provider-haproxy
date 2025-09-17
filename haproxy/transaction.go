@@ -339,14 +339,48 @@ func (c *HAProxyClient) getCurrentConfigurationVersion() (string, error) {
 		return "", fmt.Errorf("failed to get configuration version: unexpected status code: %d", resp.StatusCode)
 	}
 
-	var version int
-	if err := json.NewDecoder(resp.Body).Decode(&version); err != nil {
-		log.Printf("Failed to decode version: %v", err)
-		return "", err
+	// Handle both integer response and JSON object response
+	var versionResponse struct {
+		Version interface{} `json:"version"`
 	}
 
-	log.Printf("Successfully got configuration version: %d", version)
-	return fmt.Sprintf("%d", version), nil
+	if err := json.NewDecoder(resp.Body).Decode(&versionResponse); err != nil {
+		// Try to decode as plain integer
+		resp.Body.Close()
+		req, err := c.newRequest(context.Background(), "GET", "/services/haproxy/configuration/version", nil)
+		if err != nil {
+			return "", err
+		}
+		resp, err = c.httpClient.Do(req)
+		if err != nil {
+			return "", err
+		}
+		defer resp.Body.Close()
+
+		var version int
+		if err := json.NewDecoder(resp.Body).Decode(&version); err != nil {
+			log.Printf("Failed to decode version: %v", err)
+			return "", err
+		}
+		log.Printf("Successfully got configuration version: %d", version)
+		return fmt.Sprintf("%d", version), nil
+	}
+
+	// Extract version from JSON object
+	var versionStr string
+	switch v := versionResponse.Version.(type) {
+	case string:
+		versionStr = v
+	case float64:
+		versionStr = fmt.Sprintf("%.0f", v)
+	case int:
+		versionStr = fmt.Sprintf("%d", v)
+	default:
+		return "", fmt.Errorf("unexpected version type: %T", v)
+	}
+
+	log.Printf("Successfully got configuration version: %s", versionStr)
+	return versionStr, nil
 }
 
 func (c *HAProxyClient) createTransactionID(version string) (string, error) {
