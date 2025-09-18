@@ -59,6 +59,10 @@ func GetServerAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			Description: "SSL certificate for the server.",
 		},
+		"ssl_cafile": schema.StringAttribute{
+			Optional:    true,
+			Description: "SSL CA file for the server.",
+		},
 		"ssl_max_ver": schema.StringAttribute{
 			Optional:    true,
 			Description: "Maximum SSL/TLS version for the server.",
