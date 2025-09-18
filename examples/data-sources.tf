@@ -24,7 +24,7 @@ data "haproxy_backends" "all_backends" {}
 
 # Data source to get the specific backend from resources-example.tf
 data "haproxy_backend_single" "test_backend" {
-  name = "test_backend"
+  name = "test_backend2"
 }
 
 # Data source to get all frontends (no parameters required)
@@ -35,20 +35,11 @@ data "haproxy_frontend_single" "test_frontend" {
   name = "test_frontend"
 }
 
-# Data source to get all servers
-data "haproxy_server" "all_servers" {}
-
-# Data source to get a specific server
-data "haproxy_server_single" "web1_server" {
+# Data source to get all servers from test_backend
+data "haproxy_server" "all_servers" {
   backend = "test_backend"
-  name    = "web1"
 }
 
-# Data source to get another specific server
-data "haproxy_server_single" "web2_server" {
-  backend = "test_backend"
-  name    = "web2"
-}
 
 # Data source to get the https_bind from the frontend
 data "haproxy_bind_single" "https_bind" {
@@ -117,7 +108,7 @@ data "haproxy_tcp_check_single" "connect_check" {
 # Outputs showing how to use the data sources
 output "backend_count" {
   description = "Number of backends"
-  value       = length(data.haproxy_backends.all_backends.backends)
+  value       = length(jsondecode(data.haproxy_backends.all_backends.backends))
 }
 
 output "test_backend_name" {
@@ -127,7 +118,7 @@ output "test_backend_name" {
 
 output "frontend_count" {
   description = "Number of frontends"
-  value       = length(data.haproxy_frontends.all_frontends.frontends)
+  value       = length(jsondecode(data.haproxy_frontends.all_frontends.frontends))
 }
 
 output "test_frontend_name" {
@@ -137,28 +128,12 @@ output "test_frontend_name" {
 
 output "server_count" {
   description = "Number of servers"
-  value       = length(data.haproxy_server.all_servers.servers)
+  value       = length(jsondecode(data.haproxy_server.all_servers.servers))
 }
 
-output "web1_server_name" {
-  description = "Name of web1 server"
-  value       = data.haproxy_server_single.web1_server.name
-}
-
-output "web2_server_name" {
-  description = "Name of web2 server"
-  value       = data.haproxy_server_single.web2_server.name
-}
-
-output "web1_server_address" {
-  description = "Address of web1 server"
-  value       = data.haproxy_server_single.web1_server.address
-}
-
-output "web2_server_address" {
-  description = "Address of web2 server"
-  value       = data.haproxy_server_single.web2_server.address
-}
+# Note: Individual server outputs removed because servers web1 and web2 
+# don't exist in test_backend. To get server information, parse the JSON from:
+# data.haproxy_server.all_servers.servers
 
 output "https_bind_name" {
   description = "Name of the https bind"

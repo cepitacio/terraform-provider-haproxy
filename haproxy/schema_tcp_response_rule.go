@@ -666,6 +666,7 @@ func (r *TcpResponseRuleResource) Metadata(_ context.Context, req resource.Metad
 func (r *TcpResponseRuleResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
+		return
 	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
@@ -688,6 +689,7 @@ func (r *TcpResponseRuleResource) Create(ctx context.Context, req resource.Creat
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Individual TCP response rule resources should only be used within haproxy_stack context
@@ -703,6 +705,7 @@ func (r *TcpResponseRuleResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Read the rule
@@ -723,6 +726,7 @@ func (r *TcpResponseRuleResource) Read(ctx context.Context, req resource.ReadReq
 
 	if foundRule == nil {
 		resp.State.RemoveResource(ctx)
+		return
 	}
 
 	// Update the data with the found rule
@@ -740,6 +744,7 @@ func (r *TcpResponseRuleResource) Update(ctx context.Context, req resource.Updat
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Individual TCP response rule resources should only be used within haproxy_stack context
@@ -755,6 +760,7 @@ func (r *TcpResponseRuleResource) Delete(ctx context.Context, req resource.Delet
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Individual TCP response rule resources should only be used within haproxy_stack context

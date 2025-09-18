@@ -3,3 +3,5 @@
 
 # Terraform provider binary
 terraform-provider-haproxy
+coverage.out
+coverage.html

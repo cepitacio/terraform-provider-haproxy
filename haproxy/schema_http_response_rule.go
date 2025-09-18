@@ -411,7 +411,6 @@ func (r *HttpResponseRuleResource) Create(ctx context.Context, req resource.Crea
 	// Individual HTTP response rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
 	resp.Diagnostics.AddError("Invalid Usage", "HTTP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
-	return
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -477,7 +476,6 @@ func (r *HttpResponseRuleResource) Update(ctx context.Context, req resource.Upda
 	// Individual HTTP response rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
 	resp.Diagnostics.AddError("Invalid Usage", "HTTP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
-	return
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -492,7 +490,6 @@ func (r *HttpResponseRuleResource) Delete(ctx context.Context, req resource.Dele
 	// Individual HTTP response rule resources should only be used within haproxy_stack context
 	// This resource is not registered and should not be used standalone
 	resp.Diagnostics.AddError("Invalid Usage", "HTTP response rule resources should only be used within haproxy_stack context. Use haproxy_stack resource instead.")
-	return
 }
 
 // ImportState configures the resource for import.
@@ -832,13 +829,6 @@ func (r *HttpResponseRuleManager) updateHttpResponseRulesWithIndexing(ctx contex
 	// For consistency with create operations, use the same "create all at once" approach
 	// This ensures consistent formatting from HAProxy API
 	if r.client.apiVersion == "v3" {
-		// Convert all rules to payloads
-		var allPayloads []HttpResponseRulePayload
-		for i, rule := range sortedNewRules {
-			rulePayload := r.convertToHttpResponseRulePayload(&rule, i)
-			allPayloads = append(allPayloads, *rulePayload)
-		}
-
 		// Individual HTTP response rule resources should not be used - use haproxy_stack instead
 		return fmt.Errorf("HTTP response rule resources should not be used directly. Use haproxy_stack resource instead.")
 	}
