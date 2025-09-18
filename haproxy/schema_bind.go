@@ -771,14 +771,6 @@ func (r *BindManager) convertToBindPayload(bindName string, bind *haproxyBindMod
 	return payload
 }
 
-// convertBoolToEnabledDisabled converts a boolean to "enabled" or "disabled" string
-func (r *BindManager) convertBoolToEnabledDisabled(value bool) string {
-	if value {
-		return "enabled"
-	}
-	return "disabled"
-}
-
 func (r *BindManager) updateBindsWithHandlingInTransaction(ctx context.Context, transactionID string, parentType string, parentName string, existingBinds []BindPayload, newBinds map[string]haproxyBindModel) error {
 	// Create maps for efficient lookup
 	existingBindMap := make(map[string]*BindPayload)

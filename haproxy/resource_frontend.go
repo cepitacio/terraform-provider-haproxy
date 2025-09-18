@@ -107,13 +107,27 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 
 	// Build the frontend model
 	frontendModel := &haproxyFrontendModel{
-		Name:           types.StringValue(frontendName),
-		Mode:           types.StringValue(frontend.Mode),
-		DefaultBackend: types.StringValue(frontend.DefaultBackend),
-		Maxconn:        types.Int64Value(frontend.MaxConn),
-		Backlog:        types.Int64Value(frontend.Backlog),
-		MonitorFail:    r.convertMonitorFailFromPayload(frontend.MonitorFail),
-		MonitorUri:     types.StringValue(frontend.MonitorUri),
+		Name: types.StringValue(frontendName),
+	}
+
+	// Set fields only if they exist
+	if frontend != nil && frontend.Mode != "" {
+		frontendModel.Mode = types.StringValue(frontend.Mode)
+	}
+	if frontend != nil && frontend.DefaultBackend != "" {
+		frontendModel.DefaultBackend = types.StringValue(frontend.DefaultBackend)
+	}
+	if frontend != nil && frontend.MaxConn != 0 {
+		frontendModel.Maxconn = types.Int64Value(frontend.MaxConn)
+	}
+	if frontend != nil && frontend.Backlog != 0 {
+		frontendModel.Backlog = types.Int64Value(frontend.Backlog)
+	}
+	if frontend != nil && frontend.MonitorUri != "" {
+		frontendModel.MonitorUri = types.StringValue(frontend.MonitorUri)
+	}
+	if frontend != nil {
+		frontendModel.MonitorFail = r.convertMonitorFailFromPayload(frontend.MonitorFail)
 	}
 
 	// Handle ACLs - prioritize existing state to preserve user's exact order
