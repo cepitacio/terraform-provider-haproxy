@@ -8,10 +8,263 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// GetTcpResponseRuleSchema returns the schema for the tcp_response_rule block
+func GetTcpResponseRuleSchema() schema.ListNestedBlock {
+	return schema.ListNestedBlock{
+		Description: "TCP response rule configuration.",
+		NestedObject: schema.NestedBlockObject{
+			Attributes: map[string]schema.Attribute{
+				"type": schema.StringAttribute{
+					Required:    true,
+					Description: "The type of the TCP response rule.",
+				},
+				"action": schema.StringAttribute{
+					Optional:    true,
+					Description: "The action of the TCP response rule.",
+				},
+				"cond": schema.StringAttribute{
+					Optional:    true,
+					Description: "The condition of the TCP response rule (if, unless).",
+				},
+				"cond_test": schema.StringAttribute{
+					Optional:    true,
+					Description: "The condition test of the TCP response rule.",
+				},
+				"hdr_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The header name for the TCP response rule.",
+				},
+				"hdr_format": schema.StringAttribute{
+					Optional:    true,
+					Description: "The header format for the TCP response rule.",
+				},
+				"hdr_match": schema.StringAttribute{
+					Optional:    true,
+					Description: "The header match for the TCP response rule.",
+				},
+				"hdr_method": schema.StringAttribute{
+					Optional:    true,
+					Description: "The header method for the TCP response rule.",
+				},
+				"redir_type": schema.StringAttribute{
+					Optional:    true,
+					Description: "The redirection type (location, prefix, scheme).",
+				},
+				"redir_value": schema.StringAttribute{
+					Optional:    true,
+					Description: "The redirection value.",
+				},
+				"redir_code": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The redirection code for the TCP response rule.",
+				},
+				"redir_option": schema.StringAttribute{
+					Optional:    true,
+					Description: "The redirection option for the TCP response rule.",
+				},
+				"bandwidth_limit_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The bandwidth limit name for the TCP response rule.",
+				},
+				"bandwidth_limit_limit": schema.StringAttribute{
+					Optional:    true,
+					Description: "The bandwidth limit limit for the TCP response rule.",
+				},
+				"bandwidth_limit_period": schema.StringAttribute{
+					Optional:    true,
+					Description: "The bandwidth limit period for the TCP response rule.",
+				},
+				"acl_file": schema.StringAttribute{
+					Optional:    true,
+					Description: "The ACL file for the TCP response rule.",
+				},
+				"acl_keyfmt": schema.StringAttribute{
+					Optional:    true,
+					Description: "The ACL key format for the TCP response rule.",
+				},
+				"auth_realm": schema.StringAttribute{
+					Optional:    true,
+					Description: "The authentication realm for the TCP response rule.",
+				},
+				"cache_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The cache name for the TCP response rule.",
+				},
+				"capture_id": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The capture ID for the TCP response rule.",
+				},
+				"capture_len": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The capture length for the TCP response rule.",
+				},
+				"capture_sample": schema.StringAttribute{
+					Optional:    true,
+					Description: "The capture sample for the TCP response rule.",
+				},
+				"deny_status": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The deny status for the TCP response rule.",
+				},
+				"expr": schema.StringAttribute{
+					Optional:    true,
+					Description: "The expression for the TCP response rule.",
+				},
+				"hint_format": schema.StringAttribute{
+					Optional:    true,
+					Description: "The hint format for the TCP response rule.",
+				},
+				"hint_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The hint name for the TCP response rule.",
+				},
+				"log_level": schema.StringAttribute{
+					Optional:    true,
+					Description: "The log level for the TCP response rule.",
+				},
+				"lua_action": schema.StringAttribute{
+					Optional:    true,
+					Description: "The Lua action for the TCP response rule.",
+				},
+				"lua_params": schema.StringAttribute{
+					Optional:    true,
+					Description: "The Lua parameters for the TCP response rule.",
+				},
+				"map_file": schema.StringAttribute{
+					Optional:    true,
+					Description: "The map file for the TCP response rule.",
+				},
+				"map_keyfmt": schema.StringAttribute{
+					Optional:    true,
+					Description: "The map key format for the TCP response rule.",
+				},
+				"map_valuefmt": schema.StringAttribute{
+					Optional:    true,
+					Description: "The map value format for the TCP response rule.",
+				},
+				"mark_value": schema.StringAttribute{
+					Optional:    true,
+					Description: "The mark value for the TCP response rule.",
+				},
+				"nice_value": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The nice value for the TCP response rule.",
+				},
+				"return_content": schema.StringAttribute{
+					Optional:    true,
+					Description: "The return content for the TCP response rule.",
+				},
+				"return_content_format": schema.StringAttribute{
+					Optional:    true,
+					Description: "The return content format for the TCP response rule.",
+				},
+				"return_content_type": schema.StringAttribute{
+					Optional:    true,
+					Description: "The return content type for the TCP response rule.",
+				},
+				"return_status_code": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The return status code for the TCP response rule.",
+				},
+				"rst_ttl": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The RST TTL for the TCP response rule.",
+				},
+				"sc_expr": schema.StringAttribute{
+					Optional:    true,
+					Description: "The SC expression for the TCP response rule.",
+				},
+				"sc_id": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The SC ID for the TCP response rule.",
+				},
+				"sc_idx": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The SC index for the TCP response rule.",
+				},
+				"sc_int": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The SC integer for the TCP response rule.",
+				},
+				"spoe_engine": schema.StringAttribute{
+					Optional:    true,
+					Description: "The SPOE engine for the TCP response rule.",
+				},
+				"spoe_group": schema.StringAttribute{
+					Optional:    true,
+					Description: "The SPOE group for the TCP response rule.",
+				},
+				"status": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The status for the TCP response rule.",
+				},
+				"status_reason": schema.StringAttribute{
+					Optional:    true,
+					Description: "The status reason for the TCP response rule.",
+				},
+				"strict_mode": schema.StringAttribute{
+					Optional:    true,
+					Description: "The strict mode for the TCP response rule.",
+				},
+				"timeout": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The timeout for the TCP response rule.",
+				},
+				"timeout_type": schema.StringAttribute{
+					Optional:    true,
+					Description: "The timeout type for the TCP response rule.",
+				},
+				"tos_value": schema.StringAttribute{
+					Optional:    true,
+					Description: "The TOS value for the TCP response rule.",
+				},
+				"track_sc_key": schema.StringAttribute{
+					Optional:    true,
+					Description: "The track SC key for the TCP response rule.",
+				},
+				"track_sc_stick_counter": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The track SC stick counter for the TCP response rule.",
+				},
+				"track_sc_table": schema.StringAttribute{
+					Optional:    true,
+					Description: "The track SC table for the TCP response rule.",
+				},
+				"var_expr": schema.StringAttribute{
+					Optional:    true,
+					Description: "The variable expression for the TCP response rule.",
+				},
+				"var_format": schema.StringAttribute{
+					Optional:    true,
+					Description: "The variable format for the TCP response rule.",
+				},
+				"var_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The variable name for the TCP response rule.",
+				},
+				"var_scope": schema.StringAttribute{
+					Optional:    true,
+					Description: "The variable scope for the TCP response rule.",
+				},
+				"wait_at_least": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The wait at least for the TCP response rule.",
+				},
+				"wait_time": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The wait time for the TCP response rule.",
+				},
+				"index": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The index/order of the TCP response rule (for backward compatibility).",
+				},
+			},
+		},
+	}
+}
 
 // TcpResponseRuleResource defines the resource implementation.
 type TcpResponseRuleResource struct {
@@ -407,140 +660,6 @@ func (r *TcpResponseRuleManager) convertFromTcpResponseRulePayload(payload TcpRe
 // Metadata returns the resource type name.
 func (r *TcpResponseRuleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_tcp_response_rule"
-}
-
-// Schema defines the schema for the resource.
-func (r *TcpResponseRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
-		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "TCP Response Rule resource",
-
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "TCP response rule identifier",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"parent_type": schema.StringAttribute{
-				MarkdownDescription: "Parent type (frontend or backend)",
-				Required:            true,
-			},
-			"parent_name": schema.StringAttribute{
-				MarkdownDescription: "Parent name",
-				Required:            true,
-			},
-			"index": schema.Int64Attribute{
-				MarkdownDescription: "Rule index",
-				Required:            true,
-			},
-			"type": schema.StringAttribute{
-				MarkdownDescription: "Rule type",
-				Required:            true,
-			},
-			"action": schema.StringAttribute{
-				MarkdownDescription: "Rule action",
-				Optional:            true,
-			},
-			"cond": schema.StringAttribute{
-				MarkdownDescription: "Condition",
-				Optional:            true,
-			},
-			"cond_test": schema.StringAttribute{
-				MarkdownDescription: "Condition test",
-				Optional:            true,
-			},
-			"expr": schema.StringAttribute{
-				MarkdownDescription: "Expression",
-				Optional:            true,
-			},
-			"log_level": schema.StringAttribute{
-				MarkdownDescription: "Log level",
-				Optional:            true,
-			},
-			"lua_action": schema.StringAttribute{
-				MarkdownDescription: "Lua action",
-				Optional:            true,
-			},
-			"lua_params": schema.StringAttribute{
-				MarkdownDescription: "Lua parameters",
-				Optional:            true,
-			},
-			"mark_value": schema.StringAttribute{
-				MarkdownDescription: "Mark value",
-				Optional:            true,
-			},
-			"nice_value": schema.Int64Attribute{
-				MarkdownDescription: "Nice value",
-				Optional:            true,
-			},
-			"rst_ttl": schema.Int64Attribute{
-				MarkdownDescription: "RST TTL",
-				Optional:            true,
-			},
-			"sc_expr": schema.StringAttribute{
-				MarkdownDescription: "SC expression",
-				Optional:            true,
-			},
-			"sc_id": schema.Int64Attribute{
-				MarkdownDescription: "SC ID",
-				Optional:            true,
-			},
-			"sc_idx": schema.Int64Attribute{
-				MarkdownDescription: "SC index",
-				Optional:            true,
-			},
-			"sc_int": schema.Int64Attribute{
-				MarkdownDescription: "SC integer",
-				Optional:            true,
-			},
-			"spoe_engine": schema.StringAttribute{
-				MarkdownDescription: "SPOE engine",
-				Optional:            true,
-			},
-			"spoe_group": schema.StringAttribute{
-				MarkdownDescription: "SPOE group",
-				Optional:            true,
-			},
-			"timeout": schema.Int64Attribute{
-				MarkdownDescription: "Timeout",
-				Optional:            true,
-			},
-			"tos_value": schema.StringAttribute{
-				MarkdownDescription: "TOS value",
-				Optional:            true,
-			},
-			"var_format": schema.StringAttribute{
-				MarkdownDescription: "Variable format",
-				Optional:            true,
-			},
-			"var_name": schema.StringAttribute{
-				MarkdownDescription: "Variable name",
-				Optional:            true,
-			},
-			"var_scope": schema.StringAttribute{
-				MarkdownDescription: "Variable scope",
-				Optional:            true,
-			},
-			"var_expr": schema.StringAttribute{
-				MarkdownDescription: "Variable expression",
-				Optional:            true,
-			},
-			"bandwidth_limit_limit": schema.StringAttribute{
-				MarkdownDescription: "Bandwidth limit",
-				Optional:            true,
-			},
-			"bandwidth_limit_name": schema.StringAttribute{
-				MarkdownDescription: "Bandwidth limit name",
-				Optional:            true,
-			},
-			"bandwidth_limit_period": schema.StringAttribute{
-				MarkdownDescription: "Bandwidth limit period",
-				Optional:            true,
-			},
-		},
-	}
 }
 
 // Configure adds the provider configured client to the resource.

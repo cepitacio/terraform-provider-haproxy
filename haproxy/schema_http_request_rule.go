@@ -14,12 +14,260 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Ensure the implementation satisfies the expected interfaces
-var (
-	_ resource.Resource                = &HttpRequestRuleResource{}
-	_ resource.ResourceWithConfigure   = &HttpRequestRuleResource{}
-	_ resource.ResourceWithImportState = &HttpRequestRuleResource{}
-)
+// GetHttpRequestRuleSchema returns the schema for the http_request_rule block
+func GetHttpRequestRuleSchema() schema.ListNestedBlock {
+	return schema.ListNestedBlock{
+		Description: "HTTP request rule configuration.",
+		NestedObject: schema.NestedBlockObject{
+			Attributes: map[string]schema.Attribute{
+				"type": schema.StringAttribute{
+					Required:    true,
+					Description: "The type of the HTTP request rule.",
+				},
+				"action": schema.StringAttribute{
+					Optional:    true,
+					Description: "The action of the HTTP request rule.",
+				},
+				"cond": schema.StringAttribute{
+					Optional:    true,
+					Description: "The condition of the HTTP request rule (if, unless).",
+				},
+				"cond_test": schema.StringAttribute{
+					Optional:    true,
+					Description: "The condition test of the HTTP request rule.",
+				},
+				"hdr_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The header name for the HTTP request rule.",
+				},
+				"hdr_format": schema.StringAttribute{
+					Optional:    true,
+					Description: "The header format for the HTTP request rule.",
+				},
+				"hdr_match": schema.StringAttribute{
+					Optional:    true,
+					Description: "The header match for the HTTP request rule.",
+				},
+				"hdr_method": schema.StringAttribute{
+					Optional:    true,
+					Description: "The header method for the HTTP request rule.",
+				},
+				"redir_type": schema.StringAttribute{
+					Optional:    true,
+					Description: "The redirection type (location, prefix, scheme).",
+				},
+				"redir_value": schema.StringAttribute{
+					Optional:    true,
+					Description: "The redirection value.",
+				},
+				"redir_code": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The redirection code for the HTTP request rule.",
+				},
+				"redir_option": schema.StringAttribute{
+					Optional:    true,
+					Description: "The redirection option for the HTTP request rule.",
+				},
+				"bandwidth_limit_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The bandwidth limit name for the HTTP request rule.",
+				},
+				"bandwidth_limit_limit": schema.StringAttribute{
+					Optional:    true,
+					Description: "The bandwidth limit limit for the HTTP request rule.",
+				},
+				"bandwidth_limit_period": schema.StringAttribute{
+					Optional:    true,
+					Description: "The bandwidth limit period for the HTTP request rule.",
+				},
+				"acl_file": schema.StringAttribute{
+					Optional:    true,
+					Description: "The ACL file for the HTTP request rule.",
+				},
+				"acl_keyfmt": schema.StringAttribute{
+					Optional:    true,
+					Description: "The ACL key format for the HTTP request rule.",
+				},
+				"auth_realm": schema.StringAttribute{
+					Optional:    true,
+					Description: "The authentication realm for the HTTP request rule.",
+				},
+				"cache_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The cache name for the HTTP request rule.",
+				},
+				"capture_id": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The capture ID for the HTTP request rule.",
+				},
+				"capture_len": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The capture length for the HTTP request rule.",
+				},
+				"capture_sample": schema.StringAttribute{
+					Optional:    true,
+					Description: "The capture sample for the HTTP request rule.",
+				},
+				"deny_status": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The deny status for the HTTP request rule.",
+				},
+				"expr": schema.StringAttribute{
+					Optional:    true,
+					Description: "The expression for the HTTP request rule.",
+				},
+				"hint_format": schema.StringAttribute{
+					Optional:    true,
+					Description: "The hint format for the HTTP request rule.",
+				},
+				"hint_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The hint name for the HTTP request rule.",
+				},
+				"log_level": schema.StringAttribute{
+					Optional:    true,
+					Description: "The log level for the HTTP request rule.",
+				},
+				"lua_action": schema.StringAttribute{
+					Optional:    true,
+					Description: "The Lua action for the HTTP request rule.",
+				},
+				"lua_params": schema.StringAttribute{
+					Optional:    true,
+					Description: "The Lua parameters for the HTTP request rule.",
+				},
+				"map_file": schema.StringAttribute{
+					Optional:    true,
+					Description: "The map file for the HTTP request rule.",
+				},
+				"map_keyfmt": schema.StringAttribute{
+					Optional:    true,
+					Description: "The map key format for the HTTP request rule.",
+				},
+				"map_valuefmt": schema.StringAttribute{
+					Optional:    true,
+					Description: "The map value format for the HTTP request rule.",
+				},
+				"mark_value": schema.StringAttribute{
+					Optional:    true,
+					Description: "The mark value for the HTTP request rule.",
+				},
+				"nice_value": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The nice value for the HTTP request rule.",
+				},
+				"return_content": schema.StringAttribute{
+					Optional:    true,
+					Description: "The return content for the HTTP request rule.",
+				},
+				"return_content_format": schema.StringAttribute{
+					Optional:    true,
+					Description: "The return content format for the HTTP request rule.",
+				},
+				"return_content_type": schema.StringAttribute{
+					Optional:    true,
+					Description: "The return content type for the HTTP request rule.",
+				},
+				"return_status_code": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The return status code for the HTTP request rule.",
+				},
+				"rst_ttl": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The RST TTL for the HTTP request rule.",
+				},
+				"sc_expr": schema.StringAttribute{
+					Optional:    true,
+					Description: "The SC expression for the HTTP request rule.",
+				},
+				"sc_id": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The SC ID for the HTTP request rule.",
+				},
+				"sc_idx": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The SC index for the HTTP request rule.",
+				},
+				"sc_int": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The SC integer for the HTTP request rule.",
+				},
+				"spoe_engine": schema.StringAttribute{
+					Optional:    true,
+					Description: "The SPOE engine for the HTTP request rule.",
+				},
+				"spoe_group": schema.StringAttribute{
+					Optional:    true,
+					Description: "The SPOE group for the HTTP request rule.",
+				},
+				"status": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The status for the HTTP request rule.",
+				},
+				"status_reason": schema.StringAttribute{
+					Optional:    true,
+					Description: "The status reason for the HTTP request rule.",
+				},
+				"strict_mode": schema.StringAttribute{
+					Optional:    true,
+					Description: "The strict mode for the HTTP request rule.",
+				},
+				"timeout": schema.StringAttribute{
+					Optional:    true,
+					Description: "The timeout for the HTTP request rule.",
+				},
+				"timeout_type": schema.StringAttribute{
+					Optional:    true,
+					Description: "The timeout type for the HTTP request rule.",
+				},
+				"tos_value": schema.StringAttribute{
+					Optional:    true,
+					Description: "The TOS value for the HTTP request rule.",
+				},
+				"track_sc_key": schema.StringAttribute{
+					Optional:    true,
+					Description: "The track SC key for the HTTP request rule.",
+				},
+				"track_sc_stick_counter": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The track SC stick counter for the HTTP request rule.",
+				},
+				"track_sc_table": schema.StringAttribute{
+					Optional:    true,
+					Description: "The track SC table for the HTTP request rule.",
+				},
+				"var_expr": schema.StringAttribute{
+					Optional:    true,
+					Description: "The variable expression for the HTTP request rule.",
+				},
+				"var_format": schema.StringAttribute{
+					Optional:    true,
+					Description: "The variable format for the HTTP request rule.",
+				},
+				"var_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The variable name for the HTTP request rule.",
+				},
+				"var_scope": schema.StringAttribute{
+					Optional:    true,
+					Description: "The variable scope for the HTTP request rule.",
+				},
+				"wait_at_least": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The wait at least for the HTTP request rule.",
+				},
+				"wait_time": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The wait time for the HTTP request rule.",
+				},
+				"index": schema.Int64Attribute{
+					Optional:    true,
+					Description: "The index/order of the HTTP request rule (for backward compatibility).",
+				},
+			},
+		},
+	}
+}
 
 // HttpRequestRuleResource is the resource implementation.
 type HttpRequestRuleResource struct {
@@ -130,79 +378,9 @@ type HttpRequestRuleResourceModel struct {
 	DoLog                types.Bool   `tfsdk:"do_log"`
 }
 
-// NewHttpRequestRuleResource is a helper function to simplify the resource implementation.
-func NewHttpRequestRuleResource() resource.Resource {
-	return &HttpRequestRuleResource{}
-}
-
 // Metadata returns the resource type name.
 func (r *HttpRequestRuleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_http_request_rule"
-}
-
-// Schema defines the schema for the resource.
-func (r *HttpRequestRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
-		Description: "Manages an HAProxy HTTP Request Rule.",
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Description: "Unique identifier for this HTTP request rule.",
-				Computed:    true,
-			},
-			"parent_type": schema.StringAttribute{
-				Description: "The type of parent resource (frontend or backend).",
-				Required:    true,
-			},
-			"parent_name": schema.StringAttribute{
-				Description: "The name of the parent resource.",
-				Required:    true,
-			},
-			"index": schema.Int64Attribute{
-				Description: "The index of the HTTP request rule.",
-				Required:    true,
-			},
-			"type": schema.StringAttribute{
-				Description: "The type of HTTP request rule.",
-				Required:    true,
-			},
-			"cond": schema.StringAttribute{
-				Description: "The condition for the rule (if/unless).",
-				Optional:    true,
-			},
-			"cond_test": schema.StringAttribute{
-				Description: "The condition test for the rule.",
-				Optional:    true,
-			},
-			"hdr_name": schema.StringAttribute{
-				Description: "The header name for header-related rules.",
-				Optional:    true,
-			},
-			"hdr_format": schema.StringAttribute{
-				Description: "The header format for header-related rules.",
-				Optional:    true,
-			},
-			"hdr_match": schema.StringAttribute{
-				Description: "The header match for header-related rules.",
-				Optional:    true,
-			},
-			"redir_type": schema.StringAttribute{
-				Description: "The redirect type for redirect rules.",
-				Optional:    true,
-			},
-			"redir_value": schema.StringAttribute{
-				Description: "The redirect value for redirect rules.",
-				Optional:    true,
-			},
-			"status_code": schema.Int64Attribute{
-				Description: "The status code for response rules.",
-				Optional:    true,
-			},
-			"status_reason": schema.StringAttribute{
-				Description: "The status reason for response rules.",
-				Optional:    true,
-			},
-		},
-	}
 }
 
 // Configure adds the provider configured client to the resource.
@@ -353,6 +531,7 @@ func (r *HttpRequestRuleResource) ImportState(ctx context.Context, req resource.
 type haproxyHttpRequestRuleModel struct {
 	Index                types.Int64  `tfsdk:"index"` // For backward compatibility with existing state
 	Type                 types.String `tfsdk:"type"`
+	Action               types.String `tfsdk:"action"`
 	RedirType            types.String `tfsdk:"redir_type"`
 	RedirValue           types.String `tfsdk:"redir_value"`
 	Cond                 types.String `tfsdk:"cond"`

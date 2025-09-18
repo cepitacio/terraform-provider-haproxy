@@ -10,8 +10,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -484,155 +482,136 @@ func (r *TcpCheckResource) Metadata(_ context.Context, req resource.MetadataRequ
 	resp.TypeName = req.ProviderTypeName + "_tcp_check"
 }
 
-// Schema defines the schema for the resource.
-func (r *TcpCheckResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
-		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "TCP Check resource",
-
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "TCP check identifier",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+// GetTcpCheckSchema returns the schema for the tcp_check block
+func GetTcpCheckSchema() schema.ListNestedBlock {
+	return schema.ListNestedBlock{
+		Description: "TCP check configuration.",
+		NestedObject: schema.NestedBlockObject{
+			Attributes: map[string]schema.Attribute{
+				"action": schema.StringAttribute{
+					Required:    true,
+					Description: "Check action.",
 				},
-			},
-			"parent_type": schema.StringAttribute{
-				MarkdownDescription: "Parent type (frontend or backend)",
-				Required:            true,
-			},
-			"parent_name": schema.StringAttribute{
-				MarkdownDescription: "Parent name",
-				Required:            true,
-			},
-			"index": schema.Int64Attribute{
-				MarkdownDescription: "Check index",
-				Required:            true,
-			},
-			"action": schema.StringAttribute{
-				MarkdownDescription: "Check action",
-				Required:            true,
-			},
-			"addr": schema.StringAttribute{
-				MarkdownDescription: "Address",
-				Optional:            true,
-			},
-			"alpn": schema.StringAttribute{
-				MarkdownDescription: "ALPN",
-				Optional:            true,
-			},
-			"check_comment": schema.StringAttribute{
-				MarkdownDescription: "Check comment",
-				Optional:            true,
-			},
-			"data": schema.StringAttribute{
-				MarkdownDescription: "Data",
-				Optional:            true,
-			},
-			"default": schema.BoolAttribute{
-				MarkdownDescription: "Default",
-				Optional:            true,
-			},
-			"error_status": schema.StringAttribute{
-				MarkdownDescription: "Error status",
-				Optional:            true,
-			},
-			"exclamation_mark": schema.BoolAttribute{
-				MarkdownDescription: "Exclamation mark",
-				Optional:            true,
-			},
-			"fmt": schema.StringAttribute{
-				MarkdownDescription: "Format",
-				Optional:            true,
-			},
-			"hex_fmt": schema.StringAttribute{
-				MarkdownDescription: "Hex format",
-				Optional:            true,
-			},
-			"hex_string": schema.StringAttribute{
-				MarkdownDescription: "Hex string",
-				Optional:            true,
-			},
-			"linger": schema.BoolAttribute{
-				MarkdownDescription: "Linger",
-				Optional:            true,
-			},
-			"match": schema.StringAttribute{
-				MarkdownDescription: "Match",
-				Optional:            true,
-			},
-			"min_recv": schema.Int64Attribute{
-				MarkdownDescription: "Min recv",
-				Optional:            true,
-			},
-			"ok_status": schema.StringAttribute{
-				MarkdownDescription: "OK status",
-				Optional:            true,
-			},
-			"on_error": schema.StringAttribute{
-				MarkdownDescription: "On error",
-				Optional:            true,
-			},
-			"on_success": schema.StringAttribute{
-				MarkdownDescription: "On success",
-				Optional:            true,
-			},
-			"pattern": schema.StringAttribute{
-				MarkdownDescription: "Pattern",
-				Optional:            true,
-			},
-			"port": schema.Int64Attribute{
-				MarkdownDescription: "Port",
-				Optional:            true,
-			},
-			"port_string": schema.StringAttribute{
-				MarkdownDescription: "Port string",
-				Optional:            true,
-			},
-			"proto": schema.StringAttribute{
-				MarkdownDescription: "Protocol",
-				Optional:            true,
-			},
-			"send_proxy": schema.BoolAttribute{
-				MarkdownDescription: "Send proxy",
-				Optional:            true,
-			},
-			"sni": schema.StringAttribute{
-				MarkdownDescription: "SNI",
-				Optional:            true,
-			},
-			"ssl": schema.BoolAttribute{
-				MarkdownDescription: "SSL",
-				Optional:            true,
-			},
-			"status_code": schema.StringAttribute{
-				MarkdownDescription: "Status code",
-				Optional:            true,
-			},
-			"tout_status": schema.StringAttribute{
-				MarkdownDescription: "Timeout status",
-				Optional:            true,
-			},
-			"var_expr": schema.StringAttribute{
-				MarkdownDescription: "Variable expression",
-				Optional:            true,
-			},
-			"var_fmt": schema.StringAttribute{
-				MarkdownDescription: "Variable format",
-				Optional:            true,
-			},
-			"var_name": schema.StringAttribute{
-				MarkdownDescription: "Variable name",
-				Optional:            true,
-			},
-			"var_scope": schema.StringAttribute{
-				MarkdownDescription: "Variable scope",
-				Optional:            true,
-			},
-			"via_socks4": schema.BoolAttribute{
-				MarkdownDescription: "Via SOCKS4",
-				Optional:            true,
+				"addr": schema.StringAttribute{
+					Optional:    true,
+					Description: "Address.",
+				},
+				"alpn": schema.StringAttribute{
+					Optional:    true,
+					Description: "ALPN.",
+				},
+				"check_comment": schema.StringAttribute{
+					Optional:    true,
+					Description: "Check comment.",
+				},
+				"data": schema.StringAttribute{
+					Optional:    true,
+					Description: "Data.",
+				},
+				"default": schema.BoolAttribute{
+					Optional:    true,
+					Description: "Default.",
+				},
+				"error_status": schema.StringAttribute{
+					Optional:    true,
+					Description: "Error status.",
+				},
+				"exclamation_mark": schema.BoolAttribute{
+					Optional:    true,
+					Description: "Exclamation mark.",
+				},
+				"fmt": schema.StringAttribute{
+					Optional:    true,
+					Description: "Format.",
+				},
+				"hex_fmt": schema.StringAttribute{
+					Optional:    true,
+					Description: "Hex format.",
+				},
+				"hex_string": schema.StringAttribute{
+					Optional:    true,
+					Description: "Hex string.",
+				},
+				"linger": schema.BoolAttribute{
+					Optional:    true,
+					Description: "Linger.",
+				},
+				"match": schema.StringAttribute{
+					Optional:    true,
+					Description: "Match.",
+				},
+				"min_recv": schema.Int64Attribute{
+					Optional:    true,
+					Description: "Min recv.",
+				},
+				"ok_status": schema.StringAttribute{
+					Optional:    true,
+					Description: "OK status.",
+				},
+				"on_error": schema.StringAttribute{
+					Optional:    true,
+					Description: "On error.",
+				},
+				"on_success": schema.StringAttribute{
+					Optional:    true,
+					Description: "On success.",
+				},
+				"pattern": schema.StringAttribute{
+					Optional:    true,
+					Description: "Pattern.",
+				},
+				"port": schema.Int64Attribute{
+					Optional:    true,
+					Description: "Port.",
+				},
+				"port_string": schema.StringAttribute{
+					Optional:    true,
+					Description: "Port string.",
+				},
+				"proto": schema.StringAttribute{
+					Optional:    true,
+					Description: "Protocol.",
+				},
+				"send_proxy": schema.BoolAttribute{
+					Optional:    true,
+					Description: "Send proxy.",
+				},
+				"sni": schema.StringAttribute{
+					Optional:    true,
+					Description: "SNI.",
+				},
+				"ssl": schema.BoolAttribute{
+					Optional:    true,
+					Description: "SSL.",
+				},
+				"status_code": schema.StringAttribute{
+					Optional:    true,
+					Description: "Status code.",
+				},
+				"tout_status": schema.StringAttribute{
+					Optional:    true,
+					Description: "Timeout status.",
+				},
+				"var_expr": schema.StringAttribute{
+					Optional:    true,
+					Description: "Variable expression.",
+				},
+				"var_fmt": schema.StringAttribute{
+					Optional:    true,
+					Description: "Variable format.",
+				},
+				"var_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "Variable name.",
+				},
+				"var_scope": schema.StringAttribute{
+					Optional:    true,
+					Description: "Variable scope.",
+				},
+				"via_socks4": schema.BoolAttribute{
+					Optional:    true,
+					Description: "Via SOCKS4.",
+				},
 			},
 		},
 	}
