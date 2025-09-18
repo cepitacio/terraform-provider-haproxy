@@ -78,6 +78,7 @@ func (c *HAProxyClient) CreateFrontend(ctx context.Context, payload *FrontendPay
 		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
 			// Log rollback error but don't fail the main operation
 			// as the transaction might have already been committed
+			log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
 		}
 	}()
 
@@ -177,6 +178,7 @@ func (c *HAProxyClient) CreateACL(ctx context.Context, parentType, parentName st
 		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
 			// Log rollback error but don't fail the main operation
 			// as the transaction might have already been committed
+			log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
 		}
 	}()
 
@@ -469,6 +471,7 @@ func (c *HAProxyClient) UpdateACL(ctx context.Context, parentType, parentName st
 		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
 			// Log rollback error but don't fail the main operation
 			// as the transaction might have already been committed
+			log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
 		}
 	}()
 
@@ -490,6 +493,7 @@ func (c *HAProxyClient) DeleteACL(ctx context.Context, parentType, parentName st
 		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
 			// Log rollback error but don't fail the main operation
 			// as the transaction might have already been committed
+			log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
 		}
 	}()
 
@@ -1814,6 +1818,7 @@ func (c *HAProxyClient) CreateHttpRequestRule(ctx context.Context, parentType, p
 		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
 			// Log rollback error but don't fail the main operation
 			// as the transaction might have already been committed
+			log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
 		}
 	}()
 
@@ -1907,6 +1912,7 @@ func (c *HAProxyClient) DeleteHttpRequestRule(ctx context.Context, index int64, 
 		if rollbackErr := c.RollbackTransaction(transactionID); rollbackErr != nil {
 			// Log rollback error but don't fail the main operation
 			// as the transaction might have already been committed
+			log.Printf("Warning: Failed to rollback transaction %s: %v", transactionID, rollbackErr)
 		}
 	}()
 

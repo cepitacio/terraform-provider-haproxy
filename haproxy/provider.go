@@ -2,6 +2,7 @@ package haproxy
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -87,6 +88,9 @@ func (p *haproxyProvider) Configure(ctx context.Context, req provider.ConfigureR
 	httpClient := &http.Client{}
 	if config.Insecure.ValueBool() {
 		// Add transport to skip verification
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
 	}
 
 	apiVersion := config.APIVersion.ValueString()

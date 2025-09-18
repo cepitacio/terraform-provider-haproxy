@@ -621,6 +621,7 @@ func GetTcpCheckSchema() schema.ListNestedBlock {
 func (r *TcpCheckResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
+		return
 	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
@@ -643,6 +644,7 @@ func (r *TcpCheckResource) Create(ctx context.Context, req resource.CreateReques
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Individual TCP check resources should not be used - use haproxy_stack instead
@@ -657,6 +659,7 @@ func (r *TcpCheckResource) Read(ctx context.Context, req resource.ReadRequest, r
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Read the check
@@ -677,6 +680,7 @@ func (r *TcpCheckResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	if foundCheck == nil {
 		resp.State.RemoveResource(ctx)
+		return
 	}
 
 	// Update the data with the found check
@@ -694,6 +698,7 @@ func (r *TcpCheckResource) Update(ctx context.Context, req resource.UpdateReques
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Individual TCP check resources should not be used - use haproxy_stack instead
@@ -708,6 +713,7 @@ func (r *TcpCheckResource) Delete(ctx context.Context, req resource.DeleteReques
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Individual TCP check resources should not be used - use haproxy_stack instead

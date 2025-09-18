@@ -35,8 +35,7 @@ test-race:
 	go test -count=1 -race -parallel=4 ./...
 
 test-coverage:
-	go test -count=1 -parallel=4 -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
+	go test -count=1 -parallel=4 ./...
 
 test-benchmark:
 	go test -count=1 -bench=. -benchmem ./...
@@ -101,7 +100,6 @@ install-tools-alt:
 clean:
 	@echo "Cleaning up..."
 	rm -f terraform-provider-haproxy
-	rm -f coverage.out coverage.html
 	rm -rf bin/
 	rm -rf .terraform/
 	rm -rf examples/*/.terraform/

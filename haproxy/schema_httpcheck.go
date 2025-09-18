@@ -618,6 +618,7 @@ func GetHttpcheckSchema() schema.ListNestedBlock {
 func (r *HttpcheckResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
+		return
 	}
 
 	client, ok := req.ProviderData.(*HAProxyClient)
@@ -640,6 +641,7 @@ func (r *HttpcheckResource) Create(ctx context.Context, req resource.CreateReque
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Individual HTTP check resources should only be used within haproxy_stack context
@@ -655,6 +657,7 @@ func (r *HttpcheckResource) Read(ctx context.Context, req resource.ReadRequest, 
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Read the check
@@ -675,6 +678,7 @@ func (r *HttpcheckResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	if foundCheck == nil {
 		resp.State.RemoveResource(ctx)
+		return
 	}
 
 	// Update the data with the found check
@@ -692,6 +696,7 @@ func (r *HttpcheckResource) Update(ctx context.Context, req resource.UpdateReque
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Individual HTTP check resources should only be used within haproxy_stack context
@@ -707,6 +712,7 @@ func (r *HttpcheckResource) Delete(ctx context.Context, req resource.DeleteReque
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Individual HTTP check resources should only be used within haproxy_stack context
