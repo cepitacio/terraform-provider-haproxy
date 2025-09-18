@@ -111,6 +111,11 @@ func (o *StackOperations) convertServerPayloadToModel(server ServerPayload) hapr
 	if server.Ssl != "" {
 		model.Ssl = types.StringValue(server.Ssl)
 	}
+	// SSL certificate fields - HAProxy doesn't return these, so set to null
+	// Terraform will manage these values from your configuration
+	model.SslCertificate = types.StringNull()
+	model.SslMaxVer = types.StringNull()
+	model.SslMinVer = types.StringNull()
 	if server.Verify != "" {
 		model.Verify = types.StringValue(server.Verify)
 	}
@@ -142,33 +147,13 @@ func (o *StackOperations) convertServerPayloadToModel(server ServerPayload) hapr
 	model.NoTlsv12 = types.StringNull()
 	model.NoTlsv13 = types.StringNull()
 
-	// Force TLS fields work in v3, so read actual values from HAProxy
-	// Only set if they have values (not empty)
-	if server.ForceSslv3 != "" {
-		model.ForceSslv3 = types.StringValue(server.ForceSslv3)
-	} else {
-		model.ForceSslv3 = types.StringNull()
-	}
-	if server.ForceTlsv10 != "" {
-		model.ForceTlsv10 = types.StringValue(server.ForceTlsv10)
-	} else {
-		model.ForceTlsv10 = types.StringNull()
-	}
-	if server.ForceTlsv11 != "" {
-		model.ForceTlsv11 = types.StringValue(server.ForceTlsv11)
-	} else {
-		model.ForceTlsv11 = types.StringNull()
-	}
-	if server.ForceTlsv12 != "" {
-		model.ForceTlsv12 = types.StringValue(server.ForceTlsv12)
-	} else {
-		model.ForceTlsv12 = types.StringNull()
-	}
-	if server.ForceTlsv13 != "" {
-		model.ForceTlsv13 = types.StringValue(server.ForceTlsv13)
-	} else {
-		model.ForceTlsv13 = types.StringNull()
-	}
+	// Force TLS fields - HAProxy doesn't return these, so set to null
+	// Terraform will manage these values from your configuration
+	model.ForceSslv3 = types.StringNull()
+	model.ForceTlsv10 = types.StringNull()
+	model.ForceTlsv11 = types.StringNull()
+	model.ForceTlsv12 = types.StringNull()
+	model.ForceTlsv13 = types.StringNull()
 
 	return model
 }
@@ -211,6 +196,15 @@ func (o *StackOperations) convertServerModelToPayload(serverName string, server 
 	}
 	if !server.Ssl.IsNull() && !server.Ssl.IsUnknown() {
 		payload.Ssl = server.Ssl.ValueString()
+	}
+	if !server.SslCertificate.IsNull() && !server.SslCertificate.IsUnknown() {
+		payload.SslCertificate = server.SslCertificate.ValueString()
+	}
+	if !server.SslMaxVer.IsNull() && !server.SslMaxVer.IsUnknown() {
+		payload.SslMaxVer = server.SslMaxVer.ValueString()
+	}
+	if !server.SslMinVer.IsNull() && !server.SslMinVer.IsUnknown() {
+		payload.SslMinVer = server.SslMinVer.ValueString()
 	}
 	if !server.Verify.IsNull() && !server.Verify.IsUnknown() {
 		payload.Verify = server.Verify.ValueString()
@@ -548,10 +542,42 @@ func (o *StackOperations) Read(ctx context.Context, req resource.ReadRequest, re
 			tflog.Info(ctx, "Successfully read servers from HAProxy", map[string]interface{}{
 				"servers_found": len(servers),
 			})
-			// Convert servers to map format
-			data.Backend.Servers = make(map[string]haproxyServerModel)
+			// Convert servers to map format, preserving existing values for fields HAProxy doesn't return
+			if data.Backend.Servers == nil {
+				data.Backend.Servers = make(map[string]haproxyServerModel)
+			}
 			for _, server := range servers {
-				data.Backend.Servers[server.Name] = o.convertServerPayloadToModel(server)
+				// Preserve existing values for fields HAProxy doesn't return
+				existingServer := data.Backend.Servers[server.Name]
+				newServer := o.convertServerPayloadToModel(server)
+
+				// Preserve user-configured values for fields HAProxy doesn't return
+				if !existingServer.ForceSslv3.IsNull() && !existingServer.ForceSslv3.IsUnknown() {
+					newServer.ForceSslv3 = existingServer.ForceSslv3
+				}
+				if !existingServer.ForceTlsv10.IsNull() && !existingServer.ForceTlsv10.IsUnknown() {
+					newServer.ForceTlsv10 = existingServer.ForceTlsv10
+				}
+				if !existingServer.ForceTlsv11.IsNull() && !existingServer.ForceTlsv11.IsUnknown() {
+					newServer.ForceTlsv11 = existingServer.ForceTlsv11
+				}
+				if !existingServer.ForceTlsv12.IsNull() && !existingServer.ForceTlsv12.IsUnknown() {
+					newServer.ForceTlsv12 = existingServer.ForceTlsv12
+				}
+				if !existingServer.ForceTlsv13.IsNull() && !existingServer.ForceTlsv13.IsUnknown() {
+					newServer.ForceTlsv13 = existingServer.ForceTlsv13
+				}
+				if !existingServer.SslCertificate.IsNull() && !existingServer.SslCertificate.IsUnknown() {
+					newServer.SslCertificate = existingServer.SslCertificate
+				}
+				if !existingServer.SslMaxVer.IsNull() && !existingServer.SslMaxVer.IsUnknown() {
+					newServer.SslMaxVer = existingServer.SslMaxVer
+				}
+				if !existingServer.SslMinVer.IsNull() && !existingServer.SslMinVer.IsUnknown() {
+					newServer.SslMinVer = existingServer.SslMinVer
+				}
+
+				data.Backend.Servers[server.Name] = newServer
 				tflog.Info(ctx, "Converted server", map[string]interface{}{
 					"server_name": server.Name,
 				})
@@ -1764,15 +1790,6 @@ func (o *StackOperations) backendChanged(ctx context.Context, planBackend *hapro
 		return true
 	}
 
-	// Compare StickRule field
-	if o.stickRuleChanged(ctx, planBackend.StickRule, stateBackend.StickRule) {
-		tflog.Info(ctx, "Backend StickRule changed", map[string]interface{}{
-			"plan_name":  planBackend.Name.ValueString(),
-			"state_name": stateBackend.Name.ValueString(),
-		})
-		return true
-	}
-
 	// Compare StatsOptions field
 	if o.statsOptionsChanged(ctx, planBackend.StatsOptions, stateBackend.StatsOptions) {
 		tflog.Info(ctx, "Backend StatsOptions changed", map[string]interface{}{
@@ -2147,36 +2164,6 @@ func (o *StackOperations) stickTableChanged(ctx context.Context, planStickTable 
 		planStickTable.Nopurge.ValueBool() != stateStickTable.Nopurge.ValueBool() ||
 		planStickTable.Peers.ValueString() != stateStickTable.Peers.ValueString() {
 		return true
-	}
-
-	return false
-}
-
-// stickRuleChanged compares plan vs state stick rule to detect changes
-func (o *StackOperations) stickRuleChanged(ctx context.Context, planStickRule []haproxyStickRuleModel, stateStickRule []haproxyStickRuleModel) bool {
-	// If lengths are different, there's a change
-	if len(planStickRule) != len(stateStickRule) {
-		return true
-	}
-
-	// If both are empty, no change
-	if len(planStickRule) == 0 && len(stateStickRule) == 0 {
-		return false
-	}
-
-	// Compare each stick rule entry
-	for i, planRule := range planStickRule {
-		if i >= len(stateStickRule) {
-			return true
-		}
-		stateRule := stateStickRule[i]
-
-		if planRule.Index.ValueInt64() != stateRule.Index.ValueInt64() ||
-			planRule.Type.ValueString() != stateRule.Type.ValueString() ||
-			planRule.Table.ValueString() != stateRule.Table.ValueString() ||
-			planRule.Pattern.ValueString() != stateRule.Pattern.ValueString() {
-			return true
-		}
 	}
 
 	return false
