@@ -3,12 +3,41 @@
 page_title: "haproxy_http_response_rule_single Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  Single HTTP Response Rule data source
+  Retrieves a single HTTP response rule by index from a specific parent (frontend or backend).
+  Example Usage
+  ```hcl
+  Get a specific HTTP response rule from a backend
+  data "haproxyhttpresponserulesingle" "setheaderrule" {
+    parenttype = "backend"
+    parentname = "web_backend"
+    index       = 0
+  }
+  Use the rule data
+  output "ruletype" {
+    value = jsondecode(data.haproxyhttpresponserulesingle.setheaderrule.httpresponse_rule).type
+  }
+  ```
 ---
 
 # haproxy_http_response_rule_single (Data Source)
 
-Single HTTP Response Rule data source
+Retrieves a single HTTP response rule by index from a specific parent (frontend or backend).
+
+## Example Usage
+
+```hcl
+# Get a specific HTTP response rule from a backend
+data "haproxy_http_response_rule_single" "set_header_rule" {
+  parent_type = "backend"
+  parent_name = "web_backend"
+  index       = 0
+}
+
+# Use the rule data
+output "rule_type" {
+  value = jsondecode(data.haproxy_http_response_rule_single.set_header_rule.http_response_rule).type
+}
+```
 
 
 

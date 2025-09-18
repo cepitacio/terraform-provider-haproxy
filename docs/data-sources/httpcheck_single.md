@@ -3,12 +3,41 @@
 page_title: "haproxy_httpcheck_single Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  Single HTTP Check data source
+  Retrieves a single HTTP check by index from a specific parent (frontend or backend).
+  Example Usage
+  ```hcl
+  Get a specific HTTP check from a backend
+  data "haproxyhttpchecksingle" "healthcheck" {
+    parenttype = "backend"
+    parentname = "webbackend"
+    index       = 0
+  }
+  Use the check data
+  output "checktype" {
+    value = jsondecode(data.haproxyhttpchecksingle.healthcheck.httpcheck).type
+  }
+  ```
 ---
 
 # haproxy_httpcheck_single (Data Source)
 
-Single HTTP Check data source
+Retrieves a single HTTP check by index from a specific parent (frontend or backend).
+
+## Example Usage
+
+```hcl
+# Get a specific HTTP check from a backend
+data "haproxy_httpcheck_single" "health_check" {
+  parent_type = "backend"
+  parent_name = "web_backend"
+  index       = 0
+}
+
+# Use the check data
+output "check_type" {
+  value = jsondecode(data.haproxy_httpcheck_single.health_check.httpcheck).type
+}
+```
 
 
 

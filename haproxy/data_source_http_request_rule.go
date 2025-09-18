@@ -32,7 +32,7 @@ func (d *HttpRequestRuleSingleDataSource) Metadata(_ context.Context, req dataso
 // Schema defines the schema for the single data source.
 func (d *HttpRequestRuleSingleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Single HTTP Request Rule data source",
+		MarkdownDescription: "Retrieves a single HTTP request rule by index from a specific parent (frontend or backend).\n\n## Example Usage\n\n```hcl\n# Get a specific HTTP request rule from a frontend\ndata \"haproxy_http_request_rule_single\" \"allow_rule\" {\n  parent_type = \"frontend\"\n  parent_name = \"web_frontend\"\n  index       = 0\n}\n\n# Use the rule data\noutput \"rule_type\" {\n  value = jsondecode(data.haproxy_http_request_rule_single.allow_rule.http_request_rule).type\n}\n\noutput \"rule_cond\" {\n  value = jsondecode(data.haproxy_http_request_rule_single.allow_rule.http_request_rule).cond\n}\n```",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -149,6 +149,7 @@ func (d *httpRequestRuleDataSource) Metadata(_ context.Context, req datasource.M
 
 func (d *httpRequestRuleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieves all HTTP request rules from a specific parent (frontend or backend).\n\n## Example Usage\n\n```hcl\n# Get all HTTP request rules from a frontend\ndata \"haproxy_http_request_rule\" \"frontend_rules\" {\n  parent_type = \"frontend\"\n  parent_name = \"web_frontend\"\n}\n\n# Use the rules data\noutput \"rule_count\" {\n  value = length(jsondecode(data.haproxy_http_request_rule.frontend_rules.http_request_rules))\n}\n\noutput \"rule_types\" {\n  value = [for rule in jsondecode(data.haproxy_http_request_rule.frontend_rules.http_request_rules) : rule.type]\n}\n```",
 		Attributes: map[string]schema.Attribute{
 			"http_request_rules": schema.StringAttribute{
 				Computed:    true,

@@ -3,12 +3,44 @@
 page_title: "haproxy_backend_single Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  Single Backend data source
+  Retrieves a single backend by name from HAProxy configuration.
+  Example Usage
+  ```hcl
+  Get a specific backend
+  data "haproxybackendsingle" "webbackend" {
+    name = "webbackend"
+  }
+  Use the backend data
+  output "backendmode" {
+    value = jsondecode(data.haproxybackendsingle.webbackend.backend).mode
+  }
+  output "backendservers" {
+    value = jsondecode(data.haproxybackendsingle.webbackend.backend).servers
+  }
+  ```
 ---
 
 # haproxy_backend_single (Data Source)
 
-Single Backend data source
+Retrieves a single backend by name from HAProxy configuration.
+
+## Example Usage
+
+```hcl
+# Get a specific backend
+data "haproxy_backend_single" "web_backend" {
+  name = "web_backend"
+}
+
+# Use the backend data
+output "backend_mode" {
+  value = jsondecode(data.haproxy_backend_single.web_backend.backend).mode
+}
+
+output "backend_servers" {
+  value = jsondecode(data.haproxy_backend_single.web_backend.backend).servers
+}
+```
 
 
 

@@ -3,12 +3,48 @@
 page_title: "haproxy_bind_single Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  
+  Retrieves a single bind by name from a specific frontend.
+  Example Usage
+  ```hcl
+  Get a specific bind from a frontend
+  data "haproxybindsingle" "httpbind" {
+    name        = "0.0.0.0:80"
+    parenttype = "frontend"
+    parentname = "webfrontend"
+  }
+  Use the bind data
+  output "bindaddress" {
+    value = jsondecode(data.haproxybindsingle.httpbind.bind).address
+  }
+  output "bindport" {
+    value = jsondecode(data.haproxybindsingle.httpbind.bind).port
+  }
+  ```
 ---
 
 # haproxy_bind_single (Data Source)
 
+Retrieves a single bind by name from a specific frontend.
 
+## Example Usage
+
+```hcl
+# Get a specific bind from a frontend
+data "haproxy_bind_single" "http_bind" {
+  name        = "0.0.0.0:80"
+  parent_type = "frontend"
+  parent_name = "web_frontend"
+}
+
+# Use the bind data
+output "bind_address" {
+  value = jsondecode(data.haproxy_bind_single.http_bind.bind).address
+}
+
+output "bind_port" {
+  value = jsondecode(data.haproxy_bind_single.http_bind.bind).port
+}
+```
 
 
 

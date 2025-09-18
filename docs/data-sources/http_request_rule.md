@@ -3,12 +3,46 @@
 page_title: "haproxy_http_request_rule Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  
+  Retrieves all HTTP request rules from a specific parent (frontend or backend).
+  Example Usage
+  ```hcl
+  Get all HTTP request rules from a frontend
+  data "haproxyhttprequestrule" "frontendrules" {
+    parenttype = "frontend"
+    parentname = "web_frontend"
+  }
+  Use the rules data
+  output "rulecount" {
+    value = length(jsondecode(data.haproxyhttprequestrule.frontendrules.httprequest_rules))
+  }
+  output "ruletypes" {
+    value = [for rule in jsondecode(data.haproxyhttprequestrule.frontendrules.httprequest_rules) : rule.type]
+  }
+  ```
 ---
 
 # haproxy_http_request_rule (Data Source)
 
+Retrieves all HTTP request rules from a specific parent (frontend or backend).
 
+## Example Usage
+
+```hcl
+# Get all HTTP request rules from a frontend
+data "haproxy_http_request_rule" "frontend_rules" {
+  parent_type = "frontend"
+  parent_name = "web_frontend"
+}
+
+# Use the rules data
+output "rule_count" {
+  value = length(jsondecode(data.haproxy_http_request_rule.frontend_rules.http_request_rules))
+}
+
+output "rule_types" {
+  value = [for rule in jsondecode(data.haproxy_http_request_rule.frontend_rules.http_request_rules) : rule.type]
+}
+```
 
 
 

@@ -32,7 +32,7 @@ func (d *HttpResponseRuleSingleDataSource) Metadata(_ context.Context, req datas
 // Schema defines the schema for the single data source.
 func (d *HttpResponseRuleSingleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Single HTTP Response Rule data source",
+		MarkdownDescription: "Retrieves a single HTTP response rule by index from a specific parent (frontend or backend).\n\n## Example Usage\n\n```hcl\n# Get a specific HTTP response rule from a backend\ndata \"haproxy_http_response_rule_single\" \"set_header_rule\" {\n  parent_type = \"backend\"\n  parent_name = \"web_backend\"\n  index       = 0\n}\n\n# Use the rule data\noutput \"rule_type\" {\n  value = jsondecode(data.haproxy_http_response_rule_single.set_header_rule.http_response_rule).type\n}\n```",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -149,6 +149,7 @@ func (d *httpResponseRuleDataSource) Metadata(_ context.Context, req datasource.
 
 func (d *httpResponseRuleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieves all HTTP response rules from a specific parent (frontend or backend).\n\n## Example Usage\n\n```hcl\n# Get all HTTP response rules from a backend\ndata \"haproxy_http_response_rule\" \"backend_rules\" {\n  parent_type = \"backend\"\n  parent_name = \"web_backend\"\n}\n\n# Use the rules data\noutput \"rule_count\" {\n  value = length(jsondecode(data.haproxy_http_response_rule.backend_rules.http_response_rules))\n}\n```",
 		Attributes: map[string]schema.Attribute{
 			"http_response_rules": schema.StringAttribute{
 				Computed:    true,

@@ -31,7 +31,7 @@ func (d *ServerSingleDataSource) Metadata(_ context.Context, req datasource.Meta
 // Schema defines the schema for the single data source.
 func (d *ServerSingleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Single Server data source",
+		MarkdownDescription: "Retrieves a single server by name from a specific backend.\n\n## Example Usage\n\n```hcl\n# Get a specific server\ndata \"haproxy_server_single\" \"web_server\" {\n  name    = \"web_server_1\"\n  backend = \"web_backend\"\n}\n\n# Use the server data\noutput \"server_address\" {\n  value = jsondecode(data.haproxy_server_single.web_server.server).address\n}\n\noutput \"server_port\" {\n  value = jsondecode(data.haproxy_server_single.web_server.server).port\n}\n```",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -145,6 +145,7 @@ func (d *serverDataSource) Metadata(_ context.Context, req datasource.MetadataRe
 
 func (d *serverDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieves all servers from a specific backend.\n\n## Example Usage\n\n```hcl\n# Get all servers from a backend\ndata \"haproxy_server\" \"backend_servers\" {\n  backend = \"web_backend\"\n}\n\n# Use the servers data\noutput \"server_count\" {\n  value = length(jsondecode(data.haproxy_server.backend_servers.servers))\n}\n\noutput \"server_addresses\" {\n  value = [for server in jsondecode(data.haproxy_server.backend_servers.servers) : server.address]\n}\n```",
 		Attributes: map[string]schema.Attribute{
 			"servers": schema.StringAttribute{
 				Computed:    true,

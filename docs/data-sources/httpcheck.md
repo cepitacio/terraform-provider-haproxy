@@ -3,12 +3,39 @@
 page_title: "haproxy_httpcheck Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  
+  Retrieves all HTTP checks from a specific parent (frontend or backend).
+  Example Usage
+  ```hcl
+  Get all HTTP checks from a backend
+  data "haproxyhttpcheck" "backendchecks" {
+    parenttype = "backend"
+    parentname = "web_backend"
+  }
+  Use the checks data
+  output "checkcount" {
+    value = length(jsondecode(data.haproxyhttpcheck.backendchecks.httpchecks))
+  }
+  ```
 ---
 
 # haproxy_httpcheck (Data Source)
 
+Retrieves all HTTP checks from a specific parent (frontend or backend).
 
+## Example Usage
+
+```hcl
+# Get all HTTP checks from a backend
+data "haproxy_httpcheck" "backend_checks" {
+  parent_type = "backend"
+  parent_name = "web_backend"
+}
+
+# Use the checks data
+output "check_count" {
+  value = length(jsondecode(data.haproxy_httpcheck.backend_checks.http_checks))
+}
+```
 
 
 

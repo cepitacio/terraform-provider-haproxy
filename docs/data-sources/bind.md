@@ -3,12 +3,46 @@
 page_title: "haproxy_bind Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  
+  Retrieves all binds from a specific frontend.
+  Example Usage
+  ```hcl
+  Get all binds from a frontend
+  data "haproxybind" "frontendbinds" {
+    parenttype = "frontend"
+    parentname = "web_frontend"
+  }
+  Use the binds data
+  output "bindcount" {
+    value = length(jsondecode(data.haproxybind.frontend_binds.binds))
+  }
+  output "bindaddresses" {
+    value = [for bind in jsondecode(data.haproxybind.frontend_binds.binds) : bind.address]
+  }
+  ```
 ---
 
 # haproxy_bind (Data Source)
 
+Retrieves all binds from a specific frontend.
 
+## Example Usage
+
+```hcl
+# Get all binds from a frontend
+data "haproxy_bind" "frontend_binds" {
+  parent_type = "frontend"
+  parent_name = "web_frontend"
+}
+
+# Use the binds data
+output "bind_count" {
+  value = length(jsondecode(data.haproxy_bind.frontend_binds.binds))
+}
+
+output "bind_addresses" {
+  value = [for bind in jsondecode(data.haproxy_bind.frontend_binds.binds) : bind.address]
+}
+```
 
 
 

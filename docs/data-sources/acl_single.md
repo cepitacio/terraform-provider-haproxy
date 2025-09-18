@@ -3,12 +3,48 @@
 page_title: "haproxy_acl_single Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  Single ACL data source
+  Retrieves a single ACL by index from a specific parent (frontend or backend).
+  Example Usage
+  ```hcl
+  Get a specific ACL from a backend
+  data "haproxyaclsingle" "apiacl" {
+    parenttype = "backend"
+    parentname = "webbackend"
+    index       = 0
+  }
+  Use the ACL data
+  output "aclname" {
+    value = jsondecode(data.haproxyaclsingle.apiacl.acl).acl_name
+  }
+  output "aclcriterion" {
+    value = jsondecode(data.haproxyaclsingle.apiacl.acl).criterion
+  }
+  ```
 ---
 
 # haproxy_acl_single (Data Source)
 
-Single ACL data source
+Retrieves a single ACL by index from a specific parent (frontend or backend).
+
+## Example Usage
+
+```hcl
+# Get a specific ACL from a backend
+data "haproxy_acl_single" "api_acl" {
+  parent_type = "backend"
+  parent_name = "web_backend"
+  index       = 0
+}
+
+# Use the ACL data
+output "acl_name" {
+  value = jsondecode(data.haproxy_acl_single.api_acl.acl).acl_name
+}
+
+output "acl_criterion" {
+  value = jsondecode(data.haproxy_acl_single.api_acl.acl).criterion
+}
+```
 
 
 
