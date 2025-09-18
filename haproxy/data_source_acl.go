@@ -32,7 +32,7 @@ func (d *AclSingleDataSource) Metadata(_ context.Context, req datasource.Metadat
 // Schema defines the schema for the single data source.
 func (d *AclSingleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Single ACL data source",
+		MarkdownDescription: "Retrieves a single ACL by index from a specific parent (frontend or backend).\n\n## Example Usage\n\n```hcl\n# Get a specific ACL from a backend\ndata \"haproxy_acl_single\" \"api_acl\" {\n  parent_type = \"backend\"\n  parent_name = \"web_backend\"\n  index       = 0\n}\n\n# Use the ACL data\noutput \"acl_name\" {\n  value = jsondecode(data.haproxy_acl_single.api_acl.acl).acl_name\n}\n\noutput \"acl_criterion\" {\n  value = jsondecode(data.haproxy_acl_single.api_acl.acl).criterion\n}\n```",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -149,6 +149,7 @@ func (d *aclDataSource) Metadata(_ context.Context, req datasource.MetadataReque
 
 func (d *aclDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieves all ACLs from a specific parent (frontend or backend).\n\n## Example Usage\n\n```hcl\n# Get all ACLs from a backend\ndata \"haproxy_acl\" \"backend_acls\" {\n  parent_type = \"backend\"\n  parent_name = \"web_backend\"\n}\n\n# Use the ACLs data\noutput \"acl_count\" {\n  value = length(jsondecode(data.haproxy_acl.backend_acls.acls))\n}\n\noutput \"acl_names\" {\n  value = [for acl in jsondecode(data.haproxy_acl.backend_acls.acls) : acl.acl_name]\n}\n```",
 		Attributes: map[string]schema.Attribute{
 			"acls": schema.StringAttribute{
 				Computed:    true,

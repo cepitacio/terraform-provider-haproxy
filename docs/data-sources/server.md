@@ -3,12 +3,44 @@
 page_title: "haproxy_server Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  
+  Retrieves all servers from a specific backend.
+  Example Usage
+  ```hcl
+  Get all servers from a backend
+  data "haproxyserver" "backendservers" {
+    backend = "web_backend"
+  }
+  Use the servers data
+  output "servercount" {
+    value = length(jsondecode(data.haproxyserver.backend_servers.servers))
+  }
+  output "serveraddresses" {
+    value = [for server in jsondecode(data.haproxyserver.backend_servers.servers) : server.address]
+  }
+  ```
 ---
 
 # haproxy_server (Data Source)
 
+Retrieves all servers from a specific backend.
 
+## Example Usage
+
+```hcl
+# Get all servers from a backend
+data "haproxy_server" "backend_servers" {
+  backend = "web_backend"
+}
+
+# Use the servers data
+output "server_count" {
+  value = length(jsondecode(data.haproxy_server.backend_servers.servers))
+}
+
+output "server_addresses" {
+  value = [for server in jsondecode(data.haproxy_server.backend_servers.servers) : server.address]
+}
+```
 
 
 

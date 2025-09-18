@@ -3,12 +3,48 @@
 page_title: "haproxy_http_request_rule_single Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  Single HTTP Request Rule data source
+  Retrieves a single HTTP request rule by index from a specific parent (frontend or backend).
+  Example Usage
+  ```hcl
+  Get a specific HTTP request rule from a frontend
+  data "haproxyhttprequestrulesingle" "allowrule" {
+    parenttype = "frontend"
+    parentname = "webfrontend"
+    index       = 0
+  }
+  Use the rule data
+  output "ruletype" {
+    value = jsondecode(data.haproxyhttprequestrulesingle.allowrule.httprequestrule).type
+  }
+  output "rulecond" {
+    value = jsondecode(data.haproxyhttprequestrulesingle.allowrule.httprequestrule).cond
+  }
+  ```
 ---
 
 # haproxy_http_request_rule_single (Data Source)
 
-Single HTTP Request Rule data source
+Retrieves a single HTTP request rule by index from a specific parent (frontend or backend).
+
+## Example Usage
+
+```hcl
+# Get a specific HTTP request rule from a frontend
+data "haproxy_http_request_rule_single" "allow_rule" {
+  parent_type = "frontend"
+  parent_name = "web_frontend"
+  index       = 0
+}
+
+# Use the rule data
+output "rule_type" {
+  value = jsondecode(data.haproxy_http_request_rule_single.allow_rule.http_request_rule).type
+}
+
+output "rule_cond" {
+  value = jsondecode(data.haproxy_http_request_rule_single.allow_rule.http_request_rule).cond
+}
+```
 
 
 

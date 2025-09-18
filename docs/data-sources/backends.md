@@ -3,12 +3,40 @@
 page_title: "haproxy_backends Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  
+  Retrieves all backends from HAProxy configuration.
+  Example Usage
+  ```hcl
+  Get all backends
+  data "haproxy_backends" "all" {}
+  Use the data in outputs
+  output "backendcount" {
+    value = length(jsondecode(data.haproxybackends.all.backends))
+  }
+  output "backendnames" {
+    value = [for backend in jsondecode(data.haproxybackends.all.backends) : backend.name]
+  }
+  ```
 ---
 
 # haproxy_backends (Data Source)
 
+Retrieves all backends from HAProxy configuration.
 
+## Example Usage
+
+```hcl
+# Get all backends
+data "haproxy_backends" "all" {}
+
+# Use the data in outputs
+output "backend_count" {
+  value = length(jsondecode(data.haproxy_backends.all.backends))
+}
+
+output "backend_names" {
+  value = [for backend in jsondecode(data.haproxy_backends.all.backends) : backend.name]
+}
+```
 
 
 

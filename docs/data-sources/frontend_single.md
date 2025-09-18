@@ -3,12 +3,44 @@
 page_title: "haproxy_frontend_single Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  Single Frontend data source
+  Retrieves a single frontend by name from HAProxy configuration.
+  Example Usage
+  ```hcl
+  Get a specific frontend
+  data "haproxyfrontendsingle" "webfrontend" {
+    name = "webfrontend"
+  }
+  Use the frontend data
+  output "frontendmode" {
+    value = jsondecode(data.haproxyfrontendsingle.webfrontend.frontend).mode
+  }
+  output "frontenddefaultbackend" {
+    value = jsondecode(data.haproxyfrontendsingle.webfrontend.frontend).defaultbackend
+  }
+  ```
 ---
 
 # haproxy_frontend_single (Data Source)
 
-Single Frontend data source
+Retrieves a single frontend by name from HAProxy configuration.
+
+## Example Usage
+
+```hcl
+# Get a specific frontend
+data "haproxy_frontend_single" "web_frontend" {
+  name = "web_frontend"
+}
+
+# Use the frontend data
+output "frontend_mode" {
+  value = jsondecode(data.haproxy_frontend_single.web_frontend.frontend).mode
+}
+
+output "frontend_default_backend" {
+  value = jsondecode(data.haproxy_frontend_single.web_frontend.frontend).default_backend
+}
+```
 
 
 
