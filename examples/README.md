@@ -4,41 +4,24 @@ This directory contains comprehensive examples for using the HAProxy Terraform p
 
 ## Examples Overview
 
-### 1. `example.tf` - Multi-Application Configuration
-**Purpose**: Demonstrates using `for_each` to create multiple HAProxy stacks
+### 1. `resources-example.tf` - Complete Working Configuration
+**Purpose**: Demonstrates a comprehensive HAProxy stack with all supported features
 **What it includes**:
-- Multiple applications (web, api) using local variables
-- Dynamic server configuration
-- Basic health checks and load balancing
-- Data source usage for discovery
+- Complete backend configuration with SSL, health checks, and rules
+- Frontend with multiple binds (HTTP, HTTPS, admin)
+- ACLs, HTTP request/response rules, TCP request/response rules
+- HTTP checks and TCP checks
+- Working example based on real user configuration
+- Note about v3 TLS field issues
 
-### 2. `basic-stack.tf` - Simple Web Application
-**Purpose**: Shows a complete, simple HAProxy configuration
+### 2. `data-sources.tf` - Data Discovery Examples
+**Purpose**: Demonstrates how to query existing HAProxy configurations
 **What it includes**:
-- Single stack with backend and frontend
-- Servers nested under backend (new structure)
-- ACLs and HTTP request rules
-- Health checks and load balancing
-- Multiple backend servers
-- Data source discovery and outputs
-
-### 3. `data-sources.tf` - Data Discovery Examples
-**Purpose**: Demonstrates all available data sources
-**What it includes**:
-- List data sources (all backends, frontends, etc.)
-- Single item data sources (specific backend, ACL, etc.)
-- Cross-referencing data between sources
-- Local values and outputs using discovered data
-
-### 4. `advanced-configuration.tf` - Enterprise Features
-**Purpose**: Shows advanced HAProxy features and configurations
-**What it includes**:
-- SSL/TLS configuration with certificates
-- Multiple ACLs and complex rule chains
-- HTTP and TCP request/response rules
-- Advanced health checks
-- Session persistence with stick tables
-- Multiple environments using for_each
+- Data sources for all backends and frontends
+- Single resource data sources (backend, frontend, bind, ACL, etc.)
+- Rule and check data sources with correct parent types
+- Outputs showing how to use discovered data
+- Based on actual resources from `resources-example.tf`
 
 ## Getting Started
 
@@ -50,7 +33,7 @@ This directory contains comprehensive examples for using the HAProxy Terraform p
 
 ### Step 1: Choose an Example
 
-Start with `basic-stack.tf` for a simple configuration, or `example.tf` for multiple applications.
+Start with `resources-example.tf` to create a complete HAProxy configuration, or `data-sources.tf` to query existing configurations.
 
 ### Step 2: Configure Provider
 
@@ -58,11 +41,11 @@ Update the provider configuration in your chosen example:
 
 ```hcl
 provider "haproxy" {
-  url         = "http://your-haproxy:5555"  # Update with your HAProxy URL
-  username    = "admin"                     # Update with your username
-  password    = "admin"                     # Update with your password
-  api_version = "v3"                       # Use v3 for full features
-  insecure    = false                      # Set to true to skip SSL verification
+  url         = "https://haproxy.example.com:5555"  # Update with your HAProxy URL
+  username    = "admin"                             # Update with your username
+  password    = "admin"                             # Update with your password
+  api_version = "v3"                               # Use v3 for full features
+  insecure    = false                              # Set to true to skip SSL verification
 }
 ```
 
@@ -87,25 +70,51 @@ terraform show
 
 ## Example Details
 
-### Basic Stack (`basic-stack.tf`)
-- **Use case**: Simple web application with load balancing
-- **Features**: ACLs, HTTP rules, health checks, multiple servers
-- **Complexity**: Beginner-friendly
+### Resources Example (`resources-example.tf`)
+- **Use case**: Complete HAProxy configuration with all features
+- **Features**: SSL/TLS, ACLs, rules, health checks, multiple binds
+- **Complexity**: Comprehensive - shows all supported features
+- **Based on**: Real working configuration from user testing
 
 ### Data Sources (`data-sources.tf`)
-- **Use case**: Discovering and referencing existing HAProxy configurations
-- **Features**: All 22 data sources with examples
+- **Use case**: Querying existing HAProxy configurations
+- **Features**: All data sources with correct parameters and parent types
 - **Complexity**: Intermediate - shows data discovery patterns
+- **Based on**: Resources created by `resources-example.tf`
 
-### Advanced Configuration (`advanced-configuration.tf`)
-- **Use case**: Enterprise-grade HAProxy with SSL, complex rules
-- **Features**: SSL/TLS, stick tables, multiple environments
-- **Complexity**: Advanced - production-ready configurations
+## Key Features Demonstrated
 
-### Multi-Application (`example.tf`)
-- **Use case**: Managing multiple applications with for_each
-- **Features**: Dynamic server configuration, environment separation
-- **Complexity**: Intermediate - shows scaling patterns
+### Backend Configuration
+- SSL/TLS settings with certificates
+- Health checks (HTTP and TCP)
+- Load balancing algorithms
+- ACLs and rules
+- Timeout configurations
+
+### Frontend Configuration
+- Multiple binds (HTTP, HTTPS, admin)
+- SSL/TLS configuration
+- ACLs and rules
+- Monitor fail settings
+
+### Data Sources
+- Query all backends and frontends
+- Get specific resources by name
+- Access rules and checks by index
+- Cross-reference data between resources
+
+## API Version Considerations
+
+### HAProxy Data Plane API v3 (Recommended)
+- ✅ Full support for all features
+- ✅ All examples work as written
+- ⚠️ Note: `tlsv*` and `sslv*` fields have issues in v3 API
+- ✅ Use `force_tlsv*` and `force_sslv*` fields instead
+
+### HAProxy Data Plane API v2 (Limited)
+- ⚠️ Some advanced features may not work
+- ✅ Basic examples work fine
+- ✅ `force_tlsv*` and `force_sslv*` fields work in both versions
 
 ## Customizing Examples
 
@@ -114,11 +123,11 @@ All examples use placeholder values. Update these for your environment:
 
 ```hcl
 provider "haproxy" {
-  url         = "http://your-haproxy:5555"  # Your HAProxy Data Plane API URL
-  username    = "your-username"             # Your API username
-  password    = "your-password"             # Your API password
-  api_version = "v3"                       # Use v3 for full features
-  insecure    = false                      # Set to true to skip SSL verification
+  url         = "https://your-haproxy:5555"     # Your HAProxy Data Plane API URL
+  username    = "your-username"                 # Your API username
+  password    = "your-password"                 # Your API password
+  api_version = "v3"                           # Use v3 for full features
+  insecure    = false                          # Set to true to skip SSL verification
 }
 ```
 
@@ -151,19 +160,31 @@ binds = {
 }
 ```
 
-## API Version Considerations
+## Data Source Usage
 
-### HAProxy Data Plane API v3 (Recommended)
-- ✅ Full support for all features
-- ✅ TCP rules work with both frontends and backends
-- ✅ HTTP checks work with both frontends and backends
-- ✅ All examples work as written
+Data sources can be referenced in other resources:
 
-### HAProxy Data Plane API v2 (Limited)
-- ⚠️ TCP rules only work with backends
-- ⚠️ HTTP checks only work with backends
-- ⚠️ Some advanced examples may not work
-- ✅ Basic examples work fine
+```hcl
+# Use data source in a new resource
+resource "haproxy_stack" "new_stack" {
+  name = "data_driven_stack"
+
+  backend {
+    name = "copy_of_${data.haproxy_backend_single.existing_backend.name}"
+    mode = "http"
+  }
+}
+
+# Use data source in outputs
+output "existing_backend_mode" {
+  value = data.haproxy_backend_single.existing_backend.mode
+}
+
+# Use data source in locals
+locals {
+  backend_names = [for backend in data.haproxy_backends.all_backends.backends : backend.name]
+}
+```
 
 ## Troubleshooting
 
@@ -186,10 +207,14 @@ binds = {
    - Use `api_version = "v3"` for full features
    - Some features require v3
 
+5. **Data Source "Not Found" Errors**
+   - Verify the resource exists in HAProxy
+   - Check parent_type and parent_name parameters
+   - Verify index numbers for rules and checks
+
 ### Getting Help
 
 - Check the [main documentation](../docs/)
 - Review [data sources](../docs/data-sources/)
 - See [resource documentation](../docs/resources/)
 - Open an [issue](https://github.com/cepitacio/terraform-provider-haproxy/issues)
-
