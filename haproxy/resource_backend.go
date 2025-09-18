@@ -530,8 +530,9 @@ func (r *BackendManager) processDefaultServerBlock(defaultServer *haproxyDefault
 		}
 	}
 
-	// Force fields (v3 only) - only set when explicitly "enabled" and API v3
-	if apiVersion == "v3" {
+	// Force fields - handle differently for v2 vs v3
+	if apiVersion == "v2" {
+		// For v2, use force_* fields directly
 		if !defaultServer.ForceSslv3.IsNull() && !defaultServer.ForceSslv3.IsUnknown() && defaultServer.ForceSslv3.ValueString() == "enabled" {
 			payload.ForceSslv3 = "enabled"
 		}
@@ -550,6 +551,41 @@ func (r *BackendManager) processDefaultServerBlock(defaultServer *haproxyDefault
 		if !defaultServer.ForceStrictSni.IsNull() && !defaultServer.ForceStrictSni.IsUnknown() {
 			payload.ForceStrictSni = defaultServer.ForceStrictSni.ValueString()
 		}
+	} else if apiVersion == "v3" {
+		// For v3, convert force_* fields to sslv3/tlsv* fields and show warnings
+		// Note: These fields may not be supported in default-server sections for v3
+		if !defaultServer.ForceSslv3.IsNull() && !defaultServer.ForceSslv3.IsUnknown() && defaultServer.ForceSslv3.ValueString() == "enabled" {
+			payload.Sslv3 = "enabled"
+			log.Printf("WARNING: Field 'force_sslv3' is deprecated in Data Plane API v3. Using 'sslv3' instead.")
+		}
+		if !defaultServer.ForceTlsv10.IsNull() && !defaultServer.ForceTlsv10.IsUnknown() && defaultServer.ForceTlsv10.ValueString() == "enabled" {
+			payload.Tlsv10 = "enabled"
+			log.Printf("WARNING: Field 'force_tlsv10' is deprecated in Data Plane API v3. Using 'tlsv10' instead.")
+		}
+		if !defaultServer.ForceTlsv11.IsNull() && !defaultServer.ForceTlsv11.IsUnknown() && defaultServer.ForceTlsv11.ValueString() == "enabled" {
+			payload.Tlsv11 = "enabled"
+			log.Printf("WARNING: Field 'force_tlsv11' is deprecated in Data Plane API v3. Using 'tlsv11' instead.")
+		}
+		if !defaultServer.ForceTlsv12.IsNull() && !defaultServer.ForceTlsv12.IsUnknown() && defaultServer.ForceTlsv12.ValueString() == "enabled" {
+			payload.Tlsv12 = "enabled"
+			log.Printf("WARNING: Field 'force_tlsv12' is deprecated in Data Plane API v3. Using 'tlsv12' instead.")
+		}
+		if !defaultServer.ForceTlsv13.IsNull() && !defaultServer.ForceTlsv13.IsUnknown() && defaultServer.ForceTlsv13.ValueString() == "enabled" {
+			payload.Tlsv13 = "enabled"
+			log.Printf("WARNING: Field 'force_tlsv13' is deprecated in Data Plane API v3. Using 'tlsv13' instead.")
+		}
+		if !defaultServer.ForceStrictSni.IsNull() && !defaultServer.ForceStrictSni.IsUnknown() {
+			// Note: force_strict_sni doesn't have a direct v3 equivalent in default-server
+			log.Printf("WARNING: Field 'force_strict_sni' is not supported in default-server sections for Data Plane API v3.")
+		}
+	}
+
+	// Debug logging to see what's being sent
+	if apiVersion == "v3" {
+		log.Printf("DEBUG: DefaultServerPayload for v3 - Sslv3: '%s', Tlsv10: '%s', Tlsv11: '%s', Tlsv12: '%s', Tlsv13: '%s'",
+			payload.Sslv3, payload.Tlsv10, payload.Tlsv11, payload.Tlsv12, payload.Tlsv13)
+		log.Printf("DEBUG: Force fields - ForceSslv3: '%s', ForceTlsv10: '%s', ForceTlsv11: '%s', ForceTlsv12: '%s', ForceTlsv13: '%s'",
+			payload.ForceSslv3, payload.ForceTlsv10, payload.ForceTlsv11, payload.ForceTlsv12, payload.ForceTlsv13)
 	}
 
 	return payload

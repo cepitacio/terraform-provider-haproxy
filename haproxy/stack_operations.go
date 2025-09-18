@@ -114,6 +114,7 @@ func (o *StackOperations) convertServerPayloadToModel(server ServerPayload) hapr
 	// SSL certificate fields - HAProxy doesn't return these, so set to null
 	// Terraform will manage these values from your configuration
 	model.SslCertificate = types.StringNull()
+	model.SslCafile = types.StringNull()
 	model.SslMaxVer = types.StringNull()
 	model.SslMinVer = types.StringNull()
 	if server.Verify != "" {
@@ -199,6 +200,9 @@ func (o *StackOperations) convertServerModelToPayload(serverName string, server 
 	}
 	if !server.SslCertificate.IsNull() && !server.SslCertificate.IsUnknown() {
 		payload.SslCertificate = server.SslCertificate.ValueString()
+	}
+	if !server.SslCafile.IsNull() && !server.SslCafile.IsUnknown() {
+		payload.SslCafile = server.SslCafile.ValueString()
 	}
 	if !server.SslMaxVer.IsNull() && !server.SslMaxVer.IsUnknown() {
 		payload.SslMaxVer = server.SslMaxVer.ValueString()
