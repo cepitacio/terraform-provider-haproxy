@@ -35,7 +35,7 @@ func (d *FrontendSingleDataSource) Metadata(_ context.Context, req datasource.Me
 // Schema defines the schema for the single data source.
 func (d *FrontendSingleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Single Frontend data source",
+		MarkdownDescription: "Retrieves a single frontend by name from HAProxy configuration.\n\n## Example Usage\n\n```hcl\n# Get a specific frontend\ndata \"haproxy_frontend_single\" \"web_frontend\" {\n  name = \"web_frontend\"\n}\n\n# Use the frontend data\noutput \"frontend_mode\" {\n  value = jsondecode(data.haproxy_frontend_single.web_frontend.frontend).mode\n}\n\noutput \"frontend_default_backend\" {\n  value = jsondecode(data.haproxy_frontend_single.web_frontend.frontend).default_backend\n}\n```",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -148,6 +148,7 @@ func (d *frontendsDataSource) Metadata(_ context.Context, req datasource.Metadat
 // Schema defines the schema for the data source.
 func (d *frontendsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieves all frontends from HAProxy configuration.\n\n## Example Usage\n\n```hcl\n# Get all frontends\ndata \"haproxy_frontends\" \"all\" {}\n\n# Use the data in outputs\noutput \"frontend_count\" {\n  value = length(jsondecode(data.haproxy_frontends.all.frontends))\n}\n\noutput \"frontend_names\" {\n  value = [for frontend in jsondecode(data.haproxy_frontends.all.frontends) : frontend.name]\n}\n```",
 		Attributes: map[string]schema.Attribute{
 			"frontends": schema.StringAttribute{
 				Computed:    true,

@@ -35,7 +35,7 @@ func (d *BackendSingleDataSource) Metadata(_ context.Context, req datasource.Met
 // Schema defines the schema for the single data source.
 func (d *BackendSingleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Single Backend data source",
+		MarkdownDescription: "Retrieves a single backend by name from HAProxy configuration.\n\n## Example Usage\n\n```hcl\n# Get a specific backend\ndata \"haproxy_backend_single\" \"web_backend\" {\n  name = \"web_backend\"\n}\n\n# Use the backend data\noutput \"backend_mode\" {\n  value = jsondecode(data.haproxy_backend_single.web_backend.backend).mode\n}\n\noutput \"backend_servers\" {\n  value = jsondecode(data.haproxy_backend_single.web_backend.backend).servers\n}\n```",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -148,6 +148,7 @@ func (d *backendsDataSource) Metadata(_ context.Context, req datasource.Metadata
 // Schema defines the schema for the data source.
 func (d *backendsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieves all backends from HAProxy configuration.\n\n## Example Usage\n\n```hcl\n# Get all backends\ndata \"haproxy_backends\" \"all\" {}\n\n# Use the data in outputs\noutput \"backend_count\" {\n  value = length(jsondecode(data.haproxy_backends.all.backends))\n}\n\noutput \"backend_names\" {\n  value = [for backend in jsondecode(data.haproxy_backends.all.backends) : backend.name]\n}\n```",
 		Attributes: map[string]schema.Attribute{
 			"backends": schema.StringAttribute{
 				Computed:    true,

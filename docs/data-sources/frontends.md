@@ -3,12 +3,40 @@
 page_title: "haproxy_frontends Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  
+  Retrieves all frontends from HAProxy configuration.
+  Example Usage
+  ```hcl
+  Get all frontends
+  data "haproxy_frontends" "all" {}
+  Use the data in outputs
+  output "frontendcount" {
+    value = length(jsondecode(data.haproxyfrontends.all.frontends))
+  }
+  output "frontendnames" {
+    value = [for frontend in jsondecode(data.haproxyfrontends.all.frontends) : frontend.name]
+  }
+  ```
 ---
 
 # haproxy_frontends (Data Source)
 
+Retrieves all frontends from HAProxy configuration.
 
+## Example Usage
+
+```hcl
+# Get all frontends
+data "haproxy_frontends" "all" {}
+
+# Use the data in outputs
+output "frontend_count" {
+  value = length(jsondecode(data.haproxy_frontends.all.frontends))
+}
+
+output "frontend_names" {
+  value = [for frontend in jsondecode(data.haproxy_frontends.all.frontends) : frontend.name]
+}
+```
 
 
 

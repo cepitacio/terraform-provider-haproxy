@@ -3,12 +3,46 @@
 page_title: "haproxy_server_single Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  Single Server data source
+  Retrieves a single server by name from a specific backend.
+  Example Usage
+  ```hcl
+  Get a specific server
+  data "haproxyserversingle" "webserver" {
+    name    = "webserver1"
+    backend = "webbackend"
+  }
+  Use the server data
+  output "serveraddress" {
+    value = jsondecode(data.haproxyserversingle.webserver.server).address
+  }
+  output "serverport" {
+    value = jsondecode(data.haproxyserversingle.webserver.server).port
+  }
+  ```
 ---
 
 # haproxy_server_single (Data Source)
 
-Single Server data source
+Retrieves a single server by name from a specific backend.
+
+## Example Usage
+
+```hcl
+# Get a specific server
+data "haproxy_server_single" "web_server" {
+  name    = "web_server_1"
+  backend = "web_backend"
+}
+
+# Use the server data
+output "server_address" {
+  value = jsondecode(data.haproxy_server_single.web_server.server).address
+}
+
+output "server_port" {
+  value = jsondecode(data.haproxy_server_single.web_server.server).port
+}
+```
 
 
 

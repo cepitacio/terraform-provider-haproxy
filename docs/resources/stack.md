@@ -4,11 +4,151 @@ page_title: "haproxy_stack Resource - terraform-provider-haproxy"
 subcategory: ""
 description: |-
   Manages a complete HAProxy stack including backend, server, frontend, and ACLs.
+  Example Usage
+  ```hcl
+  resource "haproxystack" "webapp" {
+    name = "web_application"
+  backend {
+      name = "web_backend"
+      mode = "http"
+  # Backend ACLs
+  acls {
+    acl_name = "is_api"
+    criterion = "path"
+    value     = "/api"
+  }
+  
+  # HTTP request rules
+  http_request_rules {
+    type      = "allow"
+    cond      = "if"
+    cond_test = "is_api"
+  }
+  
+  # Health checks
+  http_checks {
+    type = "connect"
+    addr = "127.0.0.1"
+    port = 80
+  }
+  
+  # Servers (nested under backend)
+  servers = {
+    "web_server_1" = {
+      address = "192.168.1.10"
+      port    = 8080
+      check   = "enabled"
+      weight  = 100
+    }
+  
+    "web_server_2" = {
+      address = "192.168.1.11"
+      port    = 8080
+      check   = "enabled"
+      weight  = 100
+    }
+  }
+  
+  }
+  frontend {
+      name           = "webfrontend"
+      mode           = "http"
+      defaultbackend = "web_backend"
+  # Frontend ACLs
+  acls {
+    acl_name = "is_admin"
+    criterion = "path"
+    value     = "/admin"
+  }
+  
+  # Bind configuration
+  binds = {
+    http_bind = {
+      address = "0.0.0.0"
+      port    = 80
+    }
+  }
+  
+  }
+  }
+  ```
 ---
 
 # haproxy_stack (Resource)
 
 Manages a complete HAProxy stack including backend, server, frontend, and ACLs.
+
+## Example Usage
+
+```hcl
+resource "haproxy_stack" "web_app" {
+  name = "web_application"
+  
+  backend {
+    name = "web_backend"
+    mode = "http"
+    
+    # Backend ACLs
+    acls {
+      acl_name = "is_api"
+      criterion = "path"
+      value     = "/api"
+    }
+    
+    # HTTP request rules
+    http_request_rules {
+      type      = "allow"
+      cond      = "if"
+      cond_test = "is_api"
+    }
+    
+    # Health checks
+    http_checks {
+      type = "connect"
+      addr = "127.0.0.1"
+      port = 80
+    }
+    
+    # Servers (nested under backend)
+    servers = {
+      "web_server_1" = {
+        address = "192.168.1.10"
+        port    = 8080
+        check   = "enabled"
+        weight  = 100
+      }
+      
+      "web_server_2" = {
+        address = "192.168.1.11"
+        port    = 8080
+        check   = "enabled"
+        weight  = 100
+      }
+    }
+  }
+  
+  frontend {
+    name           = "web_frontend"
+    mode           = "http"
+    default_backend = "web_backend"
+    
+    # Frontend ACLs
+    acls {
+      acl_name = "is_admin"
+      criterion = "path"
+      value     = "/admin"
+    }
+    
+    # Bind configuration
+    binds = {
+      http_bind = {
+        address = "0.0.0.0"
+        port    = 80
+      }
+    }
+  }
+}
+```
 
 
 
@@ -34,7 +174,7 @@ Required:
 
 Optional:
 
-- `acls` (Block List) Access Control List (ACL) configuration blocks for content switching and decision making in the backend. (see [below for nested schema](#nestedblock--backend--acls))
+- `acls` (Block List) Access Control List (ACL) configuration blocks for content switching and decision making. (see [below for nested schema](#nestedblock--backend--acls))
 - `adv_check` (String) Advanced health check configuration.
 - `balance` (Block List) Load balancing configuration for the backend. (see [below for nested schema](#nestedblock--backend--balance))
 - `check_timeout` (Number) Health check timeout in milliseconds.
@@ -42,22 +182,21 @@ Optional:
 - `connect_timeout` (Number) Connection timeout in milliseconds.
 - `default_server` (Block, Optional) Default server configuration for SSL/TLS settings. (see [below for nested schema](#nestedblock--backend--default_server))
 - `forwardfor` (Block List) Forward for configuration for the backend. (see [below for nested schema](#nestedblock--backend--forwardfor))
-- `http_checks` (Block List) HTTP health check configuration for the backend. (see [below for nested schema](#nestedblock--backend--http_checks))
+- `http_checks` (Block List) HTTP check configuration. (see [below for nested schema](#nestedblock--backend--http_checks))
 - `http_connection_mode` (String) HTTP connection mode for the backend.
-- `http_request_rules` (Block List) HTTP request rule configuration for the backend. (see [below for nested schema](#nestedblock--backend--http_request_rules))
-- `http_response_rules` (Block List) HTTP response rule configuration for the backend. (see [below for nested schema](#nestedblock--backend--http_response_rules))
+- `http_request_rules` (Block List) HTTP request rule configuration. (see [below for nested schema](#nestedblock--backend--http_request_rules))
+- `http_response_rules` (Block List) HTTP response rule configuration. (see [below for nested schema](#nestedblock--backend--http_response_rules))
 - `httpchk_params` (Block List) HTTP health check parameters for the backend. (see [below for nested schema](#nestedblock--backend--httpchk_params))
 - `queue_timeout` (Number) Queue timeout in milliseconds.
 - `retries` (Number) Number of retries for failed operations.
 - `server_timeout` (Number) Server timeout in milliseconds.
-- `servers` (Attributes Map) Server configuration blocks for backend servers. (see [below for nested schema](#nestedatt--backend--servers))
+- `servers` (Attributes Map) Multiple server configurations. (see [below for nested schema](#nestedatt--backend--servers))
 - `stats_options` (Block List) Stats options configuration for the backend. (see [below for nested schema](#nestedblock--backend--stats_options))
-- `stick_rule` (Block List) Stick rule configuration for the backend. (see [below for nested schema](#nestedblock--backend--stick_rule))
 - `stick_table` (Block, Optional) Stick table configuration for the backend. (see [below for nested schema](#nestedblock--backend--stick_table))
 - `tarpit_timeout` (Number) Tarpit timeout in milliseconds.
-- `tcp_checks` (Block List) TCP health check configuration for the backend. (see [below for nested schema](#nestedblock--backend--tcp_checks))
-- `tcp_request_rules` (Block List) TCP request rule configuration for the backend. (see [below for nested schema](#nestedblock--backend--tcp_request_rules))
-- `tcp_response_rules` (Block List) TCP response rule configuration for the backend. (see [below for nested schema](#nestedblock--backend--tcp_response_rules))
+- `tcp_checks` (Block List) TCP check configuration. (see [below for nested schema](#nestedblock--backend--tcp_checks))
+- `tcp_request_rules` (Block List) TCP request rule configuration. (see [below for nested schema](#nestedblock--backend--tcp_request_rules))
+- `tcp_response_rules` (Block List) TCP response rule configuration. (see [below for nested schema](#nestedblock--backend--tcp_response_rules))
 - `tunnel_timeout` (Number) Tunnel timeout in milliseconds.
 
 <a id="nestedblock--backend--acls"></a>
@@ -71,7 +210,7 @@ Required:
 
 Optional:
 
-- `index` (Number) The index/order of the ACL rule. If not specified, will be auto-assigned.
+- `index` (Number) The index/order of the ACL rule (for backward compatibility).
 
 
 <a id="nestedblock--backend--balance"></a>
@@ -131,42 +270,43 @@ Required:
 
 Required:
 
-- `type` (String) The type of the httpcheck.
+- `type` (String) Check type.
 
 Optional:
 
-- `addr` (String) The address for the HTTP check.
-- `alpn` (String) The ALPN for the HTTP check.
-- `body` (String) The body for the HTTP check.
-- `body_log_format` (String) The body log format for the HTTP check.
-- `check_comment` (String) The check comment for the HTTP check.
-- `default` (Boolean) The default flag for the HTTP check.
-- `error_status` (String) The error status for the HTTP check.
-- `exclamation_mark` (Boolean) The exclamation mark flag for the HTTP check.
-- `headers` (List of String) The headers for the HTTP check.
-- `linger` (Boolean) The linger flag for the HTTP check.
-- `match` (String) The match condition for the health check.
-- `method` (String) The HTTP method for the health check.
-- `min_recv` (Number) The minimum receive for the HTTP check.
-- `ok_status` (String) The OK status for the HTTP check.
-- `on_error` (String) The on error action for the HTTP check.
-- `on_success` (String) The on success action for the HTTP check.
-- `pattern` (String) The pattern to match for the health check.
-- `port` (Number) The port for the HTTP check.
-- `port_string` (String) The port string for the HTTP check.
-- `proto` (String) The protocol for the HTTP check.
-- `send_proxy` (Boolean) The send proxy flag for the HTTP check.
-- `sni` (String) The SNI for the HTTP check.
-- `ssl` (Boolean) The SSL flag for the HTTP check.
-- `status_code` (String) The status code for the HTTP check.
-- `tout_status` (String) The timeout status for the HTTP check.
-- `uri` (String) The URI for the HTTP check.
-- `uri_log_format` (String) The URI log format for the HTTP check.
-- `var_expr` (String) The variable expression for the HTTP check.
-- `var_format` (String) The variable format for the HTTP check.
-- `var_name` (String) The variable name for the HTTP check.
-- `var_scope` (String) The variable scope for the HTTP check.
-- `version` (String) The HTTP version for the HTTP check.
+- `addr` (String) Address.
+- `alpn` (String) ALPN.
+- `body` (String) Body.
+- `body_log_format` (String) Body log format.
+- `check_comment` (String) Check comment.
+- `default` (Boolean) Default.
+- `error_status` (String) Error status.
+- `exclamation_mark` (Boolean) Exclamation mark.
+- `headers` (List of String) Headers.
+- `linger` (Boolean) Linger.
+- `match` (String) Match.
+- `method` (String) Method.
+- `min_recv` (Number) Min recv.
+- `ok_status` (String) OK status.
+- `on_error` (String) On error.
+- `on_success` (String) On success.
+- `pattern` (String) Pattern.
+- `port` (Number) Port.
+- `port_string` (String) Port string.
+- `proto` (String) Protocol.
+- `send_proxy` (Boolean) Send proxy.
+- `sni` (String) SNI.
+- `ssl` (Boolean) SSL.
+- `status_code` (String) Status code.
+- `tout_status` (String) Timeout status.
+- `uri` (String) URI.
+- `uri_log_format` (String) URI log format.
+- `var_expr` (String) Variable expression.
+- `var_format` (String) Variable format.
+- `var_name` (String) Variable name.
+- `var_scope` (String) Variable scope.
+- `version` (String) Version.
+- `via_socks4` (Boolean) Via SOCKS4.
 
 
 <a id="nestedblock--backend--http_request_rules"></a>
@@ -174,69 +314,70 @@ Optional:
 
 Required:
 
-- `type` (String) The type of the http-request rule.
+- `type` (String) The type of the HTTP request rule.
 
 Optional:
 
-- `acl_file` (String) The ACL file of the http-request rule.
-- `acl_keyfmt` (String) The ACL key format of the http-request rule.
-- `auth_realm` (String) The authentication realm of the http-request rule.
-- `bandwidth_limit_limit` (String) The bandwidth limit limit of the http-request rule.
-- `bandwidth_limit_name` (String) The bandwidth limit name of the http-request rule.
-- `bandwidth_limit_period` (String) The bandwidth limit period of the http-request rule.
-- `cache_name` (String) The cache name of the http-request rule.
-- `capture_id` (Number) The capture ID of the http-request rule.
-- `capture_len` (Number) The capture length of the http-request rule.
-- `capture_sample` (String) The capture sample of the http-request rule.
-- `cond` (String) The condition of the http-request rule.
-- `cond_test` (String) The condition test of the http-request rule.
-- `deny_status` (Number) The deny status of the http-request rule.
-- `expr` (String) The expression of the http-request rule.
-- `hdr_format` (String) The header format of the http-request rule.
-- `hdr_match` (String) The header match of the http-request rule.
-- `hdr_method` (String) The header method of the http-request rule.
-- `hdr_name` (String) The header name of the http-request rule.
-- `hint_format` (String) The hint format of the http-request rule.
-- `hint_name` (String) The hint name of the http-request rule.
-- `index` (Number) The index of the http-request rule (for backward compatibility).
-- `log_level` (String) The log level of the http-request rule.
-- `lua_action` (String) The Lua action of the http-request rule.
-- `lua_params` (String) The Lua parameters of the http-request rule.
-- `map_file` (String) The map file of the http-request rule.
-- `map_keyfmt` (String) The map key format of the http-request rule.
-- `map_valuefmt` (String) The map value format of the http-request rule.
-- `mark_value` (String) The mark value of the http-request rule.
-- `nice_value` (Number) The nice value of the http-request rule.
-- `redir_code` (Number) The redirection code of the http-request rule.
-- `redir_option` (String) The redirection option of the http-request rule.
-- `redir_type` (String) The redirection type of the http-request rule.
-- `redir_value` (String) The redirection value of the http-request rule.
-- `return_content` (String) The return content of the http-request rule.
-- `return_content_format` (String) The return content format of the http-request rule.
-- `return_content_type` (String) The return content type of the http-request rule.
-- `return_status_code` (Number) The return status code of the http-request rule.
-- `rst_ttl` (Number) The RST TTL of the http-request rule.
-- `sc_expr` (String) The SC expression of the http-request rule.
-- `sc_id` (Number) The SC ID of the http-request rule.
-- `sc_idx` (Number) The SC index of the http-request rule.
-- `sc_int` (Number) The SC integer of the http-request rule.
-- `spoe_engine` (String) The SPOE engine of the http-request rule.
-- `spoe_group` (String) The SPOE group of the http-request rule.
-- `status` (Number) The status of the http-request rule.
-- `status_reason` (String) The status reason of the http-request rule.
-- `strict_mode` (String) The strict mode of the http-request rule.
-- `timeout` (String) The timeout of the http-request rule.
-- `timeout_type` (String) The timeout type of the http-request rule.
-- `tos_value` (String) The TOS value of the http-request rule.
-- `track_sc_key` (String) The track SC key of the http-request rule.
-- `track_sc_stick_counter` (Number) The track SC stick counter of the http-request rule.
-- `track_sc_table` (String) The track SC table of the http-request rule.
-- `var_expr` (String) The variable expression of the http-request rule.
-- `var_format` (String) The variable format of the http-request rule.
-- `var_name` (String) The variable name of the http-request rule.
-- `var_scope` (String) The variable scope of the http-request rule.
-- `wait_at_least` (Number) The wait at least of the http-request rule.
-- `wait_time` (Number) The wait time of the http-request rule.
+- `acl_file` (String) The ACL file for the HTTP request rule.
+- `acl_keyfmt` (String) The ACL key format for the HTTP request rule.
+- `action` (String) The action of the HTTP request rule.
+- `auth_realm` (String) The authentication realm for the HTTP request rule.
+- `bandwidth_limit_limit` (String) The bandwidth limit limit for the HTTP request rule.
+- `bandwidth_limit_name` (String) The bandwidth limit name for the HTTP request rule.
+- `bandwidth_limit_period` (String) The bandwidth limit period for the HTTP request rule.
+- `cache_name` (String) The cache name for the HTTP request rule.
+- `capture_id` (Number) The capture ID for the HTTP request rule.
+- `capture_len` (Number) The capture length for the HTTP request rule.
+- `capture_sample` (String) The capture sample for the HTTP request rule.
+- `cond` (String) The condition of the HTTP request rule (if, unless).
+- `cond_test` (String) The condition test of the HTTP request rule.
+- `deny_status` (Number) The deny status for the HTTP request rule.
+- `expr` (String) The expression for the HTTP request rule.
+- `hdr_format` (String) The header format for the HTTP request rule.
+- `hdr_match` (String) The header match for the HTTP request rule.
+- `hdr_method` (String) The header method for the HTTP request rule.
+- `hdr_name` (String) The header name for the HTTP request rule.
+- `hint_format` (String) The hint format for the HTTP request rule.
+- `hint_name` (String) The hint name for the HTTP request rule.
+- `index` (Number) The index/order of the HTTP request rule (for backward compatibility).
+- `log_level` (String) The log level for the HTTP request rule.
+- `lua_action` (String) The Lua action for the HTTP request rule.
+- `lua_params` (String) The Lua parameters for the HTTP request rule.
+- `map_file` (String) The map file for the HTTP request rule.
+- `map_keyfmt` (String) The map key format for the HTTP request rule.
+- `map_valuefmt` (String) The map value format for the HTTP request rule.
+- `mark_value` (String) The mark value for the HTTP request rule.
+- `nice_value` (Number) The nice value for the HTTP request rule.
+- `redir_code` (Number) The redirection code for the HTTP request rule.
+- `redir_option` (String) The redirection option for the HTTP request rule.
+- `redir_type` (String) The redirection type (location, prefix, scheme).
+- `redir_value` (String) The redirection value.
+- `return_content` (String) The return content for the HTTP request rule.
+- `return_content_format` (String) The return content format for the HTTP request rule.
+- `return_content_type` (String) The return content type for the HTTP request rule.
+- `return_status_code` (Number) The return status code for the HTTP request rule.
+- `rst_ttl` (Number) The RST TTL for the HTTP request rule.
+- `sc_expr` (String) The SC expression for the HTTP request rule.
+- `sc_id` (Number) The SC ID for the HTTP request rule.
+- `sc_idx` (Number) The SC index for the HTTP request rule.
+- `sc_int` (Number) The SC integer for the HTTP request rule.
+- `spoe_engine` (String) The SPOE engine for the HTTP request rule.
+- `spoe_group` (String) The SPOE group for the HTTP request rule.
+- `status` (Number) The status for the HTTP request rule.
+- `status_reason` (String) The status reason for the HTTP request rule.
+- `strict_mode` (String) The strict mode for the HTTP request rule.
+- `timeout` (String) The timeout for the HTTP request rule.
+- `timeout_type` (String) The timeout type for the HTTP request rule.
+- `tos_value` (String) The TOS value for the HTTP request rule.
+- `track_sc_key` (String) The track SC key for the HTTP request rule.
+- `track_sc_stick_counter` (Number) The track SC stick counter for the HTTP request rule.
+- `track_sc_table` (String) The track SC table for the HTTP request rule.
+- `var_expr` (String) The variable expression for the HTTP request rule.
+- `var_format` (String) The variable format for the HTTP request rule.
+- `var_name` (String) The variable name for the HTTP request rule.
+- `var_scope` (String) The variable scope for the HTTP request rule.
+- `wait_at_least` (Number) The wait at least for the HTTP request rule.
+- `wait_time` (Number) The wait time for the HTTP request rule.
 
 
 <a id="nestedblock--backend--http_response_rules"></a>
@@ -244,66 +385,70 @@ Optional:
 
 Required:
 
-- `type` (String) The type of the http-response rule.
+- `type` (String) The type of the HTTP response rule.
 
 Optional:
 
-- `acl_file` (String) The ACL file of the http-response rule.
-- `acl_keyfmt` (String) The ACL key format of the http-response rule.
-- `bandwidth_limit_limit` (String) The bandwidth limit limit of the http-response rule.
-- `bandwidth_limit_name` (String) The bandwidth limit name of the http-response rule.
-- `bandwidth_limit_period` (String) The bandwidth limit period of the http-response rule.
-- `cache_name` (String) The cache name of the http-response rule.
-- `capture_id` (Number) The capture ID of the http-response rule.
-- `capture_len` (Number) The capture length of the http-response rule.
-- `capture_sample` (String) The capture sample of the http-response rule.
-- `cond` (String) The condition of the http-response rule.
-- `cond_test` (String) The condition test of the http-response rule.
-- `deny_status` (Number) The deny status of the http-response rule.
-- `expr` (String) The expression of the http-response rule.
-- `hdr_format` (String) The header format of the http-response rule.
-- `hdr_match` (String) The header match of the http-response rule.
-- `hdr_method` (String) The header method of the http-response rule.
-- `hdr_name` (String) The header name of the http-response rule.
-- `index` (Number) The index of the http-response rule (for backward compatibility).
-- `log_level` (String) The log level of the http-response rule.
-- `lua_action` (String) The Lua action of the http-response rule.
-- `lua_params` (String) The Lua parameters of the http-response rule.
-- `map_file` (String) The map file of the http-response rule.
-- `map_keyfmt` (String) The map key format of the http-response rule.
-- `map_valuefmt` (String) The map value format of the http-response rule.
-- `mark_value` (String) The mark value of the http-response rule.
-- `nice_value` (Number) The nice value of the http-response rule.
-- `redir_code` (Number) The redirection code of the http-response rule.
-- `redir_option` (String) The redirection option of the http-response rule.
-- `redir_type` (String) The redirection type of the http-response rule.
-- `redir_value` (String) The redirection value of the http-response rule.
-- `return_content` (String) The return content of the http-response rule.
-- `return_content_format` (String) The return content format of the http-response rule.
-- `return_content_type` (String) The return content type of the http-response rule.
-- `return_status_code` (Number) The return status code of the http-response rule.
-- `rst_ttl` (Number) The RST TTL of the http-response rule.
-- `sc_expr` (String) The SC expression of the http-response rule.
-- `sc_id` (Number) The SC ID of the http-response rule.
-- `sc_idx` (Number) The SC index of the http-response rule.
-- `sc_int` (Number) The SC integer of the http-response rule.
-- `spoe_engine` (String) The SPOE engine of the http-response rule.
-- `spoe_group` (String) The SPOE group of the http-response rule.
-- `status` (Number) The status of the http-response rule.
-- `status_reason` (String) The status reason of the http-response rule.
-- `strict_mode` (String) The strict mode of the http-response rule.
-- `timeout` (String) The timeout of the http-response rule.
-- `timeout_type` (String) The timeout type of the http-response rule.
-- `tos_value` (String) The TOS value of the http-response rule.
-- `track_sc_key` (String) The track SC key of the http-response rule.
-- `track_sc_stick_counter` (Number) The track SC stick counter of the http-response rule.
-- `track_sc_table` (String) The track SC table of the http-response rule.
-- `var_expr` (String) The variable expression of the http-response rule.
-- `var_format` (String) The variable format of the http-response rule.
-- `var_name` (String) The variable name of the http-response rule.
-- `var_scope` (String) The variable scope of the http-response rule.
-- `wait_at_least` (Number) The wait at least of the http-response rule.
-- `wait_time` (Number) The wait time of the http-response rule.
+- `acl_file` (String) The ACL file for the HTTP response rule.
+- `acl_keyfmt` (String) The ACL key format for the HTTP response rule.
+- `action` (String) The action of the HTTP response rule.
+- `auth_realm` (String) The authentication realm for the HTTP response rule.
+- `bandwidth_limit_limit` (String) The bandwidth limit limit for the HTTP response rule.
+- `bandwidth_limit_name` (String) The bandwidth limit name for the HTTP response rule.
+- `bandwidth_limit_period` (String) The bandwidth limit period for the HTTP response rule.
+- `cache_name` (String) The cache name for the HTTP response rule.
+- `capture_id` (Number) The capture ID for the HTTP response rule.
+- `capture_len` (Number) The capture length for the HTTP response rule.
+- `capture_sample` (String) The capture sample for the HTTP response rule.
+- `cond` (String) The condition of the HTTP response rule (if, unless).
+- `cond_test` (String) The condition test of the HTTP response rule.
+- `deny_status` (Number) The deny status for the HTTP response rule.
+- `expr` (String) The expression for the HTTP response rule.
+- `hdr_format` (String) The header format for the HTTP response rule.
+- `hdr_match` (String) The header match for the HTTP response rule.
+- `hdr_method` (String) The header method for the HTTP response rule.
+- `hdr_name` (String) The header name for the HTTP response rule.
+- `hint_format` (String) The hint format for the HTTP response rule.
+- `hint_name` (String) The hint name for the HTTP response rule.
+- `index` (Number) The index/order of the HTTP response rule (for backward compatibility).
+- `log_level` (String) The log level for the HTTP response rule.
+- `lua_action` (String) The Lua action for the HTTP response rule.
+- `lua_params` (String) The Lua parameters for the HTTP response rule.
+- `map_file` (String) The map file for the HTTP response rule.
+- `map_keyfmt` (String) The map key format for the HTTP response rule.
+- `map_valuefmt` (String) The map value format for the HTTP response rule.
+- `mark_value` (String) The mark value for the HTTP response rule.
+- `nice_value` (Number) The nice value for the HTTP response rule.
+- `redir_code` (Number) The redirection code for the HTTP response rule.
+- `redir_option` (String) The redirection option for the HTTP response rule.
+- `redir_type` (String) The redirection type (location, prefix, scheme).
+- `redir_value` (String) The redirection value.
+- `return_content` (String) The return content for the HTTP response rule.
+- `return_content_format` (String) The return content format for the HTTP response rule.
+- `return_content_type` (String) The return content type for the HTTP response rule.
+- `return_status_code` (Number) The return status code for the HTTP response rule.
+- `rst_ttl` (Number) The RST TTL for the HTTP response rule.
+- `sc_expr` (String) The SC expression for the HTTP response rule.
+- `sc_id` (Number) The SC ID for the HTTP response rule.
+- `sc_idx` (Number) The SC index for the HTTP response rule.
+- `sc_int` (Number) The SC integer for the HTTP response rule.
+- `spoe_engine` (String) The SPOE engine for the HTTP response rule.
+- `spoe_group` (String) The SPOE group for the HTTP response rule.
+- `status` (Number) The status for the HTTP response rule.
+- `status_reason` (String) The status reason for the HTTP response rule.
+- `strict_mode` (String) The strict mode for the HTTP response rule.
+- `timeout` (String) The timeout for the HTTP response rule.
+- `timeout_type` (String) The timeout type for the HTTP response rule.
+- `tos_value` (String) The TOS value for the HTTP response rule.
+- `track_sc_key` (String) The track SC key for the HTTP response rule.
+- `track_sc_stick_counter` (Number) The track SC stick counter for the HTTP response rule.
+- `track_sc_table` (String) The track SC table for the HTTP response rule.
+- `var_expr` (String) The variable expression for the HTTP response rule.
+- `var_format` (String) The variable format for the HTTP response rule.
+- `var_name` (String) The variable name for the HTTP response rule.
+- `var_scope` (String) The variable scope for the HTTP response rule.
+- `wait_at_least` (Number) The wait at least for the HTTP response rule.
+- `wait_time` (Number) The wait time for the HTTP response rule.
 
 
 <a id="nestedblock--backend--httpchk_params"></a>
@@ -331,30 +476,34 @@ Optional:
 
 - `backup` (String) Whether the server is a backup server.
 - `check` (String) Whether to enable health checks for the server.
-- `cookie` (String) Cookie for the server.
+- `cookie` (String) Cookie value for the server.
 - `downinter` (Number) Down interval between health checks in milliseconds.
 - `fall` (Number) Number of failed health checks to mark server as down.
 - `fastinter` (Number) Fast interval between health checks in milliseconds.
-- `force_sslv3` (String) Force SSLv3 for the server (v2 only, deprecated in v3).
-- `force_strict_sni` (String) Force strict SNI for the server (v2 only, deprecated in v3).
-- `force_tlsv10` (String) Force TLSv1.0 for the server (v2 only, deprecated in v3).
-- `force_tlsv11` (String) Force TLSv1.1 for the server (v2 only, deprecated in v3).
-- `force_tlsv12` (String) Force TLSv1.2 for the server (v2 only, deprecated in v3).
-- `force_tlsv13` (String) Force TLSv1.3 for the server (v2 only, deprecated in v3).
+- `force_sslv3` (String) Force SSLv3 for the server (Data Plane API v2 only, deprecated in v3).
+- `force_strict_sni` (String) Force strict SNI for the server (Data Plane API v2 only, deprecated in v3).
+- `force_tlsv10` (String) Force TLSv1.0 for the server (Data Plane API v2 only, deprecated in v3).
+- `force_tlsv11` (String) Force TLSv1.1 for the server (Data Plane API v2 only, deprecated in v3).
+- `force_tlsv12` (String) Force TLSv1.2 for the server (Data Plane API v2 only, deprecated in v3).
+- `force_tlsv13` (String) Force TLSv1.3 for the server (Data Plane API v2 only, deprecated in v3).
 - `inter` (Number) Interval between health checks in milliseconds.
 - `maxconn` (Number) Maximum number of connections for the server.
-- `no_sslv3` (String) Disable SSLv3 for the server (v2 only, deprecated in v3).
-- `no_tlsv10` (String) Disable TLSv1.0 for the server (v2 only, deprecated in v3).
-- `no_tlsv11` (String) Disable TLSv1.1 for the server (v2 only, deprecated in v3).
-- `no_tlsv12` (String) Disable TLSv1.2 for the server (v2 only, deprecated in v3).
-- `no_tlsv13` (String) Disable TLSv1.3 for the server (v2 only, deprecated in v3).
+- `no_sslv3` (String) Disable SSLv3 for the server (Data Plane API v2 only, deprecated in v3).
+- `no_tlsv10` (String) Disable TLSv1.0 for the server (Data Plane API v2 only, deprecated in v3).
+- `no_tlsv11` (String) Disable TLSv1.1 for the server (Data Plane API v2 only, deprecated in v3).
+- `no_tlsv12` (String) Disable TLSv1.2 for the server (Data Plane API v2 only, deprecated in v3).
+- `no_tlsv13` (String) Disable TLSv1.3 for the server (Data Plane API v2 only, deprecated in v3).
 - `rise` (Number) Number of successful health checks to mark server as up.
 - `ssl` (String) SSL configuration for the server.
-- `sslv3` (String) SSLv3 support for the server (v3 only).
-- `tlsv10` (String) TLSv1.0 support for the server (v3 only).
-- `tlsv11` (String) TLSv1.1 support for the server (v3 only).
-- `tlsv12` (String) TLSv1.2 support for the server (v3 only).
-- `tlsv13` (String) TLSv1.3 support for the server (v3 only).
+- `ssl_cafile` (String) SSL CA file for the server.
+- `ssl_certificate` (String) SSL certificate for the server.
+- `ssl_max_ver` (String) Maximum SSL/TLS version for the server.
+- `ssl_min_ver` (String) Minimum SSL/TLS version for the server.
+- `sslv3` (String) SSLv3 support for the server (Data Plane API v3 only).
+- `tlsv10` (String) TLSv1.0 support for the server (Data Plane API v3 only).
+- `tlsv11` (String) TLSv1.1 support for the server (Data Plane API v3 only).
+- `tlsv12` (String) TLSv1.2 support for the server (Data Plane API v3 only).
+- `tlsv13` (String) TLSv1.3 support for the server (Data Plane API v3 only).
 - `verify` (String) SSL verification for the server.
 - `weight` (Number) Load balancing weight for the server.
 
@@ -368,20 +517,6 @@ Optional:
 - `stats_enable` (Boolean) Whether to enable stats for the backend.
 - `stats_realm` (String) The stats realm for the backend.
 - `stats_uri` (String) The stats URI for the backend.
-
-
-<a id="nestedblock--backend--stick_rule"></a>
-### Nested Schema for `backend.stick_rule`
-
-Required:
-
-- `index` (Number) The index of the stick rule.
-
-Optional:
-
-- `pattern` (String) The pattern for the stick rule.
-- `table` (String) The table for the stick rule.
-- `type` (String) The type of the stick rule.
 
 
 <a id="nestedblock--backend--stick_table"></a>
@@ -401,40 +536,40 @@ Optional:
 
 Required:
 
-- `action` (String) The action of the tcp_check.
+- `action` (String) Check action.
 
 Optional:
 
-- `addr` (String) The address for the TCP check.
-- `alpn` (String) The ALPN for the TCP check.
-- `check_comment` (String) The check comment for the TCP check.
-- `data` (String) The data for the tcp_check.
-- `default` (Boolean) The default flag for the TCP check.
-- `error_status` (String) The error status for the TCP check.
-- `exclamation_mark` (Boolean) The exclamation mark flag for the TCP check.
-- `fmt` (String) The format for the TCP check.
-- `hex_fmt` (String) The hex format for the TCP check.
-- `hex_string` (String) The hex string for binary tcp_check.
-- `linger` (Boolean) The linger flag for the TCP check.
-- `match` (String) The match condition for the tcp_check.
-- `min_recv` (Number) The minimum receive for the TCP check.
-- `ok_status` (String) The OK status for the TCP check.
-- `on_error` (String) The on error action for the TCP check.
-- `on_success` (String) The on success action for the TCP check.
-- `pattern` (String) The pattern to match for the tcp_check.
-- `port` (Number) The port for the tcp_check.
-- `port_string` (String) The port string for the TCP check.
-- `proto` (String) The protocol for the TCP check.
-- `send_proxy` (Boolean) The send proxy flag for the TCP check.
-- `sni` (String) The SNI for the TCP check.
-- `ssl` (Boolean) The SSL flag for the TCP check.
-- `status_code` (String) The status code for the TCP check.
-- `tout_status` (String) The timeout status for the TCP check.
-- `var_expr` (String) The variable expression for the tcp_check.
-- `var_fmt` (String) The variable format for the TCP check.
-- `var_name` (String) The variable name for the tcp_check.
-- `var_scope` (String) The variable scope for the TCP check.
-- `via_socks4` (Boolean) The via SOCKS4 flag for the TCP check.
+- `addr` (String) Address.
+- `alpn` (String) ALPN.
+- `check_comment` (String) Check comment.
+- `data` (String) Data.
+- `default` (Boolean) Default.
+- `error_status` (String) Error status.
+- `exclamation_mark` (Boolean) Exclamation mark.
+- `fmt` (String) Format.
+- `hex_fmt` (String) Hex format.
+- `hex_string` (String) Hex string.
+- `linger` (Boolean) Linger.
+- `match` (String) Match.
+- `min_recv` (Number) Min recv.
+- `ok_status` (String) OK status.
+- `on_error` (String) On error.
+- `on_success` (String) On success.
+- `pattern` (String) Pattern.
+- `port` (Number) Port.
+- `port_string` (String) Port string.
+- `proto` (String) Protocol.
+- `send_proxy` (Boolean) Send proxy.
+- `sni` (String) SNI.
+- `ssl` (Boolean) SSL.
+- `status_code` (String) Status code.
+- `tout_status` (String) Timeout status.
+- `var_expr` (String) Variable expression.
+- `var_fmt` (String) Variable format.
+- `var_name` (String) Variable name.
+- `var_scope` (String) Variable scope.
+- `via_socks4` (Boolean) Via SOCKS4.
 
 
 <a id="nestedblock--backend--tcp_request_rules"></a>
@@ -442,40 +577,76 @@ Optional:
 
 Required:
 
-- `type` (String) The type of the tcp-request rule.
+- `type` (String) The type of the TCP request rule.
 
 Optional:
 
-- `action` (String) The action of the tcp-request rule.
-- `bandwidth_limit_limit` (String) The bandwidth limit for the tcp-request rule.
-- `bandwidth_limit_name` (String) The bandwidth limit name for the tcp-request rule.
-- `bandwidth_limit_period` (String) The bandwidth limit period for the tcp-request rule.
-- `capture_len` (Number) The capture length for the tcp-request rule.
-- `capture_sample` (String) The capture sample for the tcp-request rule.
-- `cond` (String) The condition of the tcp-request rule.
-- `cond_test` (String) The condition test of the tcp-request rule.
-- `expr` (String) The expression for the tcp-request rule.
-- `index` (Number) The index/order of the tcp-request rule (for backward compatibility).
-- `log_level` (String) The log level for the tcp-request rule.
-- `lua_action` (String) The Lua action for the tcp-request rule.
-- `lua_params` (String) The Lua parameters for the tcp-request rule.
-- `mark_value` (String) The mark value for the tcp-request rule.
-- `nice_value` (Number) The nice value for the tcp-request rule.
-- `resolve_protocol` (String) The resolve protocol for the tcp-request rule.
-- `resolve_resolvers` (String) The resolve resolvers for the tcp-request rule.
-- `resolve_var` (String) The resolve variable for the tcp-request rule.
-- `rst_ttl` (Number) The RST TTL for the tcp-request rule.
-- `sc_idx` (Number) The SC index for the tcp-request rule.
-- `sc_inc_id` (String) The SC increment ID for the tcp-request rule.
-- `sc_int` (Number) The SC integer for the tcp-request rule.
-- `server_name` (String) The server name for the tcp-request rule.
-- `service_name` (String) The service name for the tcp-request rule.
-- `timeout` (Number) The timeout for the tcp-request rule.
-- `tos_value` (String) The TOS value for the tcp-request rule.
-- `var_expr` (String) The variable expression for the tcp-request rule.
-- `var_format` (String) The variable format for the tcp-request rule.
-- `var_name` (String) The variable name for the tcp-request rule.
-- `var_scope` (String) The variable scope for the tcp-request rule.
+- `acl_file` (String) The ACL file for the TCP request rule.
+- `acl_keyfmt` (String) The ACL key format for the TCP request rule.
+- `action` (String) The action of the TCP request rule.
+- `auth_realm` (String) The authentication realm for the TCP request rule.
+- `bandwidth_limit_limit` (String) The bandwidth limit limit for the TCP request rule.
+- `bandwidth_limit_name` (String) The bandwidth limit name for the TCP request rule.
+- `bandwidth_limit_period` (String) The bandwidth limit period for the TCP request rule.
+- `cache_name` (String) The cache name for the TCP request rule.
+- `capture_id` (Number) The capture ID for the TCP request rule.
+- `capture_len` (Number) The capture length for the TCP request rule.
+- `capture_sample` (String) The capture sample for the TCP request rule.
+- `cond` (String) The condition of the TCP request rule (if, unless).
+- `cond_test` (String) The condition test of the TCP request rule.
+- `deny_status` (Number) The deny status for the TCP request rule.
+- `expr` (String) The expression for the TCP request rule.
+- `hdr_format` (String) The header format for the TCP request rule.
+- `hdr_match` (String) The header match for the TCP request rule.
+- `hdr_method` (String) The header method for the TCP request rule.
+- `hdr_name` (String) The header name for the TCP request rule.
+- `hint_format` (String) The hint format for the TCP request rule.
+- `hint_name` (String) The hint name for the TCP request rule.
+- `index` (Number) The index/order of the TCP request rule (for backward compatibility).
+- `log_level` (String) The log level for the TCP request rule.
+- `lua_action` (String) The Lua action for the TCP request rule.
+- `lua_params` (String) The Lua parameters for the TCP request rule.
+- `map_file` (String) The map file for the TCP request rule.
+- `map_keyfmt` (String) The map key format for the TCP request rule.
+- `map_valuefmt` (String) The map value format for the TCP request rule.
+- `mark_value` (String) The mark value for the TCP request rule.
+- `nice_value` (Number) The nice value for the TCP request rule.
+- `redir_code` (Number) The redirection code for the TCP request rule.
+- `redir_option` (String) The redirection option for the TCP request rule.
+- `redir_type` (String) The redirection type (location, prefix, scheme).
+- `redir_value` (String) The redirection value.
+- `resolve_protocol` (String) The resolve protocol for the TCP request rule.
+- `resolve_resolvers` (String) The resolve resolvers for the TCP request rule.
+- `resolve_var` (String) The resolve variable for the TCP request rule.
+- `return_content` (String) The return content for the TCP request rule.
+- `return_content_format` (String) The return content format for the TCP request rule.
+- `return_content_type` (String) The return content type for the TCP request rule.
+- `return_status_code` (Number) The return status code for the TCP request rule.
+- `rst_ttl` (Number) The RST TTL for the TCP request rule.
+- `sc_expr` (String) The SC expression for the TCP request rule.
+- `sc_id` (Number) The SC ID for the TCP request rule.
+- `sc_idx` (Number) The SC index for the TCP request rule.
+- `sc_inc_id` (String) The SC increment ID for the TCP request rule.
+- `sc_int` (Number) The SC integer for the TCP request rule.
+- `server_name` (String) The server name for the TCP request rule.
+- `service_name` (String) The service name for the TCP request rule.
+- `spoe_engine` (String) The SPOE engine for the TCP request rule.
+- `spoe_group` (String) The SPOE group for the TCP request rule.
+- `status` (Number) The status for the TCP request rule.
+- `status_reason` (String) The status reason for the TCP request rule.
+- `strict_mode` (String) The strict mode for the TCP request rule.
+- `timeout` (Number) The timeout for the TCP request rule.
+- `timeout_type` (String) The timeout type for the TCP request rule.
+- `tos_value` (String) The TOS value for the TCP request rule.
+- `track_sc_key` (String) The track SC key for the TCP request rule.
+- `track_sc_stick_counter` (Number) The track SC stick counter for the TCP request rule.
+- `track_sc_table` (String) The track SC table for the TCP request rule.
+- `var_expr` (String) The variable expression for the TCP request rule.
+- `var_format` (String) The variable format for the TCP request rule.
+- `var_name` (String) The variable name for the TCP request rule.
+- `var_scope` (String) The variable scope for the TCP request rule.
+- `wait_at_least` (Number) The wait at least for the TCP request rule.
+- `wait_time` (Number) The wait time for the TCP request rule.
 
 
 <a id="nestedblock--backend--tcp_response_rules"></a>
@@ -483,38 +654,70 @@ Optional:
 
 Required:
 
-- `type` (String) The type of the tcp-response rule.
+- `type` (String) The type of the TCP response rule.
 
 Optional:
 
-- `action` (String) The action of the tcp-response rule.
-- `bandwidth_limit_limit` (String) The bandwidth limit for the tcp-response rule.
-- `bandwidth_limit_name` (String) The bandwidth limit name for the tcp-response rule.
-- `bandwidth_limit_period` (String) The bandwidth limit period for the tcp-response rule.
-- `capture_len` (Number) The capture length for the tcp-response rule.
-- `capture_sample` (String) The capture sample for the tcp-response rule.
-- `cond` (String) The condition of the tcp-response rule.
-- `cond_test` (String) The condition test of the tcp-response rule.
-- `expr` (String) The expression for the tcp-response rule.
-- `index` (Number) The index/order of the tcp-response rule (for backward compatibility).
-- `log_level` (String) The log level for the tcp-response rule.
-- `lua_action` (String) The Lua action for the tcp-response rule.
-- `lua_params` (String) The Lua parameters for the tcp-response rule.
-- `mark_value` (String) The mark value for the tcp-response rule.
-- `nice_value` (Number) The nice value for the tcp-response rule.
-- `rst_ttl` (Number) The RST TTL for the tcp-response rule.
-- `sc_expr` (String) The SC expression for the tcp-response rule.
-- `sc_id` (Number) The SC ID for the tcp-response rule.
-- `sc_idx` (Number) The SC index for the tcp-response rule.
-- `sc_int` (Number) The SC integer for the tcp-response rule.
-- `spoe_engine` (String) The SPOE engine for the tcp-response rule.
-- `spoe_group` (String) The SPOE group for the tcp-response rule.
-- `timeout` (Number) The timeout for the tcp-response rule.
-- `tos_value` (String) The TOS value for the tcp-response rule.
-- `var_expr` (String) The variable expression for the tcp-response rule.
-- `var_format` (String) The variable format for the tcp-response rule.
-- `var_name` (String) The variable name for the tcp-response rule.
-- `var_scope` (String) The variable scope for the tcp-response rule.
+- `acl_file` (String) The ACL file for the TCP response rule.
+- `acl_keyfmt` (String) The ACL key format for the TCP response rule.
+- `action` (String) The action of the TCP response rule.
+- `auth_realm` (String) The authentication realm for the TCP response rule.
+- `bandwidth_limit_limit` (String) The bandwidth limit limit for the TCP response rule.
+- `bandwidth_limit_name` (String) The bandwidth limit name for the TCP response rule.
+- `bandwidth_limit_period` (String) The bandwidth limit period for the TCP response rule.
+- `cache_name` (String) The cache name for the TCP response rule.
+- `capture_id` (Number) The capture ID for the TCP response rule.
+- `capture_len` (Number) The capture length for the TCP response rule.
+- `capture_sample` (String) The capture sample for the TCP response rule.
+- `cond` (String) The condition of the TCP response rule (if, unless).
+- `cond_test` (String) The condition test of the TCP response rule.
+- `deny_status` (Number) The deny status for the TCP response rule.
+- `expr` (String) The expression for the TCP response rule.
+- `hdr_format` (String) The header format for the TCP response rule.
+- `hdr_match` (String) The header match for the TCP response rule.
+- `hdr_method` (String) The header method for the TCP response rule.
+- `hdr_name` (String) The header name for the TCP response rule.
+- `hint_format` (String) The hint format for the TCP response rule.
+- `hint_name` (String) The hint name for the TCP response rule.
+- `index` (Number) The index/order of the TCP response rule (for backward compatibility).
+- `log_level` (String) The log level for the TCP response rule.
+- `lua_action` (String) The Lua action for the TCP response rule.
+- `lua_params` (String) The Lua parameters for the TCP response rule.
+- `map_file` (String) The map file for the TCP response rule.
+- `map_keyfmt` (String) The map key format for the TCP response rule.
+- `map_valuefmt` (String) The map value format for the TCP response rule.
+- `mark_value` (String) The mark value for the TCP response rule.
+- `nice_value` (Number) The nice value for the TCP response rule.
+- `redir_code` (Number) The redirection code for the TCP response rule.
+- `redir_option` (String) The redirection option for the TCP response rule.
+- `redir_type` (String) The redirection type (location, prefix, scheme).
+- `redir_value` (String) The redirection value.
+- `return_content` (String) The return content for the TCP response rule.
+- `return_content_format` (String) The return content format for the TCP response rule.
+- `return_content_type` (String) The return content type for the TCP response rule.
+- `return_status_code` (Number) The return status code for the TCP response rule.
+- `rst_ttl` (Number) The RST TTL for the TCP response rule.
+- `sc_expr` (String) The SC expression for the TCP response rule.
+- `sc_id` (Number) The SC ID for the TCP response rule.
+- `sc_idx` (Number) The SC index for the TCP response rule.
+- `sc_int` (Number) The SC integer for the TCP response rule.
+- `spoe_engine` (String) The SPOE engine for the TCP response rule.
+- `spoe_group` (String) The SPOE group for the TCP response rule.
+- `status` (Number) The status for the TCP response rule.
+- `status_reason` (String) The status reason for the TCP response rule.
+- `strict_mode` (String) The strict mode for the TCP response rule.
+- `timeout` (Number) The timeout for the TCP response rule.
+- `timeout_type` (String) The timeout type for the TCP response rule.
+- `tos_value` (String) The TOS value for the TCP response rule.
+- `track_sc_key` (String) The track SC key for the TCP response rule.
+- `track_sc_stick_counter` (Number) The track SC stick counter for the TCP response rule.
+- `track_sc_table` (String) The track SC table for the TCP response rule.
+- `var_expr` (String) The variable expression for the TCP response rule.
+- `var_format` (String) The variable format for the TCP response rule.
+- `var_name` (String) The variable name for the TCP response rule.
+- `var_scope` (String) The variable scope for the TCP response rule.
+- `wait_at_least` (Number) The wait at least for the TCP response rule.
+- `wait_time` (Number) The wait time for the TCP response rule.
 
 
 
@@ -530,14 +733,14 @@ Required:
 Optional:
 
 - `accept_proxy` (Boolean) Whether to accept proxy protocol.
-- `acls` (Block List) Access Control List (ACL) configuration blocks for content switching and decision making in the frontend. (see [below for nested schema](#nestedblock--frontend--acls))
+- `acls` (Block List) Access Control List (ACL) configuration blocks for content switching and decision making. (see [below for nested schema](#nestedblock--frontend--acls))
 - `backlog` (Number) Backlog setting for the frontend.
 - `binds` (Attributes Map) Bind configuration blocks for frontend listening addresses and ports. (see [below for nested schema](#nestedatt--frontend--binds))
 - `ciphers` (String) Ciphers for the frontend.
 - `ciphersuites` (String) Cipher suites for the frontend.
 - `defer_accept` (Boolean) Whether to defer accept.
-- `http_request_rules` (Block List) HTTP request rule configuration for the frontend. (see [below for nested schema](#nestedblock--frontend--http_request_rules))
-- `http_response_rules` (Block List) HTTP response rule configuration for the frontend. (see [below for nested schema](#nestedblock--frontend--http_response_rules))
+- `http_request_rules` (Block List) HTTP request rule configuration. (see [below for nested schema](#nestedblock--frontend--http_request_rules))
+- `http_response_rules` (Block List) HTTP response rule configuration. (see [below for nested schema](#nestedblock--frontend--http_response_rules))
 - `maxconn` (Number) Maximum number of connections for the frontend.
 - `monitor_fail` (Block List) Monitor fail configuration for the frontend. (see [below for nested schema](#nestedblock--frontend--monitor_fail))
 - `monitor_uri` (String) The URI to use for health monitoring of the frontend.
@@ -547,7 +750,7 @@ Optional:
 - `ssl_max_ver` (String) SSL maximum version for the frontend.
 - `ssl_min_ver` (String) SSL minimum version for the frontend.
 - `stats_options` (Block List) Stats options configuration for the frontend. (see [below for nested schema](#nestedblock--frontend--stats_options))
-- `tcp_request_rules` (Block List) TCP request rule configuration for the frontend. (see [below for nested schema](#nestedblock--frontend--tcp_request_rules))
+- `tcp_request_rules` (Block List) TCP request rule configuration. (see [below for nested schema](#nestedblock--frontend--tcp_request_rules))
 - `tcp_user_timeout` (Number) TCP user timeout for the frontend.
 - `tfo` (Boolean) Whether TCP Fast Open is enabled.
 - `v4v6` (Boolean) Whether to use both IPv4 and IPv6.
@@ -565,7 +768,7 @@ Required:
 
 Optional:
 
-- `index` (Number) The index/order of the ACL rule. If not specified, will be auto-assigned.
+- `index` (Number) The index/order of the ACL rule (for backward compatibility).
 
 
 <a id="nestedatt--frontend--binds"></a>
@@ -657,6 +860,7 @@ Optional:
 
 - `acl_file` (String) The ACL file for the HTTP request rule.
 - `acl_keyfmt` (String) The ACL key format for the HTTP request rule.
+- `action` (String) The action of the HTTP request rule.
 - `auth_realm` (String) The authentication realm for the HTTP request rule.
 - `bandwidth_limit_limit` (String) The bandwidth limit limit for the HTTP request rule.
 - `bandwidth_limit_name` (String) The bandwidth limit name for the HTTP request rule.
@@ -727,6 +931,8 @@ Optional:
 
 - `acl_file` (String) The ACL file for the HTTP response rule.
 - `acl_keyfmt` (String) The ACL key format for the HTTP response rule.
+- `action` (String) The action of the HTTP response rule.
+- `auth_realm` (String) The authentication realm for the HTTP response rule.
 - `bandwidth_limit_limit` (String) The bandwidth limit limit for the HTTP response rule.
 - `bandwidth_limit_name` (String) The bandwidth limit name for the HTTP response rule.
 - `bandwidth_limit_period` (String) The bandwidth limit period for the HTTP response rule.
@@ -742,6 +948,8 @@ Optional:
 - `hdr_match` (String) The header match for the HTTP response rule.
 - `hdr_method` (String) The header method for the HTTP response rule.
 - `hdr_name` (String) The header name for the HTTP response rule.
+- `hint_format` (String) The hint format for the HTTP response rule.
+- `hint_name` (String) The hint name for the HTTP response rule.
 - `index` (Number) The index/order of the HTTP response rule (for backward compatibility).
 - `log_level` (String) The log level for the HTTP response rule.
 - `lua_action` (String) The Lua action for the HTTP response rule.
@@ -808,37 +1016,73 @@ Optional:
 
 Required:
 
-- `type` (String) The type of the tcp-request rule.
+- `type` (String) The type of the TCP request rule.
 
 Optional:
 
-- `action` (String) The action of the tcp-request rule.
-- `bandwidth_limit_limit` (String) The bandwidth limit for the tcp-request rule.
-- `bandwidth_limit_name` (String) The bandwidth limit name for the tcp-request rule.
-- `bandwidth_limit_period` (String) The bandwidth limit period for the tcp-request rule.
-- `capture_len` (Number) The capture length for the tcp-request rule.
-- `capture_sample` (String) The capture sample for the tcp-request rule.
-- `cond` (String) The condition of the tcp-request rule.
-- `cond_test` (String) The condition test of the tcp-request rule.
-- `expr` (String) The expression for the tcp-request rule.
-- `index` (Number) The index/order of the tcp-request rule (for backward compatibility).
-- `log_level` (String) The log level for the tcp-request rule.
-- `lua_action` (String) The Lua action for the tcp-request rule.
-- `lua_params` (String) The Lua parameters for the tcp-request rule.
-- `mark_value` (String) The mark value for the tcp-request rule.
-- `nice_value` (Number) The nice value for the tcp-request rule.
-- `resolve_protocol` (String) The resolve protocol for the tcp-request rule.
-- `resolve_resolvers` (String) The resolve resolvers for the tcp-request rule.
-- `resolve_var` (String) The resolve variable for the tcp-request rule.
-- `rst_ttl` (Number) The RST TTL for the tcp-request rule.
-- `sc_idx` (Number) The SC index for the tcp-request rule.
-- `sc_inc_id` (String) The SC increment ID for the tcp-request rule.
-- `sc_int` (Number) The SC integer for the tcp-request rule.
-- `server_name` (String) The server name for the tcp-request rule.
-- `service_name` (String) The service name for the tcp-request rule.
-- `timeout` (Number) The timeout for the tcp-request rule.
-- `tos_value` (String) The TOS value for the tcp-request rule.
-- `var_expr` (String) The variable expression for the tcp-request rule.
-- `var_format` (String) The variable format for the tcp-request rule.
-- `var_name` (String) The variable name for the tcp-request rule.
-- `var_scope` (String) The variable scope for the tcp-request rule.
+- `acl_file` (String) The ACL file for the TCP request rule.
+- `acl_keyfmt` (String) The ACL key format for the TCP request rule.
+- `action` (String) The action of the TCP request rule.
+- `auth_realm` (String) The authentication realm for the TCP request rule.
+- `bandwidth_limit_limit` (String) The bandwidth limit limit for the TCP request rule.
+- `bandwidth_limit_name` (String) The bandwidth limit name for the TCP request rule.
+- `bandwidth_limit_period` (String) The bandwidth limit period for the TCP request rule.
+- `cache_name` (String) The cache name for the TCP request rule.
+- `capture_id` (Number) The capture ID for the TCP request rule.
+- `capture_len` (Number) The capture length for the TCP request rule.
+- `capture_sample` (String) The capture sample for the TCP request rule.
+- `cond` (String) The condition of the TCP request rule (if, unless).
+- `cond_test` (String) The condition test of the TCP request rule.
+- `deny_status` (Number) The deny status for the TCP request rule.
+- `expr` (String) The expression for the TCP request rule.
+- `hdr_format` (String) The header format for the TCP request rule.
+- `hdr_match` (String) The header match for the TCP request rule.
+- `hdr_method` (String) The header method for the TCP request rule.
+- `hdr_name` (String) The header name for the TCP request rule.
+- `hint_format` (String) The hint format for the TCP request rule.
+- `hint_name` (String) The hint name for the TCP request rule.
+- `index` (Number) The index/order of the TCP request rule (for backward compatibility).
+- `log_level` (String) The log level for the TCP request rule.
+- `lua_action` (String) The Lua action for the TCP request rule.
+- `lua_params` (String) The Lua parameters for the TCP request rule.
+- `map_file` (String) The map file for the TCP request rule.
+- `map_keyfmt` (String) The map key format for the TCP request rule.
+- `map_valuefmt` (String) The map value format for the TCP request rule.
+- `mark_value` (String) The mark value for the TCP request rule.
+- `nice_value` (Number) The nice value for the TCP request rule.
+- `redir_code` (Number) The redirection code for the TCP request rule.
+- `redir_option` (String) The redirection option for the TCP request rule.
+- `redir_type` (String) The redirection type (location, prefix, scheme).
+- `redir_value` (String) The redirection value.
+- `resolve_protocol` (String) The resolve protocol for the TCP request rule.
+- `resolve_resolvers` (String) The resolve resolvers for the TCP request rule.
+- `resolve_var` (String) The resolve variable for the TCP request rule.
+- `return_content` (String) The return content for the TCP request rule.
+- `return_content_format` (String) The return content format for the TCP request rule.
+- `return_content_type` (String) The return content type for the TCP request rule.
+- `return_status_code` (Number) The return status code for the TCP request rule.
+- `rst_ttl` (Number) The RST TTL for the TCP request rule.
+- `sc_expr` (String) The SC expression for the TCP request rule.
+- `sc_id` (Number) The SC ID for the TCP request rule.
+- `sc_idx` (Number) The SC index for the TCP request rule.
+- `sc_inc_id` (String) The SC increment ID for the TCP request rule.
+- `sc_int` (Number) The SC integer for the TCP request rule.
+- `server_name` (String) The server name for the TCP request rule.
+- `service_name` (String) The service name for the TCP request rule.
+- `spoe_engine` (String) The SPOE engine for the TCP request rule.
+- `spoe_group` (String) The SPOE group for the TCP request rule.
+- `status` (Number) The status for the TCP request rule.
+- `status_reason` (String) The status reason for the TCP request rule.
+- `strict_mode` (String) The strict mode for the TCP request rule.
+- `timeout` (Number) The timeout for the TCP request rule.
+- `timeout_type` (String) The timeout type for the TCP request rule.
+- `tos_value` (String) The TOS value for the TCP request rule.
+- `track_sc_key` (String) The track SC key for the TCP request rule.
+- `track_sc_stick_counter` (Number) The track SC stick counter for the TCP request rule.
+- `track_sc_table` (String) The track SC table for the TCP request rule.
+- `var_expr` (String) The variable expression for the TCP request rule.
+- `var_format` (String) The variable format for the TCP request rule.
+- `var_name` (String) The variable name for the TCP request rule.
+- `var_scope` (String) The variable scope for the TCP request rule.
+- `wait_at_least` (Number) The wait at least for the TCP request rule.
+- `wait_time` (Number) The wait time for the TCP request rule.

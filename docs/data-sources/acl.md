@@ -3,12 +3,46 @@
 page_title: "haproxy_acl Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  
+  Retrieves all ACLs from a specific parent (frontend or backend).
+  Example Usage
+  ```hcl
+  Get all ACLs from a backend
+  data "haproxyacl" "backendacls" {
+    parenttype = "backend"
+    parentname = "web_backend"
+  }
+  Use the ACLs data
+  output "aclcount" {
+    value = length(jsondecode(data.haproxyacl.backend_acls.acls))
+  }
+  output "aclnames" {
+    value = [for acl in jsondecode(data.haproxyacl.backendacls.acls) : acl.aclname]
+  }
+  ```
 ---
 
 # haproxy_acl (Data Source)
 
+Retrieves all ACLs from a specific parent (frontend or backend).
 
+## Example Usage
+
+```hcl
+# Get all ACLs from a backend
+data "haproxy_acl" "backend_acls" {
+  parent_type = "backend"
+  parent_name = "web_backend"
+}
+
+# Use the ACLs data
+output "acl_count" {
+  value = length(jsondecode(data.haproxy_acl.backend_acls.acls))
+}
+
+output "acl_names" {
+  value = [for acl in jsondecode(data.haproxy_acl.backend_acls.acls) : acl.acl_name]
+}
+```
 
 
 

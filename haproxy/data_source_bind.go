@@ -41,6 +41,7 @@ func (d *bindDataSource) Metadata(_ context.Context, req datasource.MetadataRequ
 // Schema defines the schema for the data source.
 func (d *bindDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieves all binds from a specific frontend.\n\n## Example Usage\n\n```hcl\n# Get all binds from a frontend\ndata \"haproxy_bind\" \"frontend_binds\" {\n  parent_type = \"frontend\"\n  parent_name = \"web_frontend\"\n}\n\n# Use the binds data\noutput \"bind_count\" {\n  value = length(jsondecode(data.haproxy_bind.frontend_binds.binds))\n}\n\noutput \"bind_addresses\" {\n  value = [for bind in jsondecode(data.haproxy_bind.frontend_binds.binds) : bind.address]\n}\n```",
 		Attributes: map[string]schema.Attribute{
 			"binds": schema.StringAttribute{
 				Computed:    true,
@@ -137,6 +138,7 @@ func (d *bindSingleDataSource) Metadata(_ context.Context, req datasource.Metada
 // Schema defines the schema for the single bind data source.
 func (d *bindSingleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieves a single bind by name from a specific frontend.\n\n## Example Usage\n\n```hcl\n# Get a specific bind from a frontend\ndata \"haproxy_bind_single\" \"http_bind\" {\n  name        = \"0.0.0.0:80\"\n  parent_type = \"frontend\"\n  parent_name = \"web_frontend\"\n}\n\n# Use the bind data\noutput \"bind_address\" {\n  value = jsondecode(data.haproxy_bind_single.http_bind.bind).address\n}\n\noutput \"bind_port\" {\n  value = jsondecode(data.haproxy_bind_single.http_bind.bind).port\n}\n```",
 		Attributes: map[string]schema.Attribute{
 			"bind": schema.StringAttribute{
 				Computed:    true,

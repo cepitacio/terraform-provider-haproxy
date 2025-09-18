@@ -3,12 +3,39 @@
 page_title: "haproxy_http_response_rule Data Source - terraform-provider-haproxy"
 subcategory: ""
 description: |-
-  
+  Retrieves all HTTP response rules from a specific parent (frontend or backend).
+  Example Usage
+  ```hcl
+  Get all HTTP response rules from a backend
+  data "haproxyhttpresponserule" "backendrules" {
+    parenttype = "backend"
+    parentname = "web_backend"
+  }
+  Use the rules data
+  output "rulecount" {
+    value = length(jsondecode(data.haproxyhttpresponserule.backendrules.httpresponse_rules))
+  }
+  ```
 ---
 
 # haproxy_http_response_rule (Data Source)
 
+Retrieves all HTTP response rules from a specific parent (frontend or backend).
 
+## Example Usage
+
+```hcl
+# Get all HTTP response rules from a backend
+data "haproxy_http_response_rule" "backend_rules" {
+  parent_type = "backend"
+  parent_name = "web_backend"
+}
+
+# Use the rules data
+output "rule_count" {
+  value = length(jsondecode(data.haproxy_http_response_rule.backend_rules.http_response_rules))
+}
+```
 
 
 

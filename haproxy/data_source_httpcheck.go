@@ -32,7 +32,7 @@ func (d *HttpcheckSingleDataSource) Metadata(_ context.Context, req datasource.M
 // Schema defines the schema for the single data source.
 func (d *HttpcheckSingleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Single HTTP Check data source",
+		MarkdownDescription: "Retrieves a single HTTP check by index from a specific parent (frontend or backend).\n\n## Example Usage\n\n```hcl\n# Get a specific HTTP check from a backend\ndata \"haproxy_httpcheck_single\" \"health_check\" {\n  parent_type = \"backend\"\n  parent_name = \"web_backend\"\n  index       = 0\n}\n\n# Use the check data\noutput \"check_type\" {\n  value = jsondecode(data.haproxy_httpcheck_single.health_check.httpcheck).type\n}\n```",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -149,6 +149,7 @@ func (d *httpcheckDataSource) Metadata(_ context.Context, req datasource.Metadat
 
 func (d *httpcheckDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieves all HTTP checks from a specific parent (frontend or backend).\n\n## Example Usage\n\n```hcl\n# Get all HTTP checks from a backend\ndata \"haproxy_httpcheck\" \"backend_checks\" {\n  parent_type = \"backend\"\n  parent_name = \"web_backend\"\n}\n\n# Use the checks data\noutput \"check_count\" {\n  value = length(jsondecode(data.haproxy_httpcheck.backend_checks.http_checks))\n}\n```",
 		Attributes: map[string]schema.Attribute{
 			"http_checks": schema.StringAttribute{
 				Computed:    true,
