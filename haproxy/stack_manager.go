@@ -33,8 +33,6 @@ func CreateStackManager(client *HAProxyClient, aclManager *ACLManager, frontendM
 
 // GetSchema returns the complete schema for the haproxy_stack resource
 func (m *StackManager) GetSchema(apiVersion string) schema.Schema {
-	schemaBuilder := CreateVersionAwareSchemaBuilder(apiVersion)
-
 	return schema.Schema{
 		Description: "Manages a complete HAProxy stack including backend, server, frontend, and ACLs.",
 		Attributes: map[string]schema.Attribute{
@@ -44,9 +42,9 @@ func (m *StackManager) GetSchema(apiVersion string) schema.Schema {
 			},
 		},
 		Blocks: map[string]schema.Block{
-			"backend":  GetBackendSchema(schemaBuilder),
-			"server":   GetServerSchema(schemaBuilder),
-			"frontend": GetFrontendSchema(schemaBuilder),
+			"backend":  GetBackendSchema(),
+			"server":   GetServerSchema(),
+			"frontend": GetFrontendSchema(),
 		},
 	}
 }

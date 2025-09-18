@@ -1256,6 +1256,12 @@ func (c *HAProxyClient) ReadServers(ctx context.Context, parentType, parentName 
 		}
 		log.Printf("DEBUG: Server %d: %s (%s:%d) - Check:'%s' Maxconn:%d Weight:%d Disabled:%s",
 			i, servers[i].Name, servers[i].Address, servers[i].Port, servers[i].Check, servers[i].Maxconn, servers[i].Weight, disabledStr)
+
+		// Debug the problematic fields
+		log.Printf("DEBUG: Server %s TLS fields - ForceSslv3:'%s' ForceTlsv10:'%s' ForceTlsv11:'%s'",
+			servers[i].Name, servers[i].ForceSslv3, servers[i].ForceTlsv10, servers[i].ForceTlsv11)
+		log.Printf("DEBUG: Server %s SSL fields - SslCertificate:'%s' SslMaxVer:'%s' SslMinVer:'%s'",
+			servers[i].Name, servers[i].SslCertificate, servers[i].SslMaxVer, servers[i].SslMinVer)
 	}
 
 	return servers, nil

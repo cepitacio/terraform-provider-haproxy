@@ -36,34 +36,32 @@ type haproxyStackResourceModel struct {
 
 // haproxyBackendModel maps the backend block schema data.
 type haproxyBackendModel struct {
-	Name               types.String                  `tfsdk:"name"`
-	Mode               types.String                  `tfsdk:"mode"`
-	AdvCheck           types.String                  `tfsdk:"adv_check"`
-	HttpConnectionMode types.String                  `tfsdk:"http_connection_mode"`
-	ServerTimeout      types.Int64                   `tfsdk:"server_timeout"`
-	CheckTimeout       types.Int64                   `tfsdk:"check_timeout"`
-	ConnectTimeout     types.Int64                   `tfsdk:"connect_timeout"`
-	QueueTimeout       types.Int64                   `tfsdk:"queue_timeout"`
-	TunnelTimeout      types.Int64                   `tfsdk:"tunnel_timeout"`
-	TarpitTimeout      types.Int64                   `tfsdk:"tarpit_timeout"`
-	Checkcache         types.String                  `tfsdk:"checkcache"`
-	Servers            map[string]haproxyServerModel `tfsdk:"servers"` // Multiple servers
-	Retries            types.Int64                   `tfsdk:"retries"`
-	Balance            []haproxyBalanceModel         `tfsdk:"balance"`
-	HttpchkParams      []haproxyHttpchkParamsModel   `tfsdk:"httpchk_params"`
-	Forwardfor         []haproxyForwardforModel      `tfsdk:"forwardfor"`
-	Httpchecks         []haproxyHttpcheckModel       `tfsdk:"http_checks"`
-	TcpChecks          []haproxyTcpCheckModel        `tfsdk:"tcp_checks"`
-	Acls               []haproxyAclModel             `tfsdk:"acls"`
-	HttpRequestRules   []haproxyHttpRequestRuleModel `tfsdk:"http_request_rules"`
-
-	HttpResponseRules []haproxyHttpResponseRuleModel `tfsdk:"http_response_rules"`
-	TcpRequestRules   []haproxyTcpRequestRuleModel   `tfsdk:"tcp_request_rules"`
-	TcpResponseRules  []haproxyTcpResponseRuleModel  `tfsdk:"tcp_response_rules"`
-	DefaultServer     *haproxyDefaultServerModel     `tfsdk:"default_server"`
-	StickTable        *haproxyStickTableModel        `tfsdk:"stick_table"`
-	StickRule         []haproxyStickRuleModel        `tfsdk:"stick_rule"`
-	StatsOptions      []haproxyStatsOptionsModel     `tfsdk:"stats_options"`
+	Name               types.String                   `tfsdk:"name"`
+	Mode               types.String                   `tfsdk:"mode"`
+	AdvCheck           types.String                   `tfsdk:"adv_check"`
+	HttpConnectionMode types.String                   `tfsdk:"http_connection_mode"`
+	ServerTimeout      types.Int64                    `tfsdk:"server_timeout"`
+	CheckTimeout       types.Int64                    `tfsdk:"check_timeout"`
+	ConnectTimeout     types.Int64                    `tfsdk:"connect_timeout"`
+	QueueTimeout       types.Int64                    `tfsdk:"queue_timeout"`
+	TunnelTimeout      types.Int64                    `tfsdk:"tunnel_timeout"`
+	TarpitTimeout      types.Int64                    `tfsdk:"tarpit_timeout"`
+	Checkcache         types.String                   `tfsdk:"checkcache"`
+	Servers            map[string]haproxyServerModel  `tfsdk:"servers"` // Multiple servers
+	Retries            types.Int64                    `tfsdk:"retries"`
+	Balance            []haproxyBalanceModel          `tfsdk:"balance"`
+	HttpchkParams      []haproxyHttpchkParamsModel    `tfsdk:"httpchk_params"`
+	Forwardfor         []haproxyForwardforModel       `tfsdk:"forwardfor"`
+	Httpchecks         []haproxyHttpcheckModel        `tfsdk:"http_checks"`
+	TcpChecks          []haproxyTcpCheckModel         `tfsdk:"tcp_checks"`
+	Acls               []haproxyAclModel              `tfsdk:"acls"`
+	HttpRequestRules   []haproxyHttpRequestRuleModel  `tfsdk:"http_request_rules"`
+	HttpResponseRules  []haproxyHttpResponseRuleModel `tfsdk:"http_response_rules"`
+	TcpRequestRules    []haproxyTcpRequestRuleModel   `tfsdk:"tcp_request_rules"`
+	TcpResponseRules   []haproxyTcpResponseRuleModel  `tfsdk:"tcp_response_rules"`
+	DefaultServer      *haproxyDefaultServerModel     `tfsdk:"default_server"`
+	StickTable         *haproxyStickTableModel        `tfsdk:"stick_table"`
+	StatsOptions       []haproxyStatsOptionsModel     `tfsdk:"stats_options"`
 }
 
 // haproxyDefaultServerModel maps the default_server block schema data.
@@ -98,20 +96,23 @@ type haproxyDefaultServerModel struct {
 // haproxyServerModel maps the server block schema data.
 type haproxyServerModel struct {
 	// Note: Name is now the map key, not a field
-	Address   types.String `tfsdk:"address"`
-	Port      types.Int64  `tfsdk:"port"`
-	Check     types.String `tfsdk:"check"`
-	Backup    types.String `tfsdk:"backup"`
-	Maxconn   types.Int64  `tfsdk:"maxconn"`
-	Weight    types.Int64  `tfsdk:"weight"`
-	Rise      types.Int64  `tfsdk:"rise"`
-	Fall      types.Int64  `tfsdk:"fall"`
-	Inter     types.Int64  `tfsdk:"inter"`
-	Fastinter types.Int64  `tfsdk:"fastinter"`
-	Downinter types.Int64  `tfsdk:"downinter"`
-	Ssl       types.String `tfsdk:"ssl"`
-	Verify    types.String `tfsdk:"verify"`
-	Cookie    types.String `tfsdk:"cookie"`
+	Address        types.String `tfsdk:"address"`
+	Port           types.Int64  `tfsdk:"port"`
+	Check          types.String `tfsdk:"check"`
+	Backup         types.String `tfsdk:"backup"`
+	Maxconn        types.Int64  `tfsdk:"maxconn"`
+	Weight         types.Int64  `tfsdk:"weight"`
+	Rise           types.Int64  `tfsdk:"rise"`
+	Fall           types.Int64  `tfsdk:"fall"`
+	Inter          types.Int64  `tfsdk:"inter"`
+	Fastinter      types.Int64  `tfsdk:"fastinter"`
+	Downinter      types.Int64  `tfsdk:"downinter"`
+	Ssl            types.String `tfsdk:"ssl"`
+	SslCertificate types.String `tfsdk:"ssl_certificate"`
+	SslMaxVer      types.String `tfsdk:"ssl_max_ver"`
+	SslMinVer      types.String `tfsdk:"ssl_min_ver"`
+	Verify         types.String `tfsdk:"verify"`
+	Cookie         types.String `tfsdk:"cookie"`
 
 	// SSL/TLS Protocol Control (v3 fields)
 	Sslv3  types.String `tfsdk:"sslv3"`
@@ -217,6 +218,7 @@ type haproxyHttpcheckModel struct {
 	VarName         types.String `tfsdk:"var_name"`
 	VarScope        types.String `tfsdk:"var_scope"`
 	Version         types.String `tfsdk:"version"`
+	ViaSocks4       types.Bool   `tfsdk:"via_socks4"`
 }
 
 // haproxyTcpCheckModel maps the tcp_check block schema data.
@@ -258,6 +260,7 @@ type haproxyTcpCheckModel struct {
 type haproxyHttpResponseRuleModel struct {
 	Index                types.Int64  `tfsdk:"index"` // For backward compatibility with existing state
 	Type                 types.String `tfsdk:"type"`
+	Action               types.String `tfsdk:"action"`
 	RedirType            types.String `tfsdk:"redir_type"`
 	RedirValue           types.String `tfsdk:"redir_value"`
 	Cond                 types.String `tfsdk:"cond"`
@@ -313,6 +316,9 @@ type haproxyHttpResponseRuleModel struct {
 	VarScope             types.String `tfsdk:"var_scope"`
 	WaitAtLeast          types.Int64  `tfsdk:"wait_at_least"`
 	WaitTime             types.Int64  `tfsdk:"wait_time"`
+	AuthRealm            types.String `tfsdk:"auth_realm"`
+	HintName             types.String `tfsdk:"hint_name"`
+	HintFormat           types.String `tfsdk:"hint_format"`
 }
 
 // haproxyTcpRequestRuleModel maps the tcp_request_rule block schema data.
@@ -348,6 +354,43 @@ type haproxyTcpRequestRuleModel struct {
 	VarScope             types.String `tfsdk:"var_scope"`
 	VarExpr              types.String `tfsdk:"var_expr"`
 	Index                types.Int64  `tfsdk:"index"`
+	// Additional fields from schema
+	HdrName             types.String `tfsdk:"hdr_name"`
+	HdrFormat           types.String `tfsdk:"hdr_format"`
+	HdrMatch            types.String `tfsdk:"hdr_match"`
+	HdrMethod           types.String `tfsdk:"hdr_method"`
+	RedirType           types.String `tfsdk:"redir_type"`
+	RedirValue          types.String `tfsdk:"redir_value"`
+	RedirCode           types.Int64  `tfsdk:"redir_code"`
+	RedirOption         types.String `tfsdk:"redir_option"`
+	AclFile             types.String `tfsdk:"acl_file"`
+	AclKeyfmt           types.String `tfsdk:"acl_keyfmt"`
+	AuthRealm           types.String `tfsdk:"auth_realm"`
+	CacheName           types.String `tfsdk:"cache_name"`
+	CaptureId           types.Int64  `tfsdk:"capture_id"`
+	DenyStatus          types.Int64  `tfsdk:"deny_status"`
+	HintFormat          types.String `tfsdk:"hint_format"`
+	HintName            types.String `tfsdk:"hint_name"`
+	MapFile             types.String `tfsdk:"map_file"`
+	MapKeyfmt           types.String `tfsdk:"map_keyfmt"`
+	MapValuefmt         types.String `tfsdk:"map_valuefmt"`
+	ReturnContent       types.String `tfsdk:"return_content"`
+	ReturnContentFormat types.String `tfsdk:"return_content_format"`
+	ReturnContentType   types.String `tfsdk:"return_content_type"`
+	ReturnStatusCode    types.Int64  `tfsdk:"return_status_code"`
+	ScExpr              types.String `tfsdk:"sc_expr"`
+	ScId                types.Int64  `tfsdk:"sc_id"`
+	SpoeEngine          types.String `tfsdk:"spoe_engine"`
+	SpoeGroup           types.String `tfsdk:"spoe_group"`
+	Status              types.Int64  `tfsdk:"status"`
+	StatusReason        types.String `tfsdk:"status_reason"`
+	StrictMode          types.String `tfsdk:"strict_mode"`
+	TimeoutType         types.String `tfsdk:"timeout_type"`
+	TrackScKey          types.String `tfsdk:"track_sc_key"`
+	TrackScStickCounter types.Int64  `tfsdk:"track_sc_stick_counter"`
+	TrackScTable        types.String `tfsdk:"track_sc_table"`
+	WaitAtLeast         types.Int64  `tfsdk:"wait_at_least"`
+	WaitTime            types.Int64  `tfsdk:"wait_time"`
 }
 
 // haproxyTcpResponseRuleModel maps the tcp_response_rule block schema data.
@@ -381,6 +424,39 @@ type haproxyTcpResponseRuleModel struct {
 	CaptureLen           types.Int64  `tfsdk:"capture_len"`
 	CaptureSample        types.String `tfsdk:"capture_sample"`
 	Index                types.Int64  `tfsdk:"index"`
+	// Additional fields from schema
+	HdrName             types.String `tfsdk:"hdr_name"`
+	HdrFormat           types.String `tfsdk:"hdr_format"`
+	HdrMatch            types.String `tfsdk:"hdr_match"`
+	HdrMethod           types.String `tfsdk:"hdr_method"`
+	RedirType           types.String `tfsdk:"redir_type"`
+	RedirValue          types.String `tfsdk:"redir_value"`
+	RedirCode           types.Int64  `tfsdk:"redir_code"`
+	RedirOption         types.String `tfsdk:"redir_option"`
+	AclFile             types.String `tfsdk:"acl_file"`
+	AclKeyfmt           types.String `tfsdk:"acl_keyfmt"`
+	AuthRealm           types.String `tfsdk:"auth_realm"`
+	CacheName           types.String `tfsdk:"cache_name"`
+	CaptureId           types.Int64  `tfsdk:"capture_id"`
+	DenyStatus          types.Int64  `tfsdk:"deny_status"`
+	HintFormat          types.String `tfsdk:"hint_format"`
+	HintName            types.String `tfsdk:"hint_name"`
+	MapFile             types.String `tfsdk:"map_file"`
+	MapKeyfmt           types.String `tfsdk:"map_keyfmt"`
+	MapValuefmt         types.String `tfsdk:"map_valuefmt"`
+	ReturnContent       types.String `tfsdk:"return_content"`
+	ReturnContentFormat types.String `tfsdk:"return_content_format"`
+	ReturnContentType   types.String `tfsdk:"return_content_type"`
+	ReturnStatusCode    types.Int64  `tfsdk:"return_status_code"`
+	Status              types.Int64  `tfsdk:"status"`
+	StatusReason        types.String `tfsdk:"status_reason"`
+	StrictMode          types.String `tfsdk:"strict_mode"`
+	TimeoutType         types.String `tfsdk:"timeout_type"`
+	TrackScKey          types.String `tfsdk:"track_sc_key"`
+	TrackScStickCounter types.Int64  `tfsdk:"track_sc_stick_counter"`
+	TrackScTable        types.String `tfsdk:"track_sc_table"`
+	WaitAtLeast         types.Int64  `tfsdk:"wait_at_least"`
+	WaitTime            types.Int64  `tfsdk:"wait_time"`
 }
 
 // haproxyStickTableModel maps the stick_table block schema data.
@@ -390,14 +466,6 @@ type haproxyStickTableModel struct {
 	Expire  types.Int64  `tfsdk:"expire"`
 	Nopurge types.Bool   `tfsdk:"nopurge"`
 	Peers   types.String `tfsdk:"peers"`
-}
-
-// haproxyStickRuleModel maps the stick_rule block schema data.
-type haproxyStickRuleModel struct {
-	Index   types.Int64  `tfsdk:"index"`
-	Type    types.String `tfsdk:"type"`
-	Table   types.String `tfsdk:"table"`
-	Pattern types.String `tfsdk:"pattern"`
 }
 
 // haproxyStatsOptionsModel maps the stats_options block schema data.
@@ -422,13 +490,6 @@ func (r *haproxyStackResource) Metadata(_ context.Context, req resource.Metadata
 // Schema defines the schema for the resource.
 func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	// Use default v3 if apiVersion is not set (latest version)
-	apiVersion := r.apiVersion
-	if apiVersion == "" {
-		apiVersion = "v3"
-	}
-
-	schemaBuilder := CreateVersionAwareSchemaBuilder(apiVersion)
-
 	resp.Schema = schema.Schema{
 		Description: "Manages a complete HAProxy stack including backend, server, frontend, and ACLs.",
 		Attributes: map[string]schema.Attribute{
@@ -438,8 +499,8 @@ func (r *haproxyStackResource) Schema(_ context.Context, _ resource.SchemaReques
 			},
 		},
 		Blocks: map[string]schema.Block{
-			"backend":  GetBackendSchema(schemaBuilder),
-			"frontend": GetFrontendSchema(schemaBuilder),
+			"backend":  GetBackendSchema(),
+			"frontend": GetFrontendSchema(),
 		},
 	}
 }
