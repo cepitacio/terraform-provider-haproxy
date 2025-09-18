@@ -109,6 +109,7 @@ type haproxyServerModel struct {
 	Downinter      types.Int64  `tfsdk:"downinter"`
 	Ssl            types.String `tfsdk:"ssl"`
 	SslCertificate types.String `tfsdk:"ssl_certificate"`
+	SslCafile      types.String `tfsdk:"ssl_cafile"`
 	SslMaxVer      types.String `tfsdk:"ssl_max_ver"`
 	SslMinVer      types.String `tfsdk:"ssl_min_ver"`
 	Verify         types.String `tfsdk:"verify"`
@@ -847,38 +848,38 @@ func validateDefaultServerV3ForCreate(ctx context.Context, diags *diag.Diagnosti
 		)
 	}
 	if !defaultServer.ForceSslv3.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_sslv3"),
-			"Invalid field in v3 default-server",
-			"Field 'force_sslv3' is not accepted in default-server sections in Data Plane API v3. Use 'sslv3' in individual server sections instead.",
+			"Deprecated field in v3 default-server",
+			"Field 'force_sslv3' is deprecated in Data Plane API v3. It will be converted to 'sslv3' automatically.",
 		)
 	}
 	if !defaultServer.ForceTlsv10.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv10"),
-			"Invalid field in v3 default-server",
-			"Field 'force_tlsv10' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv10' in individual server sections instead.",
+			"Deprecated field in v3 default-server",
+			"Field 'force_tlsv10' is deprecated in Data Plane API v3. It will be converted to 'tlsv10' automatically.",
 		)
 	}
 	if !defaultServer.ForceTlsv11.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv11"),
-			"Invalid field in v3 default-server",
-			"Field 'force_tlsv11' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv11' in individual server sections instead.",
+			"Deprecated field in v3 default-server",
+			"Field 'force_tlsv11' is deprecated in Data Plane API v3. It will be converted to 'tlsv11' automatically.",
 		)
 	}
 	if !defaultServer.ForceTlsv12.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv12"),
-			"Invalid field in v3 default-server",
-			"Field 'force_tlsv12' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv12' in individual server sections instead.",
+			"Deprecated field in v3 default-server",
+			"Field 'force_tlsv12' is deprecated in Data Plane API v3. It will be converted to 'tlsv12' automatically.",
 		)
 	}
 	if !defaultServer.ForceTlsv13.IsNull() {
-		diags.AddAttributeError(
+		diags.AddAttributeWarning(
 			path.Root(pathPrefix).AtName("force_tlsv13"),
-			"Invalid field in v3 default-server",
-			"Field 'force_tlsv13' is not accepted in default-server sections in Data Plane API v3. Use 'tlsv13' in individual server sections instead.",
+			"Deprecated field in v3 default-server",
+			"Field 'force_tlsv13' is deprecated in Data Plane API v3. It will be converted to 'tlsv13' automatically.",
 		)
 	}
 }
