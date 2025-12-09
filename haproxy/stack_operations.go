@@ -1396,7 +1396,8 @@ func (o *StackOperations) httpRequestRulesChanged(ctx context.Context, planRules
 			planRule.HdrName.ValueString() != stateRule.HdrName.ValueString() ||
 			planRule.HdrFormat.ValueString() != stateRule.HdrFormat.ValueString() ||
 			planRule.RedirType.ValueString() != stateRule.RedirType.ValueString() ||
-			planRule.RedirValue.ValueString() != stateRule.RedirValue.ValueString() {
+			planRule.RedirValue.ValueString() != stateRule.RedirValue.ValueString() ||
+			planRule.ServiceName.ValueString() != stateRule.ServiceName.ValueString() {
 			tflog.Info(ctx, "HTTP request rule changed", map[string]interface{}{
 				"rule_index": i,
 				"plan_type":  planRule.Type.ValueString(),

@@ -326,6 +326,7 @@ Optional:
 - `bandwidth_limit_name` (String) The bandwidth limit name for the HTTP request rule.
 - `bandwidth_limit_period` (String) The bandwidth limit period for the HTTP request rule.
 - `cache_name` (String) The cache name for the HTTP request rule.
+- `service_name` (String) The service name for the HTTP request rule (with `type = "use-service"`).
 - `capture_id` (Number) The capture ID for the HTTP request rule.
 - `capture_len` (Number) The capture length for the HTTP request rule.
 - `capture_sample` (String) The capture sample for the HTTP request rule.
@@ -866,6 +867,7 @@ Optional:
 - `bandwidth_limit_name` (String) The bandwidth limit name for the HTTP request rule.
 - `bandwidth_limit_period` (String) The bandwidth limit period for the HTTP request rule.
 - `cache_name` (String) The cache name for the HTTP request rule.
+- `service_name` (String) The service name for the HTTP request rule (with `type = "use-service"`).
 - `capture_id` (Number) The capture ID for the HTTP request rule.
 - `capture_len` (Number) The capture length for the HTTP request rule.
 - `capture_sample` (String) The capture sample for the HTTP request rule.

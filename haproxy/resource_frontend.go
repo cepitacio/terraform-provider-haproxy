@@ -159,22 +159,6 @@ func (r *FrontendManager) ReadFrontend(ctx context.Context, frontendName string,
 		// ALWAYS use the existing HTTP request rules from state to preserve user's exact order
 		log.Printf("DEBUG: Using existing frontend HTTP request rules from state to preserve user's exact order: %s", r.formatHttpRequestRuleOrder(existingFrontend.HttpRequestRules))
 		frontendModel.HttpRequestRules = existingFrontend.HttpRequestRules
-	} else {
-		// Read HTTP request rules from HAProxy
-		httpRequestRuleManager := CreateHttpRequestRuleManager(r.client)
-		httpRequestRules, err := httpRequestRuleManager.ReadHttpRequestRules(ctx, "frontend", frontendName)
-		if err != nil {
-			log.Printf("Warning: Failed to read HTTP request rules for frontend %s: %v", frontendName, err)
-			// Continue without HTTP request rules if reading fails
-		} else if len(httpRequestRules) > 0 {
-			log.Printf("DEBUG: Creating frontend HTTP request rules from HAProxy response")
-			var ruleModels []haproxyHttpRequestRuleModel
-			for _, rule := range httpRequestRules {
-				ruleModels = append(ruleModels, r.convertHttpRequestRulePayloadToModel(&rule))
-			}
-			frontendModel.HttpRequestRules = ruleModels
-			log.Printf("Frontend HTTP request rules created from HAProxy: %s", r.formatHttpRequestRuleOrder(ruleModels))
-		}
 	}
 
 	return frontendModel, nil
@@ -313,33 +297,4 @@ func (r *FrontendManager) formatHttpRequestRuleOrder(rules []haproxyHttpRequestR
 		order = append(order, rule.Type.ValueString())
 	}
 	return fmt.Sprintf("[%s]", strings.Join(order, ", "))
-}
-
-// convertHttpRequestRulePayloadToModel converts HAProxy API payload to Terraform model
-func (r *FrontendManager) convertHttpRequestRulePayloadToModel(payload *HttpRequestRulePayload) haproxyHttpRequestRuleModel {
-	model := haproxyHttpRequestRuleModel{
-		Type: types.StringValue(payload.Type),
-	}
-
-	// Set optional fields only if they have values
-	if payload.Cond != "" {
-		model.Cond = types.StringValue(payload.Cond)
-	}
-	if payload.CondTest != "" {
-		model.CondTest = types.StringValue(payload.CondTest)
-	}
-	if payload.HdrName != "" {
-		model.HdrName = types.StringValue(payload.HdrName)
-	}
-	if payload.HdrFormat != "" {
-		model.HdrFormat = types.StringValue(payload.HdrFormat)
-	}
-	if payload.RedirType != "" {
-		model.RedirType = types.StringValue(payload.RedirType)
-	}
-	if payload.RedirValue != "" {
-		model.RedirValue = types.StringValue(payload.RedirValue)
-	}
-
-	return model
 }

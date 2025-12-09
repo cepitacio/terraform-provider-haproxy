@@ -96,6 +96,10 @@ func GetHttpRequestRuleSchema() schema.ListNestedBlock {
 					Optional:    true,
 					Description: "The cache name for the HTTP request rule.",
 				},
+				"service_name": schema.StringAttribute{
+					Optional:    true,
+					Description: "The service name for the HTTP request rule (useful when type is use-service).",
+				},
 				"capture_id": schema.Int64Attribute{
 					Optional:    true,
 					Description: "The capture ID for the HTTP request rule.",
@@ -457,6 +461,7 @@ func (r *HttpRequestRuleResource) Read(ctx context.Context, req resource.ReadReq
 	state.HdrMatch = types.StringValue(foundRule.HdrMatch)
 	state.RedirType = types.StringValue(foundRule.RedirType)
 	state.RedirValue = types.StringValue(foundRule.RedirValue)
+	state.ServiceName = types.StringValue(foundRule.ServiceName)
 	state.ReturnStatusCode = types.Int64Value(foundRule.StatusCode)
 	state.ReturnContent = types.StringValue(foundRule.StatusReason)
 
@@ -546,6 +551,7 @@ type haproxyHttpRequestRuleModel struct {
 	AclKeyfmt            types.String `tfsdk:"acl_keyfmt"`
 	AuthRealm            types.String `tfsdk:"auth_realm"`
 	CacheName            types.String `tfsdk:"cache_name"`
+	ServiceName          types.String `tfsdk:"service_name"`
 	CaptureId            types.Int64  `tfsdk:"capture_id"`
 	CaptureLen           types.Int64  `tfsdk:"capture_len"`
 	CaptureSample        types.String `tfsdk:"capture_sample"`
@@ -723,13 +729,14 @@ func (r *HttpRequestRuleManager) generateRuleKey(rule *haproxyHttpRequestRuleMod
 	// Create a key based on the most important fields that would make rules duplicates
 	// This is similar to how ACLs use the ACL name as the key
 	// Use consistent field ordering and handle empty values
-	key := fmt.Sprintf("%s|%s|%s|%s|%s|%s",
+	key := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s",
 		rule.Type.ValueString(),
 		rule.RedirType.ValueString(),
 		rule.RedirValue.ValueString(),
 		rule.Cond.ValueString(),
 		rule.CondTest.ValueString(),
 		rule.HdrName.ValueString(),
+		rule.ServiceName.ValueString(),
 	)
 	return key
 }
@@ -789,6 +796,9 @@ func (r *HttpRequestRuleManager) convertToHttpRequestRulePayload(rule *haproxyHt
 	}
 	if !rule.CacheName.IsNull() && !rule.CacheName.IsUnknown() && rule.CacheName.ValueString() != "" {
 		payload.CacheName = rule.CacheName.ValueString()
+	}
+	if !rule.ServiceName.IsNull() && !rule.ServiceName.IsUnknown() && rule.ServiceName.ValueString() != "" {
+		payload.ServiceName = rule.ServiceName.ValueString()
 	}
 	if !rule.CaptureId.IsNull() && !rule.CaptureId.IsUnknown() {
 		payload.CaptureID = rule.CaptureId.ValueInt64()
@@ -988,13 +998,14 @@ func (r *HttpRequestRuleManager) updateHttpRequestRulesWithIndexing(ctx context.
 func (r *HttpRequestRuleManager) generateRuleKeyFromPayload(rule *HttpRequestRulePayload) string {
 	// Create a key based on the most important fields that would make rules duplicates
 	// Use consistent field ordering and handle empty values - must match generateRuleKey exactly
-	key := fmt.Sprintf("%s|%s|%s|%s|%s|%s",
+	key := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s",
 		rule.Type,
 		rule.RedirType,
 		rule.RedirValue,
 		rule.Cond,
 		rule.CondTest,
 		rule.HdrName,
+		rule.ServiceName,
 	)
 	return key
 }
@@ -1007,7 +1018,8 @@ func (r *HttpRequestRuleManager) hasRuleChangedFromPayload(existing, desired *Ht
 		existing.HdrName != desired.HdrName ||
 		existing.HdrFormat != desired.HdrFormat ||
 		existing.RedirType != desired.RedirType ||
-		existing.RedirValue != desired.RedirValue
+		existing.RedirValue != desired.RedirValue ||
+		existing.ServiceName != desired.ServiceName
 }
 
 // deleteAllHttpRequestRules deletes all HTTP request rules for a parent resource
