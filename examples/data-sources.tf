@@ -6,7 +6,7 @@ terraform {
   required_providers {
     haproxy = {
       source  = "cepitacio/haproxy"
-      version = "~> 1.0"
+      version = "~> 1.1"
     }
   }
 }
